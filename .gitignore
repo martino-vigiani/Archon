@@ -1,0 +1,54 @@
+# Archon runtime state
+.orchestra/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.local
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Apps and projects created by Archon (go in their own repos)
+Apps/
+SpeedTest/
+design-system/
+
+# Test files
+fibonacci.py
+hello_world.py
+test_*.py
+monitor.sh
+
+# Claude settings overrides (personal)
+.claude/settings.local.json
+
+# Logs
+*.log

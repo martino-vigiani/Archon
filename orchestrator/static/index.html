@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCHON Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(18, 18, 18, 0.7);
+            --bg-card-hover: rgba(28, 28, 28, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --accent-green: #22c55e;
+            --accent-green-dim: rgba(34, 197, 94, 0.15);
+            --accent-red: #ef4444;
+            --accent-red-dim: rgba(239, 68, 68, 0.15);
+            --accent-blue: #3b82f6;
+            --accent-blue-dim: rgba(59, 130, 246, 0.15);
+            --accent-yellow: #eab308;
+            --accent-yellow-dim: rgba(234, 179, 8, 0.15);
+            --accent-purple: #a855f7;
+            --accent-purple-dim: rgba(168, 85, 247, 0.15);
+            --accent-orange: #f97316;
+            --accent-orange-dim: rgba(249, 115, 22, 0.15);
+            --accent-cyan: #06b6d4;
+            --accent-cyan-dim: rgba(6, 182, 212, 0.15);
+            --accent-pink: #ec4899;
+            --accent-pink-dim: rgba(236, 72, 153, 0.15);
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Glassmorphism Card */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+        }
+
+        /* Header */
+        .header {
+            padding: 20px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, #fff 0%, #888 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-badge.running {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+
+        .status-badge.stopped {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .status-badge.idle {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-dot.pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        /* Project Info */
+        .project-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding-left: 24px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .project-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .project-path {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .connection-dot.connected {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .connection-dot.disconnected {
+            background: var(--accent-red);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* TO Panel - Terminal Orchestrator */
+        .to-panel {
+            margin-bottom: 24px;
+        }
+
+        .to-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s ease;
+        }
+
+        .to-header:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .to-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .to-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--accent-purple-dim);
+            color: var(--accent-purple);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .to-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .to-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .to-toggle {
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .to-panel.collapsed .to-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .to-content {
+            max-height: 200px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .to-panel.collapsed .to-content {
+            max-height: 0;
+        }
+
+        .to-log {
+            padding: 0 20px 16px;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .to-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .to-log::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .to-log::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .to-entry {
+            display: flex;
+            gap: 12px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .to-entry-time {
+            color: var(--text-muted);
+            flex-shrink: 0;
+            width: 55px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 10px;
+        }
+
+        .to-entry-type {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .to-entry-type.decision {
+            background: var(--accent-purple-dim);
+            color: var(--accent-purple);
+        }
+
+        .to-entry-type.routing {
+            background: var(--accent-blue-dim);
+            color: var(--accent-blue);
+        }
+
+        .to-entry-type.state {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+
+        .to-entry-type.error {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .to-entry-message {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            margin-bottom: 24px;
+            padding: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .progress-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .progress-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green) 0%, #4ade80 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        /* Terminals Grid */
+        .terminals-section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .terminals-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 1200px) {
+            .terminals-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .terminals-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .terminal-card {
+            padding: 16px;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-card:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .terminal-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .terminal-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .terminal-role {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .terminal-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .terminal-status.idle {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+        }
+
+        .terminal-status.busy {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+
+        .terminal-status.error {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .terminal-task {
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+        }
+
+        .terminal-task.empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Terminal Output */
+        .terminal-output {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+
+        .terminal-output::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .terminal-output::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 2px;
+        }
+
+        .terminal-output::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .terminal-output.empty {
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 60px;
+        }
+
+        .activity-indicator {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .activity-bar {
+            width: 3px;
+            height: 16px;
+            background: var(--text-muted);
+            border-radius: 2px;
+            opacity: 0.3;
+        }
+
+        .terminal-card.busy .activity-bar {
+            background: var(--accent-green);
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        .terminal-card.busy .activity-bar:nth-child(1) { animation-delay: 0s; }
+        .terminal-card.busy .activity-bar:nth-child(2) { animation-delay: 0.1s; }
+        .terminal-card.busy .activity-bar:nth-child(3) { animation-delay: 0.2s; }
+        .terminal-card.busy .activity-bar:nth-child(4) { animation-delay: 0.3s; }
+
+        @keyframes wave {
+            0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+            50% { transform: scaleY(1); opacity: 1; }
+        }
+
+        /* Subagent Tracker */
+        .subagent-section {
+            margin-bottom: 24px;
+        }
+
+        .subagent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .subagent-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+        }
+
+        .subagent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .subagent-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .subagent-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .subagent-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* Subagent type colors */
+        .subagent-icon.ui {
+            background: var(--accent-orange-dim);
+            color: var(--accent-orange);
+        }
+
+        .subagent-icon.arch {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .subagent-icon.docs {
+            background: var(--accent-blue-dim);
+            color: var(--accent-blue);
+        }
+
+        .subagent-icon.data {
+            background: var(--accent-cyan-dim);
+            color: var(--accent-cyan);
+        }
+
+        .subagent-icon.strategy {
+            background: var(--accent-purple-dim);
+            color: var(--accent-purple);
+        }
+
+        .subagent-icon.ml {
+            background: var(--accent-pink-dim);
+            color: var(--accent-pink);
+        }
+
+        .subagent-icon.design {
+            background: var(--accent-yellow-dim);
+            color: var(--accent-yellow);
+        }
+
+        .subagent-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .subagent-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .subagent-task {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+
+        .subagent-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+
+        .subagent-terminal {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .subagent-time {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .subagent-empty {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* Main Grid: Task Queue + Events */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .task-queue-section {
+            padding: 24px;
+        }
+
+        .queue-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-value.pending { color: var(--text-secondary); }
+        .stat-value.in-progress { color: var(--accent-blue); }
+        .stat-value.completed { color: var(--accent-green); }
+        .stat-value.failed { color: var(--accent-red); }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .task-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .task-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .task-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .task-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .task-icon.pending {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+        }
+
+        .task-icon.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .task-icon.completed {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+
+        .task-icon.failed {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .task-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .task-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .task-terminal {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+        }
+
+        /* Events Section */
+        .events-section {
+            padding: 24px;
+        }
+
+        .events-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .events-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .events-clear {
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .events-clear:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .events-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .events-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .events-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .event-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            font-size: 13px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .event-time {
+            color: var(--text-muted);
+            font-size: 11px;
+            flex-shrink: 0;
+            width: 60px;
+        }
+
+        .event-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .event-dot.info { background: var(--text-muted); }
+        .event-dot.success { background: var(--accent-green); }
+        .event-dot.error { background: var(--accent-red); }
+        .event-dot.warning { background: var(--accent-yellow); }
+
+        .event-message {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-text">ARCHON</span>
+                <div id="orchestrator-status" class="status-badge idle">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Idle</span>
+                </div>
+            </div>
+            <div class="project-info" id="project-info">
+                <span class="project-name" id="project-name">No Project</span>
+                <span class="project-path" id="project-path">-</span>
+            </div>
+        </div>
+        <div class="connection-status">
+            <span id="connection-dot" class="connection-dot disconnected"></span>
+            <span id="connection-text">Connecting...</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- TO Panel - Terminal Orchestrator -->
+        <div class="to-panel glass-card" id="to-panel">
+            <div class="to-header" onclick="toggleTOPanel()">
+                <div class="to-header-left">
+                    <div class="to-icon">TO</div>
+                    <div>
+                        <div class="to-title">Terminal Orchestrator</div>
+                        <div class="to-subtitle">Decisions, routing, and state changes</div>
+                    </div>
+                </div>
+                <span class="to-toggle">&#9662;</span>
+            </div>
+            <div class="to-content">
+                <div class="to-log" id="to-log">
+                    <div class="to-entry">
+                        <span class="to-entry-time">--:--</span>
+                        <span class="to-entry-type state">STATE</span>
+                        <span class="to-entry-message">Waiting for orchestrator logs...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-section glass-card">
+            <div class="progress-header">
+                <span class="progress-title">Overall Progress</span>
+                <span id="progress-value" class="progress-value">0%</span>
+            </div>
+            <div class="progress-bar-container">
+                <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <!-- Terminals Grid -->
+        <div class="terminals-section">
+            <h2 class="section-title">Terminals</h2>
+            <div class="terminals-grid" id="terminals-grid">
+                <!-- T1 -->
+                <div class="terminal-card glass-card" id="terminal-t1" data-terminal="t1">
+                    <div class="terminal-header">
+                        <div class="terminal-info">
+                            <span class="terminal-name">T1</span>
+                            <span class="terminal-role">UI/UX Specialist</span>
+                        </div>
+                        <span class="terminal-status idle">
+                            <span class="status-dot"></span>
+                            Idle
+                        </span>
+                    </div>
+                    <div class="terminal-task empty">No active task</div>
+                    <div class="terminal-output empty" id="output-t1">No output</div>
+                    <div class="activity-indicator">
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                    </div>
+                </div>
+
+                <!-- T2 -->
+                <div class="terminal-card glass-card" id="terminal-t2" data-terminal="t2">
+                    <div class="terminal-header">
+                        <div class="terminal-info">
+                            <span class="terminal-name">T2</span>
+                            <span class="terminal-role">Features Dev</span>
+                        </div>
+                        <span class="terminal-status idle">
+                            <span class="status-dot"></span>
+                            Idle
+                        </span>
+                    </div>
+                    <div class="terminal-task empty">No active task</div>
+                    <div class="terminal-output empty" id="output-t2">No output</div>
+                    <div class="activity-indicator">
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                    </div>
+                </div>
+
+                <!-- T3 -->
+                <div class="terminal-card glass-card" id="terminal-t3" data-terminal="t3">
+                    <div class="terminal-header">
+                        <div class="terminal-info">
+                            <span class="terminal-name">T3</span>
+                            <span class="terminal-role">Documentation</span>
+                        </div>
+                        <span class="terminal-status idle">
+                            <span class="status-dot"></span>
+                            Idle
+                        </span>
+                    </div>
+                    <div class="terminal-task empty">No active task</div>
+                    <div class="terminal-output empty" id="output-t3">No output</div>
+                    <div class="activity-indicator">
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                    </div>
+                </div>
+
+                <!-- T4 -->
+                <div class="terminal-card glass-card" id="terminal-t4" data-terminal="t4">
+                    <div class="terminal-header">
+                        <div class="terminal-info">
+                            <span class="terminal-name">T4</span>
+                            <span class="terminal-role">Strategy</span>
+                        </div>
+                        <span class="terminal-status idle">
+                            <span class="status-dot"></span>
+                            Idle
+                        </span>
+                    </div>
+                    <div class="terminal-task empty">No active task</div>
+                    <div class="terminal-output empty" id="output-t4">No output</div>
+                    <div class="activity-indicator">
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subagent Tracker -->
+        <div class="subagent-section glass-card" style="padding: 24px;">
+            <div class="subagent-header">
+                <h2 class="section-title" style="margin-bottom: 0;">Active Subagents</h2>
+                <span class="subagent-count" id="subagent-count">0 active</span>
+            </div>
+            <div class="subagent-grid" id="subagent-grid">
+                <div class="subagent-empty">No subagents invoked yet</div>
+            </div>
+        </div>
+
+        <!-- Main Grid: Task Queue + Events -->
+        <div class="main-grid">
+            <!-- Task Queue -->
+            <div class="task-queue-section glass-card">
+                <h2 class="section-title">Task Queue</h2>
+
+                <!-- Stats -->
+                <div class="queue-stats">
+                    <div class="stat-card">
+                        <div class="stat-value pending" id="stat-pending">0</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value in-progress" id="stat-in-progress">0</div>
+                        <div class="stat-label">In Progress</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value completed" id="stat-completed">0</div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value failed" id="stat-failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+
+                <!-- Task List -->
+                <div class="task-list" id="task-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#9744;</div>
+                        <div>No tasks in queue</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events -->
+            <div class="events-section glass-card">
+                <div class="events-header">
+                    <h2 class="events-title">Recent Events</h2>
+                    <button class="events-clear" onclick="clearEvents()">Clear</button>
+                </div>
+                <div class="events-list" id="events-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#128196;</div>
+                        <div>No events yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        const state = {
+            connected: false,
+            orchestratorStatus: 'idle',
+            project: {
+                name: null,
+                path: null
+            },
+            terminals: {
+                t1: { state: 'idle', task: null, role: 'UI/UX Specialist', output: '' },
+                t2: { state: 'idle', task: null, role: 'Features Dev', output: '' },
+                t3: { state: 'idle', task: null, role: 'Documentation', output: '' },
+                t4: { state: 'idle', task: null, role: 'Strategy', output: '' }
+            },
+            tasks: {
+                pending: [],
+                in_progress: [],
+                completed: [],
+                failed: []
+            },
+            events: [],
+            stats: {
+                pending: 0,
+                in_progress: 0,
+                completed: 0,
+                failed: 0
+            },
+            subagents: [],
+            orchestratorLog: [],
+            toPanelCollapsed: false
+        };
+
+        // Subagent type mapping for icons and colors
+        const subagentTypes = {
+            'swiftui-crafter': { icon: '&#9881;', type: 'ui' },
+            'react-crafter': { icon: '&#9881;', type: 'ui' },
+            'html-stylist': { icon: '&#9881;', type: 'ui' },
+            'design-system': { icon: '&#9733;', type: 'design' },
+            'swift-architect': { icon: '&#9632;', type: 'arch' },
+            'node-architect': { icon: '&#9632;', type: 'arch' },
+            'python-architect': { icon: '&#9632;', type: 'arch' },
+            'swiftdata-expert': { icon: '&#9736;', type: 'data' },
+            'database-expert': { icon: '&#9736;', type: 'data' },
+            'ml-engineer': { icon: '&#10047;', type: 'ml' },
+            'tech-writer': { icon: '&#9998;', type: 'docs' },
+            'marketing-strategist': { icon: '&#9733;', type: 'strategy' },
+            'product-thinker': { icon: '&#9679;', type: 'strategy' },
+            'monetization-expert': { icon: '&#36;', type: 'strategy' }
+        };
+
+        // WebSocket connection
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectDelay = 30000;
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+                updateConnectionStatus(true);
+                addEvent('Connected to Archon server', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateConnectionStatus(false);
+                scheduleReconnect();
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function scheduleReconnect() {
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), maxReconnectDelay);
+            reconnectAttempts++;
+
+            if (reconnectAttempts === 1) {
+                addEvent('Connection lost. Reconnecting...', 'warning');
+            }
+
+            setTimeout(connect, delay);
+        }
+
+        function updateConnectionStatus(connected) {
+            state.connected = connected;
+            const dot = document.getElementById('connection-dot');
+            const text = document.getElementById('connection-text');
+
+            if (connected) {
+                dot.classList.remove('disconnected');
+                dot.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                dot.classList.remove('connected');
+                dot.classList.add('disconnected');
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function handleMessage(data) {
+            if (data.type === 'update') {
+                // Update orchestrator status
+                if (data.status) {
+                    updateOrchestratorStatus(data.status.state || 'idle');
+
+                    // Update project info
+                    if (data.status.project) {
+                        updateProjectInfo(data.status.project.name, data.status.project.path);
+                    }
+
+                    // Update stats
+                    if (data.status.tasks) {
+                        state.stats.pending = data.status.tasks.pending_count || 0;
+                        state.stats.in_progress = data.status.tasks.in_progress_count || 0;
+                        state.stats.completed = data.status.tasks.completed_count || 0;
+                        state.stats.failed = data.status.tasks.failed_count || 0;
+                        updateStats();
+                        updateProgress();
+                    }
+
+                    // Update terminals
+                    if (data.status.terminals) {
+                        Object.keys(data.status.terminals).forEach(tid => {
+                            const terminal = data.status.terminals[tid];
+                            updateTerminal(tid, terminal.state, terminal.current_task, terminal.output);
+                        });
+                    }
+                }
+
+                // Update tasks
+                if (data.tasks) {
+                    state.tasks = data.tasks;
+                    renderTasks();
+                }
+
+                // Update subagents
+                if (data.subagents) {
+                    state.subagents = data.subagents;
+                    renderSubagents();
+                }
+
+                // Update orchestrator log
+                if (data.orchestrator_log) {
+                    state.orchestratorLog = data.orchestrator_log;
+                    renderOrchestratorLog();
+                }
+            } else if (data.type === 'event') {
+                addEvent(data.message, data.level || 'info');
+            } else if (data.type === 'terminal_output') {
+                updateTerminalOutput(data.terminal_id, data.output);
+            } else if (data.type === 'subagent_update') {
+                updateSubagent(data.subagent);
+            } else if (data.type === 'orchestrator_log') {
+                addOrchestratorEntry(data.entry);
+            } else if (data.type === 'project_info') {
+                updateProjectInfo(data.name, data.path);
+            }
+        }
+
+        function updateProjectInfo(name, path) {
+            state.project.name = name;
+            state.project.path = path;
+
+            document.getElementById('project-name').textContent = name || 'No Project';
+            document.getElementById('project-path').textContent = path || '-';
+            document.getElementById('project-path').title = path || '';
+        }
+
+        function updateOrchestratorStatus(status) {
+            state.orchestratorStatus = status;
+            const badge = document.getElementById('orchestrator-status');
+            const statusText = badge.querySelector('.status-text');
+            const dot = badge.querySelector('.status-dot');
+
+            badge.className = 'status-badge ' + status;
+
+            if (status === 'running') {
+                statusText.textContent = 'Running';
+                dot.classList.add('pulse');
+            } else if (status === 'stopped') {
+                statusText.textContent = 'Stopped';
+                dot.classList.remove('pulse');
+            } else {
+                statusText.textContent = 'Idle';
+                dot.classList.remove('pulse');
+            }
+        }
+
+        function updateTerminal(tid, terminalState, currentTask, output) {
+            const card = document.getElementById(`terminal-${tid}`);
+            if (!card) return;
+
+            const statusEl = card.querySelector('.terminal-status');
+            const taskEl = card.querySelector('.terminal-task');
+
+            // Update state
+            state.terminals[tid].state = terminalState;
+            state.terminals[tid].task = currentTask;
+            if (output !== undefined) {
+                state.terminals[tid].output = output;
+            }
+
+            // Update card class
+            card.classList.remove('idle', 'busy', 'error');
+            card.classList.add(terminalState);
+
+            // Update status badge
+            statusEl.className = 'terminal-status ' + terminalState;
+            const dot = statusEl.querySelector('.status-dot') || document.createElement('span');
+            dot.className = 'status-dot' + (terminalState === 'busy' ? ' pulse' : '');
+
+            const statusTexts = { idle: 'Idle', busy: 'Busy', error: 'Error' };
+            statusEl.innerHTML = '';
+            statusEl.appendChild(dot);
+            statusEl.appendChild(document.createTextNode(' ' + (statusTexts[terminalState] || 'Idle')));
+
+            // Update task
+            if (currentTask) {
+                taskEl.textContent = currentTask;
+                taskEl.classList.remove('empty');
+            } else {
+                taskEl.textContent = 'No active task';
+                taskEl.classList.add('empty');
+            }
+
+            // Update output
+            if (output !== undefined) {
+                updateTerminalOutput(tid, output);
+            }
+        }
+
+        function updateTerminalOutput(tid, output) {
+            const outputEl = document.getElementById(`output-${tid}`);
+            if (!outputEl) return;
+
+            state.terminals[tid].output = output;
+
+            if (output && output.trim()) {
+                // Keep last 500 characters
+                const truncated = output.length > 500 ? output.slice(-500) : output;
+                outputEl.textContent = truncated;
+                outputEl.classList.remove('empty');
+                // Auto-scroll to bottom
+                outputEl.scrollTop = outputEl.scrollHeight;
+            } else {
+                outputEl.textContent = 'No output';
+                outputEl.classList.add('empty');
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('stat-pending').textContent = state.stats.pending;
+            document.getElementById('stat-in-progress').textContent = state.stats.in_progress;
+            document.getElementById('stat-completed').textContent = state.stats.completed;
+            document.getElementById('stat-failed').textContent = state.stats.failed;
+        }
+
+        function updateProgress() {
+            const total = state.stats.pending + state.stats.in_progress +
+                          state.stats.completed + state.stats.failed;
+            const done = state.stats.completed + state.stats.failed;
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-value').textContent = percent + '%';
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            const allTasks = [];
+
+            // Collect all tasks with their status
+            (state.tasks.in_progress || []).forEach(t => allTasks.push({ ...t, status: 'in-progress' }));
+            (state.tasks.pending || []).forEach(t => allTasks.push({ ...t, status: 'pending' }));
+            (state.tasks.completed || []).slice(-5).forEach(t => allTasks.push({ ...t, status: 'completed' }));
+            (state.tasks.failed || []).forEach(t => allTasks.push({ ...t, status: 'failed' }));
+
+            if (allTasks.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#9744;</div>
+                        <div>No tasks in queue</div>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = allTasks.map(task => {
+                const icons = {
+                    'pending': '&#9711;',
+                    'in-progress': '&#9673;',
+                    'completed': '&#10003;',
+                    'failed': '&#10007;'
+                };
+
+                return `
+                    <div class="task-item">
+                        <div class="task-icon ${task.status}">${icons[task.status]}</div>
+                        <div class="task-content">
+                            <div class="task-title">${escapeHtml(task.title || 'Untitled Task')}</div>
+                            <div class="task-meta">
+                                ${task.assigned_to ? `<span class="task-terminal">${task.assigned_to.toUpperCase()}</span>` : ''}
+                                <span>${task.priority || 'medium'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSubagents() {
+            const grid = document.getElementById('subagent-grid');
+            const countEl = document.getElementById('subagent-count');
+
+            const activeSubagents = state.subagents.filter(s => s.active !== false);
+            countEl.textContent = `${activeSubagents.length} active`;
+
+            if (state.subagents.length === 0) {
+                grid.innerHTML = '<div class="subagent-empty">No subagents invoked yet</div>';
+                return;
+            }
+
+            grid.innerHTML = state.subagents.map(subagent => {
+                const typeInfo = subagentTypes[subagent.name] || { icon: '&#9679;', type: 'strategy' };
+                const time = subagent.timestamp ? formatTime(new Date(subagent.timestamp)) : '--:--';
+
+                return `
+                    <div class="subagent-card">
+                        <div class="subagent-icon ${typeInfo.type}">${typeInfo.icon}</div>
+                        <div class="subagent-content">
+                            <div class="subagent-name">${escapeHtml(subagent.name)}</div>
+                            <div class="subagent-task">${escapeHtml(subagent.task || 'No task info')}</div>
+                        </div>
+                        <div class="subagent-meta">
+                            <span class="subagent-terminal">${subagent.terminal ? subagent.terminal.toUpperCase() : 'N/A'}</span>
+                            <span class="subagent-time">${time}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateSubagent(subagent) {
+            const existingIndex = state.subagents.findIndex(s => s.id === subagent.id);
+            if (existingIndex >= 0) {
+                state.subagents[existingIndex] = subagent;
+            } else {
+                state.subagents.unshift(subagent);
+            }
+            // Keep only last 20 subagents
+            if (state.subagents.length > 20) {
+                state.subagents = state.subagents.slice(0, 20);
+            }
+            renderSubagents();
+        }
+
+        function renderOrchestratorLog() {
+            const log = document.getElementById('to-log');
+
+            if (state.orchestratorLog.length === 0) {
+                log.innerHTML = `
+                    <div class="to-entry">
+                        <span class="to-entry-time">--:--</span>
+                        <span class="to-entry-type state">STATE</span>
+                        <span class="to-entry-message">Waiting for orchestrator logs...</span>
+                    </div>
+                `;
+                return;
+            }
+
+            log.innerHTML = state.orchestratorLog.map(entry => {
+                const time = entry.timestamp ? formatTime(new Date(entry.timestamp)) : '--:--';
+                const type = entry.type || 'state';
+
+                return `
+                    <div class="to-entry">
+                        <span class="to-entry-time">${time}</span>
+                        <span class="to-entry-type ${type}">${type.toUpperCase()}</span>
+                        <span class="to-entry-message">${escapeHtml(entry.message)}</span>
+                    </div>
+                `;
+            }).join('');
+
+            // Auto-scroll to bottom
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function addOrchestratorEntry(entry) {
+            state.orchestratorLog.unshift(entry);
+            // Keep only last 50 entries
+            if (state.orchestratorLog.length > 50) {
+                state.orchestratorLog = state.orchestratorLog.slice(0, 50);
+            }
+            renderOrchestratorLog();
+        }
+
+        function toggleTOPanel() {
+            const panel = document.getElementById('to-panel');
+            state.toPanelCollapsed = !state.toPanelCollapsed;
+            panel.classList.toggle('collapsed', state.toPanelCollapsed);
+        }
+
+        function addEvent(message, level = 'info') {
+            const now = new Date();
+            const time = formatTime(now);
+
+            state.events.unshift({ time, message, level });
+
+            // Keep only last 50 events
+            if (state.events.length > 50) {
+                state.events.pop();
+            }
+
+            renderEvents();
+        }
+
+        function renderEvents() {
+            const list = document.getElementById('events-list');
+
+            if (state.events.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#128196;</div>
+                        <div>No events yet</div>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = state.events.map(event => `
+                <div class="event-item">
+                    <span class="event-time">${event.time}</span>
+                    <span class="event-dot ${event.level}"></span>
+                    <span class="event-message">${escapeHtml(event.message)}</span>
+                </div>
+            `).join('');
+        }
+
+        function clearEvents() {
+            state.events = [];
+            renderEvents();
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Fetch terminal output
+        async function fetchTerminalOutputs() {
+            const terminals = ['t1', 't2', 't3', 't4'];
+            for (const tid of terminals) {
+                try {
+                    const res = await fetch(`/api/terminal-output/${tid}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.output !== undefined) {
+                            updateTerminalOutput(tid, data.output);
+                        }
+                    }
+                } catch (e) {
+                    // Ignore errors for individual terminal fetches
+                }
+            }
+        }
+
+        // Fetch subagents
+        async function fetchSubagents() {
+            try {
+                const res = await fetch('/api/subagents');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.subagents) {
+                        state.subagents = data.subagents;
+                        renderSubagents();
+                    }
+                }
+            } catch (e) {
+                // Ignore
+            }
+        }
+
+        // Fetch orchestrator log
+        async function fetchOrchestratorLog() {
+            try {
+                const res = await fetch('/api/orchestrator-log');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.log) {
+                        state.orchestratorLog = data.log;
+                        renderOrchestratorLog();
+                    }
+                }
+            } catch (e) {
+                // Ignore
+            }
+        }
+
+        // Fallback polling
+        async function poll() {
+            try {
+                const [statusRes, tasksRes] = await Promise.all([
+                    fetch('/api/status'),
+                    fetch('/api/tasks')
+                ]);
+
+                if (statusRes.ok && tasksRes.ok) {
+                    const status = await statusRes.json();
+                    const tasks = await tasksRes.json();
+                    handleMessage({ type: 'update', status, tasks });
+                }
+
+                // Also fetch additional data
+                await Promise.all([
+                    fetchTerminalOutputs(),
+                    fetchSubagents(),
+                    fetchOrchestratorLog()
+                ]);
+            } catch (e) {
+                console.log('Polling failed:', e);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            connect();
+
+            // Fallback polling every 5 seconds
+            setInterval(poll, 5000);
+            poll();
+
+            addEvent('Dashboard initialized', 'info');
+        });
+    </script>
+</body>
+</html>
