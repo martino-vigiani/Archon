@@ -6,7 +6,32 @@
 
 ## System Overview
 
-Archon is built on a **hub-and-spoke architecture** where a central Python orchestrator coordinates 4 specialized Claude Code terminals. Each terminal operates as an independent subprocess with its own context and specialization.
+Archon is built on a **hub-and-spoke architecture** with **3-phase parallel execution**. A central Python orchestrator coordinates 4 specialized Claude Code terminals that work **simultaneously** from the start, communicating via interface contracts.
+
+### Key Innovation: Phase-Based Parallel Execution
+
+Unlike sequential systems, Archon runs all terminals immediately:
+
+```
+PHASE 1: BUILD (All terminals start immediately - NO blocking)
+  T1 ──→ UI with mock data + interface contracts
+  T2 ──→ Architecture, models, services + tests
+  T3 ──→ Documentation structure
+  T4 ──→ MVP scope (broadcasts in 2 min)
+              ↓
+PHASE 2: INTEGRATE (When Phase 1 completes)
+  T1 ──→ Connects UI to T2's real APIs
+  T2 ──→ Matches T1's interface contracts
+              ↓
+PHASE 3: TEST & VERIFY (Final)
+  T1 ──→ swift build verification
+  T2 ──→ swift test, fix failures
+  T3 ──→ Finalize docs
+              ↓
+        ✅ Working Software
+```
+
+Each terminal operates as an independent subprocess with its own context and specialization.
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -187,20 +212,29 @@ Manages task lifecycle and persistence.
     └───────────┘  └─────────┘  └─────────────┘
 ```
 
-**Dependency Resolution:**
+**Phase-Based Execution:**
+
+Tasks now have a `phase` field (1, 2, or 3). Phase 1 tasks have NO blocking dependencies - they all start immediately:
 
 ```python
-def get_ready_tasks(self) -> list[Task]:
-    """Return tasks whose dependencies are all completed."""
-    ready = []
-    for task in self.pending:
-        deps_met = all(
-            self.get_task(dep_id).status == TaskStatus.COMPLETED
-            for dep_id in task.dependencies
-        )
-        if deps_met:
-            ready.append(task)
-    return ready
+def is_ready(self, completed_task_ids: set[str], current_phase: int = 1) -> bool:
+    """Check if task is ready to execute."""
+    # Phase 1 tasks are ALWAYS ready - parallel execution
+    if self.phase == 1:
+        return True
+
+    # Phase 2+ tasks wait for their phase
+    if self.phase > current_phase:
+        return False
+
+    # Once phase is reached, check soft dependencies
+    return all(dep in completed_task_ids for dep in self.dependencies)
+
+def get_current_phase(self) -> int:
+    """Determine execution phase based on completed tasks."""
+    # Phase 2 when ALL Phase 1 tasks complete
+    # Phase 3 when ALL Phase 2 tasks complete
+    ...
 ```
 
 **Persistence:**
@@ -359,7 +393,7 @@ ws.onmessage = (event) => {
 
 ## Data Flow
 
-### Task Execution Flow
+### Task Execution Flow (3-Phase Parallel)
 
 ```
 1. User submits: "Create habit tracker app"
@@ -368,39 +402,48 @@ ws.onmessage = (event) => {
 2. Orchestrator receives task
                     │
                     ▼
-3. Planner creates plan:
-   ├── T4: Define product requirements
-   ├── T2: Design architecture (depends: T4)
-   ├── T1: Create UI components (depends: T2)
-   ├── T2: Implement features (depends: T2)
-   └── T3: Write documentation (depends: T2)
+3. Planner creates PARALLEL plan:
+   PHASE 1 (no dependencies - all start immediately):
+   ├── T4: Define MVP scope (broadcasts direction in 2 min)
+   ├── T2: Build architecture and models (with tests)
+   ├── T1: Create UI with mock data (+ interface contracts)
+   └── T3: Create documentation structure
+
+   PHASE 2 (integration):
+   ├── T1: Connect UI to T2's real APIs
+   └── T2: Match T1's interface contracts
+
+   PHASE 3 (testing):
+   ├── T1: Verify UI compilation
+   ├── T2: Run all tests, fix failures
+   └── T3: Finalize documentation
                     │
                     ▼
-4. TaskQueue adds tasks with dependencies
+4. TaskQueue adds tasks with PHASES (not blocking dependencies)
                     │
                     ▼
-5. Execute T4 (no dependencies)
-   ├── T4 creates PRD artifact
-   └── MessageBus broadcasts completion
+5. PHASE 1: ALL terminals start immediately
+   ├── T4 broadcasts MVP direction (within 2 min)
+   ├── T2 builds foundation with tests
+   ├── T1 creates UI + documents interface contracts
+   └── T3 creates doc structure
+   (All working in parallel, reading each other's reports)
                     │
                     ▼
-6. T2 Architecture unblocked
-   ├── T2 reads T4's artifact
-   ├── T2 creates architecture doc
-   └── MessageBus notifies T1, T3
+6. PHASE 2: Integration (when Phase 1 completes)
+   ├── T1 reads T2's APIs from .orchestra/reports/t2/
+   ├── T2 reads T1's contracts from .orchestra/reports/t1/
+   └── Both adapt to match each other
                     │
                     ▼
-7. T1 and T2 execute in parallel
-   ├── T1 creates SwiftUI components
-   └── T2 implements business logic
+7. PHASE 3: Testing (when Phase 2 completes)
+   ├── T1 runs: swift build
+   ├── T2 runs: swift build && swift test
+   └── Any failures trigger auto-fix
                     │
                     ▼
-8. T3 executes (after T2)
-   └── Creates README, App Store copy
-                    │
-                    ▼
-9. Orchestrator compiles results
-   └── Returns ExecutionResult
+8. Orchestrator compiles results
+   └── Returns ExecutionResult (verified & tested)
 ```
 
 ---

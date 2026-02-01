@@ -1,29 +1,137 @@
-# Archon - Multi-Agent Development System
+# CLAUDE.md
 
-> Multi-agent orchestration system for autonomous software development.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
+## What is Archon?
+
+Multi-agent orchestration system for autonomous software development. Coordinates **4 parallel Claude Code terminals** using a **3-phase execution model**.
+
+```
+User (CEO) → Archon (Manager) → 4 Terminals (Engineers) → Working Software
+```
+
+---
+
+## Commands
+
+### Run Orchestrator
+
+```bash
+# Basic execution
+python -m orchestrator "Create an iOS app for habit tracking"
+
+# With dashboard (recommended) - opens localhost:8420
+python -m orchestrator --dashboard "Build a REST API"
+
+# Continuous mode - keeps asking for new tasks
+python -m orchestrator --dashboard --continuous
+
+# Dry run - see the plan without executing
+python -m orchestrator --dry-run "Create a meditation app"
+
+# Work on existing project
+python -m orchestrator --project ./Apps/MyApp "Add dark mode"
+
+# Resume interrupted session
+python -m orchestrator --resume
+```
+
+### Development
+
+```bash
+# Setup
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Format & Lint
+black orchestrator/
+ruff check orchestrator/
+```
+
+---
+
+## Architecture: 3-Phase Parallel Execution
+
+### Core Flow
+
+```
+PHASE 1: BUILD (All terminals start immediately - NO blocking)
+  T1 ──→ UI with mock data + interface contracts
+  T2 ──→ Architecture, models, services + tests
+  T3 ──→ Documentation structure
+  T4 ──→ MVP scope (broadcasts in 2 min)
+              ↓
+PHASE 2: INTEGRATE (When Phase 1 completes)
+  T1 ──→ Connects UI to T2's real APIs
+  T2 ──→ Matches T1's interface contracts
+              ↓
+PHASE 3: TEST & VERIFY (Final)
+  T1 ──→ swift build verification
+  T2 ──→ swift test, fix failures
+  T3 ──→ Finalize docs
+              ↓
+        ✅ Working Software
+```
+
+### Key Components (`orchestrator/`)
+
+| File | Purpose |
+|------|---------|
+| `orchestrator.py` | Main coordinator - phase-aware execution |
+| `planner.py` | Parallel-first task planning |
+| `terminal.py` | Claude Code subprocess wrapper |
+| `task_queue.py` | Phase-based task management |
+| `report_manager.py` | Structured reports & interface contracts |
+| `message_bus.py` | Inter-terminal communication |
+| `dashboard.py` | FastAPI web UI at localhost:8420 |
+
+### Terminal Principles
+
+| Terminal | Principle | Prompt File |
+|----------|-----------|-------------|
+| T1 | "Build first, integrate later" | `templates/terminal_prompts/t1_uiux.md` |
+| T2 | "Build foundation fast" + tests | `templates/terminal_prompts/t2_features.md` |
+| T3 | "Document as it's built" | `templates/terminal_prompts/t3_docs.md` |
+| T4 | "Guide, don't block" | `templates/terminal_prompts/t4_ideas.md` |
+
+### Interface Contracts
+
+Terminals don't wait - they communicate via contracts:
+
+```swift
+// T1 creates UI and documents expectations:
+// T1 INTERFACE CONTRACT
+// T2: Please implement a service matching this
+struct UserDisplayData {
+    let id: UUID
+    let name: String
+}
+
+// T2 reads .orchestra/reports/t1/ and implements matching APIs
+```
 
 ---
 
 ## Work Philosophy
 
-This project uses a **maximally agentic** approach. As Claude Code, you should:
+This project uses a **maximally agentic** approach:
 
-1. **USE SUBAGENTS PROACTIVELY** — Don't do everything yourself. Delegate to specialists.
-2. **PARALLELIZE** — When possible, launch multiple subagents in parallel (max 10).
-3. **BE AUTONOMOUS** — Make decisions, don't ask for confirmation on trivial matters.
-4. **CONTEXT MANAGEMENT** — Use subagents to keep the main context clean.
-5. **QUALITY > SPEED** — Better to do it right than to do it fast.
+1. **USE SUBAGENTS PROACTIVELY** — Delegate to specialists
+2. **PARALLELIZE** — Launch multiple subagents in parallel (max 10)
+3. **BE AUTONOMOUS** — Make decisions, don't ask for trivial matters
+4. **CONTEXT MANAGEMENT** — Use subagents to keep main context clean
+5. **QUALITY > SPEED** — Better to do it right than fast
 
 ---
 
 ## Subagents — USE THEM!
 
-You have 14 specialized subagents. **YOU MUST USE THEM** when the task falls within their domain.
+14 specialized subagents in `.claude/agents/`. **USE THEM** for domain-specific tasks.
 
-### Quick Decision Table
-
-| You're doing... | USE THIS SUBAGENT |
-|-----------------|-------------------|
+| Domain | Subagent |
+|--------|----------|
 | UI SwiftUI/iOS | `swiftui-crafter` |
 | UI React/Next.js | `react-crafter` |
 | HTML/CSS/Tailwind | `html-stylist` |
@@ -40,199 +148,83 @@ You have 14 specialized subagents. **YOU MUST USE THEM** when the task falls wit
 | Pricing/Business Model | `monetization-expert` |
 
 ### Mandatory Rules
-```
-RULE 1: Domain-specific task → USE THE SUBAGENT, DON'T DO IT YOURSELF
-RULE 2: Complex multi-domain task → LAUNCH MULTIPLE SUBAGENTS IN PARALLEL
-RULE 3: Codebase exploration → USE SUBAGENT to keep context clean
-RULE 4: NEVER do iOS UI without swiftui-crafter
-RULE 5: NEVER make architectural decisions without the appropriate architect
-RULE 6: NEVER write copy/marketing without marketing-strategist
-RULE 7: NEVER define pricing without monetization-expert
-```
 
-### Usage Patterns
-
-**Pattern A: Single Specialist**
 ```
-Request: "Create a card component for planets"
-Action: Invoke swiftui-crafter
-```
-
-**Pattern B: Parallel Multi-Specialist**
-```
-Request: "Add timer feature with persistence"
-Action: Launch in PARALLEL:
-  ├── swift-architect → structure/patterns
-  ├── swiftui-crafter → UI components
-  └── swiftdata-expert → data models
-Then: Synthesize the results
-```
-
-**Pattern C: Strategic Pipeline**
-```
-Request: "Can this app generate revenue?"
-Action: Launch in SEQUENCE:
-  1. product-thinker → value/market analysis
-  2. marketing-strategist → positioning/competitors
-  3. monetization-expert → pricing/business model
-```
-
-**Pattern D: New Project**
-```
-Request: "Let's create an app for X"
-Action:
-  1. product-thinker → MVP scope, core features
-  2. [swift/node/python]-architect → project structure
-  3. design-system → base tokens, palette
-  4. tech-writer → initial README
+RULE 1: Domain-specific task → USE THE SUBAGENT
+RULE 2: Complex multi-domain → LAUNCH MULTIPLE IN PARALLEL
+RULE 3: NEVER do iOS UI without swiftui-crafter
+RULE 4: NEVER make architecture decisions without appropriate architect
 ```
 
 ---
 
 ## MCP — Context7
 
-### Use with Moderation
+Available but **HAS API COST**. Use sparingly.
 
-Context7 is the only available MCP but **HAS AN API COST**.
 ```
-WHEN TO USE CONTEXT7:
+WHEN TO USE:
 ✅ Official framework/library documentation
 ✅ API references you don't know well
-✅ Specific problems requiring updated docs
 
-WHEN NOT TO USE CONTEXT7:
-❌ Things you already know how to do
+WHEN NOT TO USE:
+❌ Things you already know
 ❌ Generic best practices
-❌ Questions solvable with basic knowledge
-❌ As first resort — try without it first
-
-RULE: Use Context7 ONLY if you're stuck or need specific documentation.
-      Don't use it preemptively "just in case".
+❌ As first resort
 ```
 
 ---
 
-## Autonomy and Decisions
+## Autonomy
 
-### YOU CAN DO WITHOUT ASKING
+### DO WITHOUT ASKING
 ```
-✅ Create/modify/delete files in the project
-✅ Launch any appropriate subagent
-✅ Install necessary dependencies (pip, npm)
-✅ Refactor to improve code quality
-✅ Add documentation and comments
-✅ Fix obvious bugs
-✅ Create tests
+✅ Create/modify/delete files
+✅ Launch subagents
+✅ Install dependencies (pip, npm)
+✅ Refactor, add docs, fix bugs
 ✅ Format and lint code
-✅ Create new folders/structures
-✅ Minor naming/convention decisions
 ```
 
 ### ASK BEFORE
 ```
-⚠️ Changing fundamental project architecture
-⚠️ Deleting existing working functionality
-⚠️ Modifying critical business logic
-⚠️ Changing dependencies to different major versions
-⚠️ Decisions that significantly impact UX
-⚠️ Spending money (external APIs, services)
-```
-
----
-
-## Project Structure
-```
-~/Tech/Archon/
-|
-├── .claude/
-|   ├── CLAUDE.md             ← This file (read it always!)
-│   ├── settings.json         ← Config, hooks, permissions
-│   ├── settings.local.json   ← Personal overrides (gitignored)
-│   └── agents/               ← 14 project subagents
-│       ├── swiftui-crafter.yml
-│       ├── react-crafter.yml
-│       ├── html-stylist.yml
-│       ├── design-system.yml
-│       ├── swift-architect.yml
-│       ├── node-architect.yml
-│       ├── python-architect.yml
-│       ├── swiftdata-expert.yml
-│       ├── database-expert.yml
-│       ├── ml-engineer.yml
-│       ├── tech-writer.yml
-│       ├── marketing-strategist.yml
-│       ├── product-thinker.yml
-│       └── monetization-expert.yml
-├── orchestrator/             ← Python orchestrator core
-├── templates/                ← Terminal system prompts
-└── Apps/                     ← Generated projects
+⚠️ Changing fundamental architecture
+⚠️ Deleting working functionality
+⚠️ Major version dependency changes
+⚠️ Spending money (external APIs)
 ```
 
 ---
 
 ## Code Standards
 
-### Python
-- Python 3.11+
-- Type hints ALWAYS
-- Formatter: Black
-- Linter: Ruff
-- Docstrings: Google style
-- Async/await for I/O operations
+### Python (orchestrator)
+- Python 3.11+, type hints ALWAYS
+- Black formatter, Ruff linter
+- Google-style docstrings
+- Async/await for I/O
 
-### Swift (target projects)
-- Swift 5.9+
-- SwiftUI for UI
-- SwiftData for persistence
-- Pattern: MVVM or similar
-- Docs with /// for public APIs
+### Swift (generated projects)
+- Swift 5.9+, SwiftUI, SwiftData
+- MVVM pattern
+- Unit tests required
 
-### Node.js/TypeScript (target projects)
+### Node.js/TypeScript (generated projects)
 - TypeScript strict mode
 - ESLint + Prettier
-- Zod for input validation
-- Explicit error handling
-
-### General
-- Clear and atomic commits
-- One branch per feature
-- Updated documentation
-
----
-
-## REMINDER — READ EVERY SESSION
-```
-╔══════════════════════════════════════════════════════════════╗
-║  ⚡ USE SUBAGENTS — They exist for this, USE THEM!           ║
-║  ⚡ PARALLELIZE — Up to 10 subagents simultaneously          ║
-║  ⚡ CLEAN CONTEXT — Delegate exploration to subagents        ║
-║  ⚡ BE DECISIVE — Don't ask about every little thing         ║
-║  ⚡ CONTEXT7 SPARINGLY — It costs, use only when needed      ║
-║  ⚡ DOCUMENT — Important decisions should be written down    ║
-╚══════════════════════════════════════════════════════════════╝
-```
+- Zod for validation
 
 ---
 
 ## Quick Reference
 
-**Launch explicit subagent:**
-```
+```bash
+# Launch subagent
 "Use the swiftui-crafter subagent to create..."
-```
 
-**Launch parallel subagents:**
-```
-"Launch in parallel swift-architect, swiftui-crafter and swiftdata-expert for..."
-```
+# Launch parallel subagents
+"Launch swift-architect, swiftui-crafter and swiftdata-expert in parallel for..."
 
-**See available subagents:**
-```
+# See subagents
 /agents
 ```
-
----
-
-Created: January 2025
-Subagents: 14
-MCP: Context7 (moderate use)

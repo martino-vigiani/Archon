@@ -1,8 +1,8 @@
 """
 Task Planner using Claude Code CLI to split high-level tasks into subtasks.
 
-Uses a temporary Claude Code instance for planning - no API key needed,
-uses your Claude Max subscription.
+PARALLEL-FIRST PLANNING: All terminals start immediately.
+Dependencies are soft (informational), not blocking.
 """
 
 import json
@@ -21,7 +21,8 @@ class PlannedTask:
     description: str
     terminal: TerminalID
     priority: str
-    dependencies: list[str]
+    dependencies: list[str]  # Soft dependencies - informational only
+    phase: int  # 1 = immediate, 2 = after initial work, 3 = final
 
 
 @dataclass
@@ -31,43 +32,87 @@ class TaskPlan:
     original_task: str
     summary: str
     tasks: list[PlannedTask]
-    execution_order: list[str]  # Task titles in order
+    execution_order: list[str]
 
 
-PLANNER_PROMPT = '''You are a task planner. Analyze this task and break it down for 4 specialized terminals.
+# New parallel-first planner prompt
+PLANNER_PROMPT = '''You are a PARALLEL task planner. All 4 terminals work SIMULTANEOUSLY.
 
-## Terminals
+## Terminals (All Start Immediately)
 
-T1 - UI/UX: UI components, screens, layouts, styling, design systems
-T2 - Features: Business logic, data models, APIs, database, architecture, ML
-T3 - Docs/Marketing: README, API docs, marketing copy, App Store descriptions
-T4 - Ideas/Strategy: Product requirements, MVP scope, pricing, business model
+T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
+T2 - Features: Builds architecture, exposes APIs, writes tests
+T3 - Docs: Creates documentation progressively
+T4 - Strategy: Provides direction fast (2 min), then detailed docs
+
+## CRITICAL: Parallel Execution Rules
+
+1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
+2. Terminals work with assumptions and mock data
+3. Phase 2 tasks refine/integrate after initial work
+4. Phase 3 is final testing and polish
 
 ## Task to Plan
 
 {task}
 {project_context}
-## Output
 
-Return ONLY a JSON object (no markdown, no explanation, no code blocks):
+## Output Format
 
-{{"summary": "Brief plan summary", "tasks": [{{"title": "Task title", "description": "What to do", "terminal": "t1|t2|t3|t4", "priority": "critical|high|medium|low", "dependencies": []}}], "execution_order": ["task1", "task2"]}}
+Return ONLY JSON (no markdown):
 
-Return 3-8 tasks distributed across terminals. JSON only, nothing else.'''
+{{
+  "summary": "Brief plan summary",
+  "tasks": [
+    {{
+      "title": "Task title",
+      "description": "Detailed description with specific deliverables",
+      "terminal": "t1|t2|t3|t4",
+      "priority": "critical|high|medium|low",
+      "phase": 1,
+      "dependencies": []
+    }}
+  ],
+  "execution_order": ["task1", "task2"]
+}}
+
+## Required Task Structure
+
+PHASE 1 (All terminals start immediately):
+- T4: "Define MVP scope and direction" (priority: critical, phase: 1)
+- T2: "Build core architecture and models" (priority: critical, phase: 1)
+- T1: "Create UI components with mock data" (priority: critical, phase: 1)
+- T3: "Create documentation structure" (priority: high, phase: 1)
+
+PHASE 2 (Integration - after Phase 1):
+- T2: "Integrate with T1's interface contracts" (phase: 2)
+- T1: "Connect UI to T2's real APIs" (phase: 2)
+
+PHASE 3 (Final - testing and polish):
+- T2: "Run all tests and fix issues" (phase: 3)
+- T1: "Verify UI compilation and previews" (phase: 3)
+- T3: "Finalize documentation" (phase: 3)
+
+Return 6-10 tasks covering all phases. JSON only.'''
 
 
-PLANNER_PROMPT_WITH_PROJECT = '''You are a task planner. Analyze this task and break it down for 4 specialized terminals.
+PLANNER_PROMPT_WITH_PROJECT = '''You are a PARALLEL task planner for an EXISTING PROJECT.
 
-IMPORTANT: You are working on an EXISTING PROJECT. Consider the existing codebase, architecture, and patterns when planning tasks.
+## Terminals (All Start Immediately)
 
-## Terminals
+T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
+T2 - Features: Builds architecture, exposes APIs, writes tests
+T3 - Docs: Updates documentation progressively
+T4 - Strategy: Provides direction fast, refines based on codebase
 
-T1 - UI/UX: UI components, screens, layouts, styling, design systems
-T2 - Features: Business logic, data models, APIs, database, architecture, ML
-T3 - Docs/Marketing: README, API docs, marketing copy, App Store descriptions
-T4 - Ideas/Strategy: Product requirements, MVP scope, pricing, business model
+## CRITICAL: Parallel Execution Rules
 
-## Existing Project Context
+1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
+2. Terminals read existing code and work with it
+3. Phase 2 tasks integrate new code with existing
+4. Phase 3 is final testing
+
+## Existing Project
 
 {project_context}
 
@@ -75,26 +120,41 @@ T4 - Ideas/Strategy: Product requirements, MVP scope, pricing, business model
 
 {task}
 
-## Planning Guidelines for Existing Projects
+## Guidelines for Existing Projects
 
-1. RESPECT existing architecture and patterns - don't redesign what already works
-2. Identify where new code should integrate with existing code
-3. Consider existing dependencies and don't introduce conflicts
-4. Update existing files rather than creating duplicates
-5. Maintain consistency with existing code style
+1. RESPECT existing architecture - enhance, don't replace
+2. Read existing files before modifying
+3. Follow existing patterns and naming conventions
+4. Update existing tests, don't just add new ones
 
-## Output
+## Output Format
 
-Return ONLY a JSON object (no markdown, no explanation, no code blocks):
+Return ONLY JSON (no markdown):
 
-{{"summary": "Brief plan summary", "tasks": [{{"title": "Task title", "description": "What to do - be specific about which existing files to modify", "terminal": "t1|t2|t3|t4", "priority": "critical|high|medium|low", "dependencies": []}}], "execution_order": ["task1", "task2"]}}
+{{
+  "summary": "Brief plan summary",
+  "tasks": [
+    {{
+      "title": "Task title",
+      "description": "Specific changes to make, files to modify",
+      "terminal": "t1|t2|t3|t4",
+      "priority": "critical|high|medium|low",
+      "phase": 1,
+      "dependencies": []
+    }}
+  ],
+  "execution_order": ["task1", "task2"]
+}}
 
-Return 3-8 tasks distributed across terminals. JSON only, nothing else.'''
+Return 4-8 tasks. JSON only.'''
 
 
 class Planner:
     """
-    Uses Claude Code CLI for planning - no API key needed.
+    Parallel-first task planner.
+
+    Key principle: All terminals start immediately.
+    Dependencies are soft (informational), not blocking.
     """
 
     def __init__(self, config: Config):
@@ -102,16 +162,12 @@ class Planner:
 
     def plan(self, task: str, project_context: str = "") -> TaskPlan:
         """
-        Analyze a high-level task and create a plan using Claude Code.
+        Create a parallel execution plan.
 
-        Args:
-            task: High-level task description
-            project_context: Optional context about an existing project
-
-        Returns:
-            TaskPlan with distributed subtasks
+        All Phase 1 tasks start immediately.
+        Phase 2 starts when any Phase 1 task completes.
+        Phase 3 starts when all Phase 2 tasks complete.
         """
-        # Choose the appropriate prompt based on whether we have project context
         if project_context:
             prompt = PLANNER_PROMPT_WITH_PROJECT.format(
                 task=task,
@@ -120,7 +176,6 @@ class Planner:
         else:
             prompt = PLANNER_PROMPT.format(task=task, project_context="")
 
-        # Use claude CLI with --print flag for non-interactive single response
         try:
             result = subprocess.run(
                 ["claude", "--print", "-p", prompt],
@@ -134,24 +189,21 @@ class Planner:
                 output = result.stderr
 
         except subprocess.TimeoutExpired:
-            print("[Planner] Claude timed out, using fallback plan")
-            return self._simple_plan(task)
+            print("[Planner] Claude timed out, using parallel fallback plan")
+            return self._parallel_fallback_plan(task)
         except FileNotFoundError:
-            print("[Planner] Claude CLI not found, using fallback plan")
-            return self._simple_plan(task)
+            print("[Planner] Claude CLI not found, using parallel fallback plan")
+            return self._parallel_fallback_plan(task)
         except Exception as e:
-            print(f"[Planner] Error running Claude: {e}, using fallback plan")
-            return self._simple_plan(task)
+            print(f"[Planner] Error running Claude: {e}, using parallel fallback plan")
+            return self._parallel_fallback_plan(task)
 
-        # Parse the JSON from output
         plan_data = self._extract_json(output)
 
         if not plan_data:
-            print(f"[Planner] Could not parse JSON from output, using fallback plan")
-            print(f"[Planner] Output was: {output[:300]}...")
-            return self._simple_plan(task)
+            print(f"[Planner] Could not parse JSON, using parallel fallback plan")
+            return self._parallel_fallback_plan(task)
 
-        # Build TaskPlan
         planned_tasks = []
         for task_data in plan_data.get("tasks", []):
             terminal = task_data.get("terminal", "t2").lower()
@@ -161,56 +213,44 @@ class Planner:
             planned_tasks.append(PlannedTask(
                 title=task_data.get("title", "Untitled"),
                 description=task_data.get("description", ""),
-                terminal=terminal,  # type: ignore
+                terminal=terminal,
                 priority=task_data.get("priority", "medium"),
                 dependencies=task_data.get("dependencies", []),
+                phase=task_data.get("phase", 1),
             ))
 
         if not planned_tasks:
-            return self._simple_plan(task)
+            return self._parallel_fallback_plan(task)
+
+        # Sort by phase, then priority
+        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        planned_tasks.sort(key=lambda t: (t.phase, priority_order.get(t.priority, 2)))
 
         return TaskPlan(
             original_task=task,
-            summary=plan_data.get("summary", "Plan created"),
+            summary=plan_data.get("summary", "Parallel execution plan created"),
             tasks=planned_tasks,
-            execution_order=plan_data.get("execution_order", [t.title for t in planned_tasks]),
+            execution_order=[t.title for t in planned_tasks],
         )
 
     def _extract_json(self, text: str) -> dict | None:
-        """Extract JSON object from text that may contain other content."""
+        """Extract JSON object from text."""
         if not text:
             return None
 
-        # Remove markdown code blocks
         text = re.sub(r'```json\s*', '', text)
         text = re.sub(r'```\s*', '', text)
         text = text.strip()
 
-        # Try direct parse first
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
-        # Try to find JSON object in the text
-        # Look for { ... } pattern
-        json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-        matches = re.findall(json_pattern, text, re.DOTALL)
-
-        for match in matches:
-            try:
-                data = json.loads(match)
-                if "tasks" in data or "summary" in data:
-                    return data
-            except json.JSONDecodeError:
-                continue
-
-        # Try more aggressive extraction - find outermost braces
         start = text.find('{')
         if start == -1:
             return None
 
-        # Count braces to find matching end
         depth = 0
         for i, char in enumerate(text[start:], start):
             if char == '{':
@@ -225,61 +265,166 @@ class Planner:
 
         return None
 
-    def _simple_plan(self, task: str) -> TaskPlan:
-        """Simple fallback plan when Claude Code isn't available."""
+    def _parallel_fallback_plan(self, task: str) -> TaskPlan:
+        """
+        Fallback plan that ensures parallel execution.
+
+        All Phase 1 tasks have NO dependencies - they all start immediately.
+        """
         task_lower = task.lower()
+        is_mobile = any(w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"])
 
         tasks = []
 
-        # T4 always starts with strategy
+        # PHASE 1: All start immediately, NO dependencies
         tasks.append(PlannedTask(
-            title="Define product requirements",
-            description=f"Analyze the task and define MVP scope, features, and success metrics for: {task}",
+            title="Define MVP scope and initial direction",
+            description=f"""Immediately analyze and define:
+1. MVP scope (3-5 core features maximum)
+2. Visual direction for T1 (style, colors, vibe)
+3. Technical direction for T2 (architecture approach)
+4. Marketing angle for T3
+
+Broadcast this within 2 minutes so other terminals can align.
+
+Task context: {task}""",
             terminal="t4",
             priority="critical",
-            dependencies=[],
+            dependencies=[],  # NO dependencies
+            phase=1,
         ))
 
-        # T2 for architecture
         tasks.append(PlannedTask(
-            title="Design architecture",
-            description=f"Design the technical architecture, data models, and APIs for: {task}",
+            title="Build core architecture and data models",
+            description=f"""Start immediately with architecture:
+1. Create data models based on task requirements
+2. Build service layer with clear public APIs
+3. Set up persistence (SwiftData/CoreData for iOS, or appropriate)
+4. Write unit tests for core logic
+5. Document all public interfaces for T1
+
+Don't wait for T4 - infer requirements from task description.
+If T1 has created interface contracts, match them.
+
+Task context: {task}""",
+            terminal="t2",
+            priority="critical",
+            dependencies=[],  # NO dependencies
+            phase=1,
+        ))
+
+        tasks.append(PlannedTask(
+            title="Create UI components with mock data",
+            description=f"""Start immediately with UI:
+1. Define visual design system (colors, typography, spacing)
+2. Create all main screens/views with placeholder data
+3. Implement navigation structure
+4. Add loading states and error states
+5. Document interface contracts (what data each view expects)
+
+Don't wait for T2 - use mock data and document assumptions.
+T2 will implement interfaces matching your contracts.
+
+Task context: {task}""",
+            terminal="t1",
+            priority="critical",
+            dependencies=[],  # NO dependencies
+            phase=1,
+        ))
+
+        tasks.append(PlannedTask(
+            title="Create documentation structure",
+            description=f"""Start immediately with docs:
+1. Create README.md skeleton
+2. Set up docs/ folder structure
+3. Draft installation instructions
+4. Create CHANGELOG.md
+{"5. Draft App Store description" if is_mobile else "5. Draft API documentation structure"}
+
+Fill in what you can, mark placeholders for what you can't.
+
+Task context: {task}""",
+            terminal="t3",
+            priority="high",
+            dependencies=[],  # NO dependencies
+            phase=1,
+        ))
+
+        # PHASE 2: Integration (soft dependencies)
+        tasks.append(PlannedTask(
+            title="Integrate T1 interfaces with T2 implementations",
+            description="""Check T1's interface contracts and ensure T2's models match:
+1. Read .orchestra/reports/t1/ for interface expectations
+2. Adapt models/services if needed to match T1's contracts
+3. Replace any mock implementations with real ones
+4. Ensure all T1-facing APIs are complete""",
             terminal="t2",
             priority="high",
-            dependencies=["Define product requirements"],
+            dependencies=["Build core architecture and data models"],
+            phase=2,
         ))
 
-        # T1 for UI
-        if any(word in task_lower for word in ["app", "ui", "interface", "screen", "design"]):
-            tasks.append(PlannedTask(
-                title="Create UI components",
-                description=f"Design and implement the user interface for: {task}",
-                terminal="t1",
-                priority="high",
-                dependencies=["Design architecture"],
-            ))
-
-        # T2 for implementation
         tasks.append(PlannedTask(
-            title="Implement core features",
-            description=f"Implement the core functionality and business logic for: {task}",
-            terminal="t2",
+            title="Connect UI to real data services",
+            description="""Replace mock data with T2's real implementations:
+1. Read .orchestra/reports/t2/ for available APIs
+2. Wire UI components to actual services
+3. Test all data flows work correctly
+4. Verify loading and error states with real scenarios""",
+            terminal="t1",
             priority="high",
-            dependencies=["Design architecture"],
+            dependencies=["Create UI components with mock data"],
+            phase=2,
         ))
 
-        # T3 for docs
+        # PHASE 3: Testing and finalization
         tasks.append(PlannedTask(
-            title="Create documentation",
-            description=f"Write README, setup guide, and user documentation for: {task}",
+            title="Run all tests and verify build",
+            description="""Final verification:
+1. Run swift build / npm run build
+2. Run swift test / npm test
+3. Fix any compilation errors
+4. Fix any failing tests
+5. Ensure no warnings in production code
+
+Do NOT mark complete until all tests pass.""",
+            terminal="t2",
+            priority="critical",
+            dependencies=["Integrate T1 interfaces with T2 implementations"],
+            phase=3,
+        ))
+
+        tasks.append(PlannedTask(
+            title="Verify UI compilation and previews",
+            description="""Final UI verification:
+1. Ensure all views compile without errors
+2. Verify SwiftUI previews work (if applicable)
+3. Check for any layout issues
+4. Verify all navigation paths work
+
+Do NOT mark complete until build succeeds.""",
+            terminal="t1",
+            priority="high",
+            dependencies=["Connect UI to real data services"],
+            phase=3,
+        ))
+
+        tasks.append(PlannedTask(
+            title="Finalize all documentation",
+            description="""Complete documentation:
+1. Fill in all placeholder sections
+2. Add code examples from T2's final APIs
+3. Verify all links work
+4. Ensure README accurately reflects the final product""",
             terminal="t3",
             priority="medium",
-            dependencies=["Implement core features"],
+            dependencies=["Create documentation structure"],
+            phase=3,
         ))
 
         return TaskPlan(
             original_task=task,
-            summary=f"Simple plan for: {task}",
+            summary=f"Parallel execution plan: 4 terminals start immediately, then integrate and test",
             tasks=tasks,
             execution_order=[t.title for t in tasks],
         )

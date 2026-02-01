@@ -40,6 +40,7 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
     dependencies: list[str] = field(default_factory=list)
+    phase: int = 1  # 1 = immediate (no deps), 2 = integration, 3 = testing
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: str | None = None
     completed_at: str | None = None
@@ -56,6 +57,7 @@ class Task:
             "status": self.status.value,
             "priority": self.priority.value,
             "dependencies": self.dependencies,
+            "phase": self.phase,
             "created_at": self.created_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
@@ -68,10 +70,29 @@ class Task:
     def from_dict(cls, data: dict) -> "Task":
         data["status"] = TaskStatus(data["status"])
         data["priority"] = TaskPriority(data["priority"])
+        # Handle older tasks without phase field
+        if "phase" not in data:
+            data["phase"] = 1
         return cls(**data)
 
-    def is_ready(self, completed_task_ids: set[str]) -> bool:
-        """Check if all dependencies are satisfied."""
+    def is_ready(self, completed_task_ids: set[str], current_phase: int = 1) -> bool:
+        """
+        Check if task is ready to execute.
+
+        Phase 1 tasks: Always ready (no blocking dependencies)
+        Phase 2+ tasks: Ready when their phase is reached
+
+        Dependencies are SOFT in parallel execution - they inform but don't block Phase 1.
+        """
+        # Phase 1 tasks are always ready - parallel execution
+        if self.phase == 1:
+            return True
+
+        # Phase 2+ tasks wait for their phase
+        if self.phase > current_phase:
+            return False
+
+        # Once phase is reached, check dependencies (soft check for awareness)
         return all(dep in completed_task_ids for dep in self.dependencies)
 
 
@@ -140,6 +161,7 @@ class TaskQueue:
         dependencies: list[str] | None = None,
         assigned_to: TerminalID | None = None,
         metadata: dict | None = None,
+        phase: int = 1,
     ) -> Task:
         """Add a new task to the queue."""
         task = Task(
@@ -148,6 +170,7 @@ class TaskQueue:
             description=description,
             priority=priority,
             dependencies=dependencies or [],
+            phase=phase,
             assigned_to=assigned_to,
             metadata=metadata or {},
         )
@@ -178,6 +201,7 @@ class TaskQueue:
                 dependencies=task_data.get("dependencies", []),
                 assigned_to=task_data.get("assigned_to"),
                 metadata=task_data.get("metadata", {}),
+                phase=task_data.get("phase", 1),
             )
             created.append(task)
         return created
@@ -190,8 +214,18 @@ class TaskQueue:
                     return task
         return None
 
-    def get_next_task_for_terminal(self, terminal_id: TerminalID) -> Task | None:
-        """Get the next available task for a specific terminal."""
+    def get_next_task_for_terminal(
+        self,
+        terminal_id: TerminalID,
+        current_phase: int = 1,
+    ) -> Task | None:
+        """
+        Get the next available task for a specific terminal.
+
+        In parallel execution:
+        - Phase 1 tasks are always available (no blocking)
+        - Phase 2+ tasks wait for their phase to be reached
+        """
         pending = self.pending
         completed = self.completed
         # Include both IDs and titles for dependency matching
@@ -202,13 +236,50 @@ class TaskQueue:
             if task.assigned_to is not None and task.assigned_to != terminal_id:
                 continue
 
-            # Check dependencies
-            if not task.is_ready(completed_ids):
+            # Check if task is ready (phase-aware)
+            if not task.is_ready(completed_ids, current_phase):
                 continue
 
             return task
 
         return None
+
+    def get_current_phase(self) -> int:
+        """
+        Determine the current execution phase based on completed tasks.
+
+        Phase transitions:
+        - Phase 1: Initial state, all terminals start
+        - Phase 2: When ALL Phase 1 tasks for a terminal complete
+        - Phase 3: When ALL Phase 2 tasks complete
+        """
+        completed = self.completed
+        pending = self.pending
+        in_progress = self.in_progress
+
+        # Get all tasks
+        all_tasks = completed + pending + in_progress
+
+        # Count tasks by phase
+        phase_1_total = len([t for t in all_tasks if t.phase == 1])
+        phase_1_done = len([t for t in completed if t.phase == 1])
+
+        phase_2_total = len([t for t in all_tasks if t.phase == 2])
+        phase_2_done = len([t for t in completed if t.phase == 2])
+
+        # Phase 3 if all Phase 2 done
+        if phase_2_total > 0 and phase_2_done >= phase_2_total:
+            return 3
+
+        # Phase 2 if all Phase 1 done
+        if phase_1_total > 0 and phase_1_done >= phase_1_total:
+            return 2
+
+        return 1
+
+    def get_tasks_by_phase(self, phase: int) -> list[Task]:
+        """Get all pending tasks for a specific phase."""
+        return [t for t in self.pending if t.phase == phase]
 
     def assign_task(self, task_id: str, terminal_id: TerminalID) -> Task | None:
         """Assign a task to a terminal and move to in_progress."""

@@ -30,9 +30,10 @@ You (CEO) → Archon (Manager) → 4 Terminals (Engineers) → Working Software
 Give Archon a task like *"Create an iOS speed test app"* and it will:
 
 1. **Plan** → Break down the task into parallel workstreams
-2. **Delegate** → Assign work to specialized terminals
-3. **Coordinate** → Share context between terminals automatically
-4. **Deliver** → Produce a complete, working application
+2. **Execute in Parallel** → All 4 terminals start immediately, no waiting
+3. **Self-Coordinate** → Terminals share interface contracts and adapt
+4. **Test & Verify** → Built-in testing phase ensures working code
+5. **Deliver** → Complete, tested application
 
 ---
 
@@ -62,12 +63,63 @@ python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app
 
 | Feature | Description |
 |---------|-------------|
-| **4 Parallel Terminals** | UI/UX, Features, Docs, Strategy - working simultaneously |
+| **True Parallel Execution** | All 4 terminals start immediately - no blocking dependencies |
+| **3-Phase Workflow** | Build → Integrate → Test for reliable results |
+| **Autonomous Terminals** | Each terminal makes decisions, uses mock data, self-verifies |
+| **Interface Contracts** | T1 defines what it needs, T2 implements it |
+| **Built-in Testing** | Phase 3 runs `swift build && swift test` automatically |
 | **14 Expert Subagents** | Specialized AI for SwiftUI, React, databases, ML, marketing... |
-| **Smart Coordination** | Orchestrator understands outputs and shares context automatically |
 | **Real-Time Dashboard** | Monitor progress at `localhost:8420` |
-| **Continuous Mode** | Keep building with `--continuous` flag |
-| **Report System** | Structured reports enable intelligent cross-terminal coordination |
+
+---
+
+## How It Works: 3-Phase Parallel Execution
+
+Unlike sequential systems, Archon runs all terminals **simultaneously** from the start:
+
+```
+PHASE 1: BUILD (All terminals start immediately)
+┌─────────────────────────────────────────────────────────────┐
+│  T1 ──→ Creates UI with mock data                           │
+│  T2 ──→ Builds architecture and models                      │
+│  T3 ──→ Creates documentation structure                     │
+│  T4 ──→ Defines MVP scope (broadcasts in 2 min)             │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+PHASE 2: INTEGRATE (When Phase 1 completes)
+┌─────────────────────────────────────────────────────────────┐
+│  T1 ──→ Connects UI to T2's real APIs                       │
+│  T2 ──→ Matches T1's interface contracts                    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+PHASE 3: TEST & VERIFY (Final phase)
+┌─────────────────────────────────────────────────────────────┐
+│  T1 ──→ Verifies UI compilation and previews                │
+│  T2 ──→ Runs all tests, fixes any failures                  │
+│  T3 ──→ Finalizes documentation                             │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+                    ✅ Working Software
+```
+
+### Key Innovation: Interface Contracts
+
+Terminals don't wait for each other. Instead:
+
+1. **T1** creates UI and documents what data it expects:
+   ```swift
+   // T1 INTERFACE CONTRACT
+   // T2: Please implement a service matching this
+   struct UserDisplayData {
+       let id: UUID
+       let name: String
+       let avatarURL: URL?
+   }
+   ```
+
+2. **T2** reads T1's contracts and implements matching APIs
+
+3. **Phase 2** wires everything together
 
 ---
 
@@ -77,13 +129,14 @@ python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app
   <img src="assets/architecture.png" alt="Archon Architecture" width="600">
 </p>
 
-The terminals and subagents shown above are the **default configuration**, designed for full-stack app development. They are **fully customizable** - see [Customization](#customization) below.
-
 ---
 
 ## Terminals & Subagents
 
-### T1 - UI/UX
+### T1 - UI/UX (Autonomous)
+
+**Principle:** *"Build first, integrate later"*
+
 | Subagent | Specialty |
 |----------|-----------|
 | `swiftui-crafter` | iOS/macOS SwiftUI interfaces |
@@ -91,7 +144,10 @@ The terminals and subagents shown above are the **default configuration**, desig
 | `html-stylist` | HTML/CSS/Tailwind styling |
 | `design-system` | Design tokens, colors, typography |
 
-### T2 - Features
+### T2 - Features (Autonomous)
+
+**Principle:** *"Build the foundation fast"*
+
 | Subagent | Specialty |
 |----------|-----------|
 | `swift-architect` | iOS architecture, MVVM, Clean Architecture |
@@ -101,13 +157,19 @@ The terminals and subagents shown above are the **default configuration**, desig
 | `database-expert` | SQL, PostgreSQL, Prisma |
 | `ml-engineer` | Machine learning, AI features |
 
-### T3 - Documentation
+### T3 - Documentation (Progressive)
+
+**Principle:** *"Document as it's built"*
+
 | Subagent | Specialty |
 |----------|-----------|
 | `tech-writer` | README, API docs, tutorials |
 | `marketing-strategist` | App Store copy, positioning |
 
-### T4 - Strategy
+### T4 - Strategy (Non-blocking)
+
+**Principle:** *"Guide, don't block"*
+
 | Subagent | Specialty |
 |----------|-----------|
 | `product-thinker` | MVP scope, roadmaps, PRDs |
@@ -134,6 +196,9 @@ python -m orchestrator --dry-run "Create a meditation app"
 
 # Work on existing project
 python -m orchestrator --project ./MyApp "Add dark mode"
+
+# Resume interrupted session
+python -m orchestrator --resume
 ```
 
 ### CLI Options
@@ -152,30 +217,9 @@ python -m orchestrator --project ./MyApp "Add dark mode"
 
 ---
 
-## How It Works
-
-1. **You give a task** → "Create a speed test iOS app"
-
-2. **Archon plans** → Uses Claude to break into subtasks:
-   - T1: Design UI components
-   - T2: Implement network speed logic
-   - T3: Write documentation
-   - T4: Define MVP scope
-
-3. **Terminals execute in parallel** → Each writes a structured report
-
-4. **Archon coordinates** → Reads reports, shares context:
-   > "T2 finished the SpeedTestService. T1, you can now bind the UI to it."
-
-5. **Result** → Complete, working application
-
----
-
 ## Example Output
 
 **Prompt:** *"Create an iOS SpeedTest app with SwiftUI, minimalist design with liquid glass effects"*
-
-**Time:** ~15 minutes
 
 <p align="center">
   <img src="assets/example-speedtest-1.png" alt="SpeedTest Ready" width="250">
@@ -185,11 +229,11 @@ python -m orchestrator --project ./MyApp "Add dark mode"
 
 **What Archon built:**
 - Complete SwiftUI app with MVVM architecture
-- Network speed measurement service
+- Network speed measurement service with unit tests
 - Animated circular progress indicator
 - Results display with Download, Upload, Ping, Jitter
 - Test history with SwiftData persistence
-- Clean, modern UI with gradient effects
+- Verified: `swift build && swift test` passed
 
 ---
 
@@ -198,15 +242,19 @@ python -m orchestrator --project ./MyApp "Add dark mode"
 ```
 Archon/
 ├── orchestrator/           # Core Python package
-│   ├── orchestrator.py     # Main coordinator
-│   ├── planner.py          # Task planning with Claude
+│   ├── orchestrator.py     # Main coordinator (phase-aware)
+│   ├── planner.py          # Parallel-first task planning
 │   ├── terminal.py         # Claude Code subprocess
-│   ├── report_manager.py   # Structured reports
+│   ├── report_manager.py   # Structured reports & contracts
 │   ├── message_bus.py      # Inter-terminal messaging
-│   ├── task_queue.py       # Task management
+│   ├── task_queue.py       # Phase-based task management
 │   └── dashboard.py        # FastAPI web UI
 ├── templates/
-│   └── terminal_prompts/   # System prompts for T1-T4
+│   └── terminal_prompts/   # Autonomous terminal prompts
+│       ├── t1_uiux.md      # "Build first, integrate later"
+│       ├── t2_features.md  # "Build foundation fast" + tests
+│       ├── t3_docs.md      # "Document as it's built"
+│       └── t4_ideas.md     # "Guide, don't block"
 ├── .claude/
 │   └── agents/             # 14 subagent definitions
 ├── .orchestra/             # Runtime state (gitignored)
@@ -217,77 +265,35 @@ Archon/
 
 ## Customization
 
-The default terminals and subagents are configured for full-stack app development, but **everything is customizable**.
-
 ### Customizing Terminals
 
-Terminal prompts are defined in `templates/terminal_prompts/`. Each file defines the role and behavior of a terminal:
-
-```bash
-templates/terminal_prompts/
-├── t1_uiux.md      # UI/UX specialist
-├── t2_features.md  # Features/architecture specialist
-├── t3_docs.md      # Documentation specialist
-└── t4_ideas.md     # Strategy/product specialist
-```
-
-To customize a terminal, edit its prompt file. For example, to make T3 focus on API documentation instead of marketing:
+Terminal prompts are in `templates/terminal_prompts/`. Each defines autonomous behavior:
 
 ```markdown
-# Terminal T3 - API Documentation Specialist
+# Terminal T1 - UI/UX Specialist (Autonomous Mode)
 
-You are **Terminal T3** in Archon. Your specialty is **API Documentation**.
+## Core Principle: BUILD FIRST, INTEGRATE LATER
 
-## Your Role
-- OpenAPI/Swagger specs
-- API reference documentation
-- SDK examples
-- Integration guides
-...
+You don't wait for T2 to give you data models. You:
+1. ASSUME reasonable data structures
+2. CREATE the UI with mock/placeholder data
+3. DESIGN interfaces that T2 will implement
+4. DOCUMENT what you assumed so T2 can match it
 ```
 
 ### Creating Custom Subagents
 
-Subagents are defined in `.claude/agents/`. Create a new YAML file:
+Subagents are defined in `.claude/agents/`:
 
 ```yaml
 # .claude/agents/my-custom-agent.yml
 name: my-custom-agent
-model: opus  # or sonnet for faster/cheaper
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-description: |
-  Brief description of what this agent specializes in.
+model: opus
+tools: [Read, Write, Edit, Glob, Grep, Bash]
+description: Brief description of specialty.
 prompt: |
-  You are an expert in [domain]. Your responsibilities include:
-  - Task 1
-  - Task 2
-
-  Always follow these guidelines:
-  - Guideline 1
-  - Guideline 2
-```
-
-Then reference it in the appropriate terminal prompt to make it available.
-
-### Example: Data Science Configuration
-
-```bash
-# T1: Data Visualization
-# T2: ML/Data Engineering
-# T3: Research Documentation
-# T4: Experiment Planning
-
-# Custom subagents:
-# - pandas-expert
-# - pytorch-specialist
-# - jupyter-crafter
-# - data-viz-designer
+  You are an expert in [domain].
+  ...
 ```
 
 ---
@@ -313,9 +319,10 @@ Then reference it in the appropriate terminal prompt to make it available.
 | Problem | Solution |
 |---------|----------|
 | `claude: command not found` | Install [Claude Code CLI](https://github.com/anthropics/claude-code) |
-| Rate limit hit | Wait for reset time shown in error |
+| Rate limit hit | Use Max 5x subscription or wait for reset |
 | Dashboard not loading | Check if port 8420 is free: `lsof -i :8420` |
 | Task stuck | Check `.orchestra/` for state, restart orchestrator |
+| Tests failing | Phase 3 will auto-retry; check `.orchestra/reports/t2/` |
 
 ---
 

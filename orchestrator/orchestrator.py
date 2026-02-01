@@ -475,7 +475,7 @@ class Orchestrator:
         self._log_success(f"Plan created: {plan.summary}")
         self._log_info(f"Total tasks: {len(plan.tasks)}")
 
-        # Add tasks to queue
+        # Add tasks to queue with phase information
         for planned_task in plan.tasks:
             self.task_queue.add_task(
                 title=planned_task.title,
@@ -483,8 +483,15 @@ class Orchestrator:
                 priority=TaskPriority(planned_task.priority),
                 dependencies=planned_task.dependencies,
                 assigned_to=planned_task.terminal,
-                metadata={"from_plan": True},
+                phase=planned_task.phase,
+                metadata={"from_plan": True, "phase": planned_task.phase},
             )
+
+        # Log phase distribution
+        phase_counts = {}
+        for t in plan.tasks:
+            phase_counts[t.phase] = phase_counts.get(t.phase, 0) + 1
+        self._log_info(f"Task distribution by phase: {phase_counts}")
 
         # Broadcast plan to all terminals
         self.message_bus.broadcast_status(
@@ -897,8 +904,19 @@ If the task is not critical, you may skip it with an explanation.
     # =========================================================================
 
     async def run_task_loop(self) -> None:
-        """Main loop that assigns and monitors tasks."""
-        self._log_info("Starting task execution loop...")
+        """
+        Main loop that assigns and monitors tasks.
+
+        PARALLEL EXECUTION:
+        - Phase 1: ALL terminals start immediately (no blocking dependencies)
+        - Phase 2: Integration tasks (after Phase 1 completes)
+        - Phase 3: Testing/verification tasks (after Phase 2 completes)
+        """
+        self._log_info("Starting PARALLEL task execution loop...")
+
+        # Track current phase
+        current_phase = 1
+        phase_announced = {1: False, 2: False, 3: False}
 
         while self.is_running:
             # Check if shutdown was requested
@@ -916,6 +934,7 @@ If the task is not critical, you may skip it with an explanation.
                         priority=task.priority,
                         dependencies=task.dependencies,
                         assigned_to=terminal_id,
+                        phase=task.phase,
                         metadata=task.metadata,
                     )
 
@@ -933,6 +952,27 @@ If the task is not critical, you may skip it with an explanation.
                     )
                     break
                 # Otherwise continue with fix tasks
+
+            # Determine current phase from task completion state
+            new_phase = self.task_queue.get_current_phase()
+            if new_phase != current_phase:
+                current_phase = new_phase
+                if not phase_announced.get(current_phase, True):
+                    self._log_info(f"{'='*40}")
+                    self._log_info(f"ENTERING PHASE {current_phase}")
+                    if current_phase == 2:
+                        self._log_info("Integration phase: connecting components")
+                    elif current_phase == 3:
+                        self._log_info("Testing phase: verification and polish")
+                    self._log_info(f"{'='*40}")
+                    phase_announced[current_phase] = True
+
+                    # Broadcast phase change to all terminals
+                    self.message_bus.broadcast_status(
+                        f"## PHASE {current_phase} STARTED\n\n"
+                        f"{'Integration' if current_phase == 2 else 'Testing'} phase beginning. "
+                        f"Check .orchestra/reports/ for other terminals' work."
+                    )
 
             # Get completed task IDs AND titles for dependency checking
             completed = self.task_queue.completed
@@ -955,27 +995,37 @@ If the task is not critical, you may skip it with an explanation.
                         # Clean up completed future
                         del self._running_tasks[terminal_id]
 
-                # Get next task for this terminal
-                task = self.task_queue.get_next_task_for_terminal(terminal_id)
+                # Get next task for this terminal (phase-aware)
+                task = self.task_queue.get_next_task_for_terminal(terminal_id, current_phase)
                 if task is None:
                     continue
 
-                # Check dependencies
-                if not task.is_ready(completed_ids):
+                # Phase 1 tasks are ALWAYS ready - no dependency blocking
+                # Phase 2+ tasks check dependencies
+                if not task.is_ready(completed_ids, current_phase):
                     continue
 
                 # Assign and start task
                 assigned = self.task_queue.assign_task(task.id, terminal_id)
                 if assigned:
+                    # Log with phase info
+                    phase_tag = f"[P{assigned.phase}]" if assigned.phase > 1 else ""
+                    self._log_terminal(
+                        terminal_id,
+                        f"{phase_tag} Assigned: {assigned.title}",
+                        Colors.CYAN
+                    )
+
                     # Start task execution in background
                     future = asyncio.create_task(
                         self._execute_task_on_terminal(terminal_id, assigned)
                     )
                     self._running_tasks[terminal_id] = future
 
-            # Update status
+            # Update status with phase info
             self._update_status({
                 "state": "running",
+                "current_phase": current_phase,
                 "terminals": {
                     tid: {
                         "state": t.state.value,
