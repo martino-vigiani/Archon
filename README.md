@@ -171,6 +171,28 @@ python -m orchestrator --project ./MyApp "Add dark mode"
 
 ---
 
+## Example Output
+
+**Prompt:** *"Create an iOS SpeedTest app with SwiftUI, minimalist design with liquid glass effects"*
+
+**Time:** ~15 minutes
+
+<p align="center">
+  <img src="assets/example-speedtest-1.png" alt="SpeedTest Ready" width="250">
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/example-speedtest-2.png" alt="SpeedTest Results" width="250">
+</p>
+
+**What Archon built:**
+- Complete SwiftUI app with MVVM architecture
+- Network speed measurement service
+- Animated circular progress indicator
+- Results display with Download, Upload, Ping, Jitter
+- Test history with SwiftData persistence
+- Clean, modern UI with gradient effects
+
+---
+
 ## Project Structure
 
 ```
