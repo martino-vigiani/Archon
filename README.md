@@ -49,7 +49,12 @@ pip install -r requirements.txt
 python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app"
 ```
 
-**Requirements:** Python 3.11+, [Claude Code CLI](https://github.com/anthropics/claude-code), Claude Max subscription
+### Requirements
+
+- **Python 3.11+**
+- **[Claude Code CLI](https://github.com/anthropics/claude-code)** installed and in PATH
+- **Any paid Claude subscription** (Pro, Max, Team)
+  - Recommended: **Max 5x** for heavy parallel usage without hitting rate limits
 
 ---
 
@@ -68,38 +73,11 @@ python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app
 
 ## Architecture
 
-```
-                        YOU (CEO)
-                          │
-                          ▼
-            ┌─────────────────────────┐
-            │        ARCHON           │
-            │    (AI Manager)         │
-            │  • Plans tasks          │
-            │  • Reads reports        │
-            │  • Coordinates work     │
-            └───────────┬─────────────┘
-                        │
-       ┌────────────────┼────────────────┬────────────────┐
-       ▼                ▼                ▼                ▼
-   ┌───────┐        ┌───────┐        ┌───────┐        ┌───────┐
-   │  T1   │        │  T2   │        │  T3   │        │  T4   │
-   │ UI/UX │        │ Feat  │        │ Docs  │        │ Ideas │
-   └───┬───┘        └───┬───┘        └───┬───┘        └───┬───┘
-       │                │                │                │
-       ▼                ▼                ▼                ▼
-   swiftui-         swift-           tech-           product-
-   crafter          architect        writer          thinker
-   react-           node-            marketing-      monetization-
-   crafter          architect        strategist      expert
-   html-            python-
-   stylist          architect
-   design-          swiftdata-
-   system           expert
-                    database-
-                    expert
-                    ml-engineer
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="Archon Architecture" width="600">
+</p>
+
+The terminals and subagents shown above are the **default configuration**, designed for full-stack app development. They are **fully customizable** - see [Customization](#customization) below.
 
 ---
 
@@ -215,6 +193,83 @@ Archon/
 
 ---
 
+## Customization
+
+The default terminals and subagents are configured for full-stack app development, but **everything is customizable**.
+
+### Customizing Terminals
+
+Terminal prompts are defined in `templates/terminal_prompts/`. Each file defines the role and behavior of a terminal:
+
+```bash
+templates/terminal_prompts/
+├── t1_uiux.md      # UI/UX specialist
+├── t2_features.md  # Features/architecture specialist
+├── t3_docs.md      # Documentation specialist
+└── t4_ideas.md     # Strategy/product specialist
+```
+
+To customize a terminal, edit its prompt file. For example, to make T3 focus on API documentation instead of marketing:
+
+```markdown
+# Terminal T3 - API Documentation Specialist
+
+You are **Terminal T3** in Archon. Your specialty is **API Documentation**.
+
+## Your Role
+- OpenAPI/Swagger specs
+- API reference documentation
+- SDK examples
+- Integration guides
+...
+```
+
+### Creating Custom Subagents
+
+Subagents are defined in `.claude/agents/`. Create a new YAML file:
+
+```yaml
+# .claude/agents/my-custom-agent.yml
+name: my-custom-agent
+model: opus  # or sonnet for faster/cheaper
+tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+description: |
+  Brief description of what this agent specializes in.
+prompt: |
+  You are an expert in [domain]. Your responsibilities include:
+  - Task 1
+  - Task 2
+
+  Always follow these guidelines:
+  - Guideline 1
+  - Guideline 2
+```
+
+Then reference it in the appropriate terminal prompt to make it available.
+
+### Example: Data Science Configuration
+
+```bash
+# T1: Data Visualization
+# T2: ML/Data Engineering
+# T3: Research Documentation
+# T4: Experiment Planning
+
+# Custom subagents:
+# - pandas-expert
+# - pytorch-specialist
+# - jupyter-crafter
+# - data-viz-designer
+```
+
+---
+
 ## Configuration
 
 ### Claude Settings (`.claude/settings.json`)
@@ -227,18 +282,6 @@ Archon/
   },
   "model": "opus"
 }
-```
-
-### Custom Subagent (`.claude/agents/my-agent.yml`)
-
-```yaml
-name: my-agent
-model: opus
-tools: [Read, Write, Edit, Glob, Grep, Bash]
-description: |
-  What this agent specializes in.
-prompt: |
-  You are an expert in...
 ```
 
 ---

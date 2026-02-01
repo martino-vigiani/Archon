@@ -1,36 +1,36 @@
 # Archon - Multi-Agent Development System
 
-> Sistema di orchestrazione multi-agente per sviluppo software autonomo.
+> Multi-agent orchestration system for autonomous software development.
 
 ---
 
-## 🎯 Filosofia di Lavoro
+## Work Philosophy
 
-Questo progetto utilizza un approccio **massimamente agentico**. Come Claude Code devi:
+This project uses a **maximally agentic** approach. As Claude Code, you should:
 
-1. **USARE PROATTIVAMENTE I SUBAGENT** — Non fare tutto da solo. Delega agli specialisti.
-2. **PARALLELIZZARE** — Quando possibile, lancia più subagent in parallelo (max 10).
-3. **ESSERE AUTONOMO** — Prendi decisioni, non chiedere conferma per ogni cosa banale.
-4. **CONTEXT MANAGEMENT** — Usa i subagent per mantenere il context principale pulito.
-5. **QUALITÀ > VELOCITÀ** — Meglio fare bene che fare in fretta.
+1. **USE SUBAGENTS PROACTIVELY** — Don't do everything yourself. Delegate to specialists.
+2. **PARALLELIZE** — When possible, launch multiple subagents in parallel (max 10).
+3. **BE AUTONOMOUS** — Make decisions, don't ask for confirmation on trivial matters.
+4. **CONTEXT MANAGEMENT** — Use subagents to keep the main context clean.
+5. **QUALITY > SPEED** — Better to do it right than to do it fast.
 
 ---
 
-## 🤖 Subagent — USALI!
+## Subagents — USE THEM!
 
-Hai 14 subagent specializzati. **DEVI USARLI** quando il task rientra nel loro dominio.
+You have 14 specialized subagents. **YOU MUST USE THEM** when the task falls within their domain.
 
-### Tabella Decisionale Rapida
+### Quick Decision Table
 
-| Stai facendo... | USA QUESTO SUBAGENT |
-|-----------------|---------------------|
+| You're doing... | USE THIS SUBAGENT |
+|-----------------|-------------------|
 | UI SwiftUI/iOS | `swiftui-crafter` |
 | UI React/Next.js | `react-crafter` |
 | HTML/CSS/Tailwind | `html-stylist` |
-| Colori/Font/Tokens | `design-system` |
-| Architettura iOS | `swift-architect` |
-| Architettura Node.js | `node-architect` |
-| Architettura Python | `python-architect` |
+| Colors/Fonts/Tokens | `design-system` |
+| iOS Architecture | `swift-architect` |
+| Node.js Architecture | `node-architect` |
+| Python Architecture | `python-architect` |
 | SwiftData/CoreData | `swiftdata-expert` |
 | Database/SQL/Prisma | `database-expert` |
 | ML/AI/Training | `ml-engineer` |
@@ -39,115 +39,115 @@ Hai 14 subagent specializzati. **DEVI USARLI** quando il task rientra nel loro d
 | Feature/Roadmap/MVP | `product-thinker` |
 | Pricing/Business Model | `monetization-expert` |
 
-### ⚠️ Regole OBBLIGATORIE
+### Mandatory Rules
 ```
-REGOLA 1: Task specifico di dominio → USA IL SUBAGENT, NON FARLO TU
-REGOLA 2: Task complesso multi-dominio → LANCIA PIÙ SUBAGENT IN PARALLELO
-REGOLA 3: Esplorazione codebase → USA SUBAGENT per non sporcare il context
-REGOLA 4: MAI fare UI iOS senza swiftui-crafter
-REGOLA 5: MAI fare decisioni architetturali senza l'architect appropriato
-REGOLA 6: MAI scrivere copy/marketing senza marketing-strategist
-REGOLA 7: MAI definire pricing senza monetization-expert
-```
-
-### Pattern di Utilizzo
-
-**Pattern A: Singolo Specialista**
-```
-Richiesta: "Crea un componente card per i pianeti"
-Azione: Invoca swiftui-crafter
+RULE 1: Domain-specific task → USE THE SUBAGENT, DON'T DO IT YOURSELF
+RULE 2: Complex multi-domain task → LAUNCH MULTIPLE SUBAGENTS IN PARALLEL
+RULE 3: Codebase exploration → USE SUBAGENT to keep context clean
+RULE 4: NEVER do iOS UI without swiftui-crafter
+RULE 5: NEVER make architectural decisions without the appropriate architect
+RULE 6: NEVER write copy/marketing without marketing-strategist
+RULE 7: NEVER define pricing without monetization-expert
 ```
 
-**Pattern B: Parallelo Multi-Specialista**
+### Usage Patterns
+
+**Pattern A: Single Specialist**
 ```
-Richiesta: "Aggiungi feature timer con persistenza"
-Azione: Lancia in PARALLELO:
-  ├── swift-architect → struttura/pattern
-  ├── swiftui-crafter → UI componenti
-  └── swiftdata-expert → modelli dati
-Poi: Sintetizza i risultati
+Request: "Create a card component for planets"
+Action: Invoke swiftui-crafter
 ```
 
-**Pattern C: Pipeline Strategica**
+**Pattern B: Parallel Multi-Specialist**
 ```
-Richiesta: "Questa app può generare revenue?"
-Azione: Lancia in SEQUENZA:
-  1. product-thinker → analisi valore/mercato
-  2. marketing-strategist → positioning/competitor
+Request: "Add timer feature with persistence"
+Action: Launch in PARALLEL:
+  ├── swift-architect → structure/patterns
+  ├── swiftui-crafter → UI components
+  └── swiftdata-expert → data models
+Then: Synthesize the results
+```
+
+**Pattern C: Strategic Pipeline**
+```
+Request: "Can this app generate revenue?"
+Action: Launch in SEQUENCE:
+  1. product-thinker → value/market analysis
+  2. marketing-strategist → positioning/competitors
   3. monetization-expert → pricing/business model
 ```
 
-**Pattern D: Nuovo Progetto**
+**Pattern D: New Project**
 ```
-Richiesta: "Creiamo un'app per X"
-Azione:
-  1. product-thinker → MVP scope, features core
-  2. [swift/node/python]-architect → struttura progetto
-  3. design-system → tokens base, palette
-  4. tech-writer → README iniziale
-```
-
----
-
-## 🔌 MCP — Context7
-
-### ⚠️ USA CON MODERAZIONE
-
-Context7 è l'unico MCP disponibile ma **HA UN COSTO API**.
-```
-QUANDO USARE CONTEXT7:
-✅ Documentazione ufficiale di framework/librerie
-✅ API reference che non conosci bene
-✅ Problemi specifici che richiedono docs aggiornate
-
-QUANDO NON USARE CONTEXT7:
-❌ Cose che già sai fare
-❌ Best practices generiche
-❌ Domande risolvibili con conoscenza base
-❌ Prima risorsa — provaci prima senza
-
-REGOLA: Usa Context7 SOLO se sei bloccato o serve documentazione specifica.
-         Non usarlo preventivamente "per sicurezza".
+Request: "Let's create an app for X"
+Action:
+  1. product-thinker → MVP scope, core features
+  2. [swift/node/python]-architect → project structure
+  3. design-system → base tokens, palette
+  4. tech-writer → initial README
 ```
 
 ---
 
-## 🔄 Autonomia e Decisioni
+## MCP — Context7
 
-### PUOI FARE SENZA CHIEDERE
-```
-✅ Creare/modificare/eliminare file nel progetto
-✅ Lanciare qualsiasi subagent appropriato
-✅ Installare dipendenze necessarie (pip, npm)
-✅ Refactoring per migliorare qualità codice
-✅ Aggiungere documentazione e commenti
-✅ Fixare bug evidenti
-✅ Creare test
-✅ Formattare e lintare codice
-✅ Creare nuove cartelle/strutture
-✅ Decisioni di naming/convenzioni minori
-```
+### Use with Moderation
 
-### CHIEDI PRIMA DI
+Context7 is the only available MCP but **HAS AN API COST**.
 ```
-⚠️ Cambiare architettura fondamentale del progetto
-⚠️ Eliminare funzionalità esistenti e funzionanti
-⚠️ Modificare business logic critica
-⚠️ Cambiare dipendenze a major version diverse
-⚠️ Decisioni che impattano UX significativamente
-⚠️ Spendere soldi (API esterne, servizi)
+WHEN TO USE CONTEXT7:
+✅ Official framework/library documentation
+✅ API references you don't know well
+✅ Specific problems requiring updated docs
+
+WHEN NOT TO USE CONTEXT7:
+❌ Things you already know how to do
+❌ Generic best practices
+❌ Questions solvable with basic knowledge
+❌ As first resort — try without it first
+
+RULE: Use Context7 ONLY if you're stuck or need specific documentation.
+      Don't use it preemptively "just in case".
 ```
 
 ---
 
-## 📁 Struttura Progetto
+## Autonomy and Decisions
+
+### YOU CAN DO WITHOUT ASKING
+```
+✅ Create/modify/delete files in the project
+✅ Launch any appropriate subagent
+✅ Install necessary dependencies (pip, npm)
+✅ Refactor to improve code quality
+✅ Add documentation and comments
+✅ Fix obvious bugs
+✅ Create tests
+✅ Format and lint code
+✅ Create new folders/structures
+✅ Minor naming/convention decisions
+```
+
+### ASK BEFORE
+```
+⚠️ Changing fundamental project architecture
+⚠️ Deleting existing working functionality
+⚠️ Modifying critical business logic
+⚠️ Changing dependencies to different major versions
+⚠️ Decisions that significantly impact UX
+⚠️ Spending money (external APIs, services)
+```
+
+---
+
+## Project Structure
 ```
 ~/Tech/Archon/
 |
 ├── .claude/
-|   ├── CLAUDE.md                 ← Questo file (leggilo sempre!)
+|   ├── CLAUDE.md             ← This file (read it always!)
 │   ├── settings.json         ← Config, hooks, permissions
-│   ├── settings.local.json   ← Override personali (gitignored)
+│   ├── settings.local.json   ← Personal overrides (gitignored)
 │   └── agents/               ← 14 project subagents
 │       ├── swiftui-crafter.yml
 │       ├── react-crafter.yml
@@ -163,76 +163,76 @@ REGOLA: Usa Context7 SOLO se sei bloccato o serve documentazione specifica.
 │       ├── marketing-strategist.yml
 │       ├── product-thinker.yml
 │       └── monetization-expert.yml
-├── orchestrator/             ← Python orchestrator core (TODO)
-├── prompts/                  ← System prompts per terminali (TODO)
-└── templates/                ← Template per nuovi progetti (TODO)
+├── orchestrator/             ← Python orchestrator core
+├── templates/                ← Terminal system prompts
+└── Apps/                     ← Generated projects
 ```
 
 ---
 
-## 🛠 Code Standards
+## Code Standards
 
 ### Python
 - Python 3.11+
-- Type hints SEMPRE
+- Type hints ALWAYS
 - Formatter: Black
 - Linter: Ruff
 - Docstrings: Google style
-- Async/await per I/O operations
+- Async/await for I/O operations
 
-### Swift (progetti target)
+### Swift (target projects)
 - Swift 5.9+
-- SwiftUI per UI
-- SwiftData per persistenza
-- Pattern: MVVM o simile
-- Docs con /// per API pubbliche
+- SwiftUI for UI
+- SwiftData for persistence
+- Pattern: MVVM or similar
+- Docs with /// for public APIs
 
-### Node.js/TypeScript (progetti target)
+### Node.js/TypeScript (target projects)
 - TypeScript strict mode
 - ESLint + Prettier
-- Zod per validation input
-- Error handling esplicito
+- Zod for input validation
+- Explicit error handling
 
-### Generale
-- Commits chiari e atomici
-- Un branch per feature
-- Documentazione aggiornata
+### General
+- Clear and atomic commits
+- One branch per feature
+- Updated documentation
 
 ---
 
-## 🚨 REMINDER — LEGGILO OGNI SESSIONE
+## REMINDER — READ EVERY SESSION
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  ⚡ USA I SUBAGENT — Esistono per questo, USALI!             ║
-║  ⚡ PARALLELIZZA — Fino a 10 subagent contemporanei          ║
-║  ⚡ CONTEXT PULITO — Delega esplorazione ai subagent         ║
-║  ⚡ SII DECISIVO — Non chiedere per ogni virgola             ║
-║  ⚡ CONTEXT7 CON PARSIMONIA — Costa, usalo solo se serve     ║
-║  ⚡ DOCUMENTA — Decisioni importanti vanno scritte           ║
+║  ⚡ USE SUBAGENTS — They exist for this, USE THEM!           ║
+║  ⚡ PARALLELIZE — Up to 10 subagents simultaneously          ║
+║  ⚡ CLEAN CONTEXT — Delegate exploration to subagents        ║
+║  ⚡ BE DECISIVE — Don't ask about every little thing         ║
+║  ⚡ CONTEXT7 SPARINGLY — It costs, use only when needed      ║
+║  ⚡ DOCUMENT — Important decisions should be written down    ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 📚 Quick Reference
+## Quick Reference
 
-**Lanciare subagent esplicito:**
+**Launch explicit subagent:**
 ```
-"Usa il subagent swiftui-crafter per creare..."
-```
-
-**Lanciare subagent paralleli:**
-```
-"Lancia in parallelo swift-architect, swiftui-crafter e swiftdata-expert per..."
+"Use the swiftui-crafter subagent to create..."
 ```
 
-**Vedere subagent disponibili:**
+**Launch parallel subagents:**
+```
+"Launch in parallel swift-architect, swiftui-crafter and swiftdata-expert for..."
+```
+
+**See available subagents:**
 ```
 /agents
 ```
 
 ---
 
-Creato: Gennaio 2025
-Subagent: 14
-MCP: Context7 (uso moderato)
+Created: January 2025
+Subagents: 14
+MCP: Context7 (moderate use)
