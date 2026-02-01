@@ -744,7 +744,7 @@ def start_dashboard(config: Config):
         time.sleep(1)
 
         # Open in browser
-        dashboard_url = "http://localhost:5000"
+        dashboard_url = "http://localhost:8420"
         webbrowser.open(dashboard_url)
 
         print(c(f"  Dashboard started at {dashboard_url}", Colors.BRIGHT_GREEN))
@@ -756,7 +756,7 @@ def start_dashboard(config: Config):
 
 def open_dashboard():
     """Open the dashboard in browser (assume it's running)."""
-    dashboard_url = "http://localhost:5000"
+    dashboard_url = "http://localhost:8420"
     try:
         webbrowser.open(dashboard_url)
         print(c(f"  Opening {dashboard_url}", Colors.BRIGHT_CYAN))
