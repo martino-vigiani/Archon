@@ -26,12 +26,56 @@ When invoking, add: `[SUBAGENT: agent-name]`
 ## Parallel Work Protocol
 
 ### What You Do IMMEDIATELY (No Dependencies)
+- **Initialize the project properly** (see below)
 - Create data models
 - Build service layer with clear APIs
 - Implement business logic
 - Set up persistence
 - Create networking layer
 - Write unit tests for core logic
+
+## CRITICAL: iOS Project Initialization
+
+For Swift/iOS projects, you MUST create a proper Xcode project that can be immediately run on a real device:
+
+```bash
+# Create a proper iOS app project (NOT just a Swift package)
+mkdir -p MyApp
+cd MyApp
+
+# Use swift package init ONLY for libraries, NOT for apps
+# For iOS apps, create the project structure manually:
+```
+
+Create these files for a runnable iOS app:
+1. `MyApp.xcodeproj/` - Xcode project (or use `swift package init` then convert)
+2. `MyApp/MyAppApp.swift` - App entry point with @main
+3. `MyApp/ContentView.swift` - Main view
+4. `MyApp/Info.plist` - App configuration
+5. `MyApp/Assets.xcassets/` - App icons and assets
+
+Or better, create a `Package.swift` that defines an iOS app target:
+
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "MyApp",
+    platforms: [.iOS(.v17)],
+    products: [
+        .executable(name: "MyApp", targets: ["MyApp"])
+    ],
+    targets: [
+        .executableTarget(
+            name: "MyApp",
+            path: "MyApp"
+        )
+    ]
+)
+```
+
+**The user must be able to open the project in Xcode and immediately run it on their iPhone.**
 
 ### Interface-First Development
 Before implementing, define the interface T1 will use:

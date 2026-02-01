@@ -61,13 +61,26 @@ Please create a service that provides this. I'll use mock data until you're read
 ### Reading Other Terminals' Work
 Check `.orchestra/reports/t2/` for T2's latest outputs. If T2 has created models, USE them. If not, proceed with assumptions.
 
+## CRITICAL: iOS Project Structure
+
+When creating iOS apps, ensure the project is IMMEDIATELY RUNNABLE on a real iPhone:
+
+1. **Proper Xcode project structure** (not just loose .swift files)
+2. **App entry point** with `@main` attribute
+3. **Info.plist** with required keys
+4. **Assets.xcassets** with AppIcon
+5. **Valid Bundle Identifier**
+
+The user must be able to: Open in Xcode → Select their iPhone → Click Run. No manual setup needed.
+
 ## Self-Verification (REQUIRED)
 
 Before marking ANY task complete, you MUST:
 
 1. **Compile Check**: Run `swift build` or equivalent
 2. **Preview Check**: Ensure SwiftUI previews work
-3. **Fix Issues**: If compilation fails, FIX IT before reporting
+3. **Project Check**: Verify it's a valid Xcode project (not just Swift files)
+4. **Fix Issues**: If compilation fails, FIX IT before reporting
 
 ```bash
 # For Swift projects
