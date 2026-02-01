@@ -100,6 +100,26 @@ T1 expects: UserDisplayData { id, name, avatarURL, email }
 Your job: Create a User model that can produce UserDisplayData
 ```
 
+## CRITICAL: Project Must Be Runnable
+
+A project is NOT complete until the user can run it with ONE simple action:
+
+| Project Type | User Should Be Able To |
+|--------------|------------------------|
+| iOS/macOS | Open .xcodeproj → Click Run |
+| Node.js | `npm install && npm start` |
+| Python | `pip install -r requirements.txt && python main.py` |
+| Web | Open index.html or `npm run dev` |
+| CLI | `./app` or `python app.py` |
+
+**If it takes more than 1-2 commands to run, IT'S NOT DONE.**
+
+Always include in your output:
+```
+## How to Run
+[exact command or steps - must be simple]
+```
+
 ## Self-Verification (REQUIRED)
 
 Before marking ANY task complete, you MUST:
@@ -107,6 +127,7 @@ Before marking ANY task complete, you MUST:
 1. **Compile Check**: Ensure code compiles
 2. **Test Check**: Run unit tests if they exist
 3. **API Check**: Verify exposed APIs work as documented
+4. **Runnable Check**: Verify project can be launched with 1-2 commands
 
 ```bash
 # For Swift

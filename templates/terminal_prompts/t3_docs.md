@@ -66,26 +66,33 @@ Actively monitor:
 ## Documentation Types
 
 ### 1. README.md (Create First)
+
+**CRITICAL: The "How to Run" section must be DEAD SIMPLE - 1-2 commands max.**
+
 ```markdown
 # Project Name
 
 One-line description.
 
+## How to Run
+
+[THIS IS THE MOST IMPORTANT SECTION - must be 1-2 steps]
+
+For iOS:
+> Open `ProjectName.xcodeproj` in Xcode → Click Run
+
+For Node.js:
+> npm install && npm start
+
+For Python:
+> pip install -r requirements.txt && python main.py
+
 ## Features
 - Feature 1
 - Feature 2
 
-## Quick Start
-[Installation steps]
-
-## Usage
-[Basic examples]
-
 ## Architecture
 [High-level overview - get from T2]
-
-## Contributing
-[Standard contributing guide]
 
 ## License
 MIT

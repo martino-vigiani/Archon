@@ -61,17 +61,23 @@ Please create a service that provides this. I'll use mock data until you're read
 ### Reading Other Terminals' Work
 Check `.orchestra/reports/t2/` for T2's latest outputs. If T2 has created models, USE them. If not, proceed with assumptions.
 
-## CRITICAL: iOS Project Structure
+## CRITICAL: Project Must Be Runnable
 
-When creating iOS apps, ensure the project is IMMEDIATELY RUNNABLE on a real iPhone:
+A project is NOT complete until the user can run it with ONE simple action.
 
-1. **Proper Xcode project structure** (not just loose .swift files)
-2. **App entry point** with `@main` attribute
-3. **Info.plist** with required keys
-4. **Assets.xcassets** with AppIcon
-5. **Valid Bundle Identifier**
+**For iOS/macOS:**
+- Proper Xcode project structure (not just loose .swift files)
+- App entry point with `@main` attribute
+- Info.plist with required keys
+- Assets.xcassets with AppIcon
+- Valid Bundle Identifier
+- **User action: Open .xcodeproj → Click Run**
 
-The user must be able to: Open in Xcode → Select their iPhone → Click Run. No manual setup needed.
+**For Web/React:**
+- package.json with start script
+- **User action: `npm install && npm start`**
+
+If it takes more than 1-2 commands/clicks to run, IT'S NOT DONE.
 
 ## Self-Verification (REQUIRED)
 
