@@ -210,6 +210,10 @@ class Orchestrator:
         # Running task futures
         self._running_tasks: dict[TerminalID, asyncio.Task] = {}
 
+        # Pause/Resume control
+        self._paused = asyncio.Event()
+        self._paused.set()  # Not paused initially (set = not paused)
+
         # Retry tracking: task_id -> retry_count
         self._retry_counts: dict[str, int] = {}
 
@@ -395,6 +399,124 @@ class Orchestrator:
             return json.loads(self.config.status_file.read_text())
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
+
+    # =========================================================================
+    # Pause/Resume Control (for Manager Chat)
+    # =========================================================================
+
+    async def pause(self) -> None:
+        """Pause task execution. Current tasks will complete but no new tasks start."""
+        self._paused.clear()
+        self._log_warning("Execution PAUSED by user")
+
+    async def resume(self) -> None:
+        """Resume task execution after pause."""
+        self._paused.set()
+        self._log_success("Execution RESUMED")
+
+    async def inject_task(
+        self,
+        title: str,
+        description: str,
+        terminal_id: TerminalID,
+        priority: str = "high",
+    ) -> Task:
+        """
+        Inject a new task into the queue during execution.
+
+        Args:
+            title: Task title
+            description: Task description
+            terminal_id: Which terminal should handle this
+            priority: Task priority (low, medium, high, critical)
+
+        Returns:
+            The created Task object
+        """
+        task = self.task_queue.add_task(
+            title=title,
+            description=description,
+            priority=TaskPriority(priority),
+            assigned_to=terminal_id,
+            phase=self.task_queue.get_current_phase(),  # Add to current phase
+            metadata={"injected": True, "injected_at": datetime.now().isoformat()},
+        )
+
+        self._log_info(f"Task injected: {title} -> {terminal_id}")
+        self.event_logger.log_event("task_injected", {
+            "task_id": task.id,
+            "title": title,
+            "terminal": terminal_id,
+        })
+
+        # Update progress tracker if it exists
+        if self._progress:
+            self._progress.total += 1
+
+        return task
+
+    async def cancel_task(self, task_id: str) -> bool:
+        """
+        Cancel a pending task.
+
+        Args:
+            task_id: ID of the task to cancel
+
+        Returns:
+            True if task was cancelled, False if not found or already in progress
+        """
+        pending = self.task_queue.pending
+
+        for i, task in enumerate(pending):
+            if task.id == task_id:
+                # Remove from pending
+                pending.pop(i)
+                self.task_queue._save_tasks("pending.json", pending)
+
+                self._log_warning(f"Task cancelled: {task.title}")
+                self.event_logger.log_event("task_cancelled", {
+                    "task_id": task_id,
+                    "title": task.title,
+                })
+                return True
+
+        return False
+
+    def get_detailed_status(self) -> dict:
+        """
+        Get detailed status for the Manager Chat.
+
+        Returns comprehensive information about execution state,
+        terminals, tasks, and progress.
+        """
+        # Get task queue status
+        task_status = self.task_queue.get_status_summary()
+
+        # Get terminal states
+        terminal_states = {}
+        for tid, terminal in self.terminals.items():
+            current_task = self.task_queue.get_terminal_current_task(tid)
+            terminal_states[tid] = {
+                "state": terminal.state.value if terminal else "not_started",
+                "current_task": current_task.title if current_task else None,
+                "current_task_id": current_task.id if current_task else None,
+            }
+
+        # Calculate duration
+        duration = 0.0
+        if self.start_time:
+            duration = (datetime.now() - self.start_time).total_seconds()
+
+        return {
+            "state": "running" if self.is_running else "stopped",
+            "paused": not self._paused.is_set(),
+            "phase": self.task_queue.get_current_phase(),
+            "duration_seconds": round(duration, 1),
+            "terminals": terminal_states,
+            "tasks": task_status,
+            "rate_limited": self._rate_limited,
+            "rate_limit_reset": self._rate_limit_reset_time,
+        }
 
     # =========================================================================
     # Terminal Management
@@ -922,6 +1044,12 @@ If the task is not critical, you may skip it with an explanation.
             # Check if shutdown was requested
             if self._shutdown_requested:
                 break
+
+            # Wait if paused (blocks until resumed)
+            if not self._paused.is_set():
+                self._log_info("Waiting for resume...")
+                await self._paused.wait()
+                self._log_info("Resumed!")
 
             # Process retry queue first
             while self._retry_queue:

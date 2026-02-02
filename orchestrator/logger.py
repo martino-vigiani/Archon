@@ -17,12 +17,16 @@ EventType = Literal[
     "task_start",
     "task_complete",
     "task_failed",
+    "task_injected",
+    "task_cancelled",
     "terminal_busy",
     "terminal_idle",
     "terminal_error",
     "subagent_invoked",
     "message_sent",
     "plan_created",
+    "execution_paused",
+    "execution_resumed",
 ]
 
 
@@ -125,3 +129,16 @@ class EventLogger:
         if task_title:
             msg += f" - working on: {task_title}"
         self.log(event_type, msg, terminal, task_title=task_title)
+
+    def log_event(self, event_type: str, details: dict | None = None):
+        """Generic event logging for custom events."""
+        # Use a safe type cast for custom events
+        safe_type = event_type if event_type in [
+            "orchestrator_start", "orchestrator_stop", "task_start", "task_complete",
+            "task_failed", "task_injected", "task_cancelled", "terminal_busy",
+            "terminal_idle", "terminal_error", "subagent_invoked", "message_sent",
+            "plan_created", "execution_paused", "execution_resumed"
+        ] else "message_sent"  # Fallback to a valid type
+
+        message = details.get("title", event_type) if details else event_type
+        self.log(safe_type, message, details=details)  # type: ignore

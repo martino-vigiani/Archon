@@ -23,6 +23,7 @@ from pathlib import Path
 from .config import Config
 from .orchestrator import Orchestrator
 from .planner import Planner
+from .manager_chat import ManagerChat, chat_repl
 
 
 # ============================================================================
@@ -176,6 +177,12 @@ Examples:
         help="Resume the last interrupted task (reads from .orchestra/last_project.json)",
     )
 
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Enable interactive Manager Chat mode (REPL during execution)",
+    )
+
     return parser.parse_args()
 
 
@@ -215,6 +222,7 @@ def print_config_summary(args: argparse.Namespace, project_path: Path | None = N
     print(f"    {c('Timeout:', Colors.DIM)} {c(f'{args.timeout}s', Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.BRIGHT_RED)}")
     print(f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.BRIGHT_RED)}")
+    print(f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.BRIGHT_RED)}")
     if project_path:
         print(f"    {c('Project:', Colors.DIM)} {c(str(project_path), Colors.BRIGHT_CYAN)}")
     print()
@@ -871,6 +879,98 @@ async def run_orchestrator(
         return 130, {"status": "interrupted", "tasks": {}}
 
 
+async def run_with_chat(
+    task: str,
+    config: Config,
+    verbose: bool,
+    timeout: int,
+    max_retries: int = 2,
+    project_path: Path | None = None,
+) -> tuple[int, dict]:
+    """
+    Run the orchestrator with interactive Manager Chat.
+
+    Both the orchestrator and the chat REPL run concurrently.
+    """
+    start_time = datetime.now()
+
+    # Save project state before starting
+    if project_path:
+        save_project_state(config, project_path, task, status="in_progress")
+
+    orchestrator = Orchestrator(config=config, verbose=verbose)
+
+    # Create Manager Chat
+    manager = ManagerChat(orchestrator, config)
+
+    # Get project context if working on an existing project
+    project_context = ""
+    if project_path and project_path.exists():
+        project_context = get_project_context_for_planner(project_path)
+
+    async def run_orchestrator_task():
+        """Task wrapper for orchestrator.run()"""
+        try:
+            return await asyncio.wait_for(
+                orchestrator.run(task, project_context=project_context),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            return {"status": "timeout", "tasks": {"failed": 1}}
+        except asyncio.CancelledError:
+            return {"status": "cancelled", "tasks": {}}
+
+    try:
+        # Run both orchestrator and chat REPL concurrently
+        orchestrator_task = asyncio.create_task(run_orchestrator_task())
+
+        # Run chat REPL until it exits or orchestrator completes
+        chat_task = asyncio.create_task(chat_repl(manager))
+
+        # Wait for orchestrator to complete (chat can exit early)
+        done, pending = await asyncio.wait(
+            [orchestrator_task, chat_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # If orchestrator finished first, stop the chat
+        if orchestrator_task in done:
+            manager.stop()
+            # Give chat a moment to clean up
+            if chat_task in pending:
+                chat_task.cancel()
+                try:
+                    await chat_task
+                except asyncio.CancelledError:
+                    pass
+            result = orchestrator_task.result()
+        else:
+            # Chat exited - wait for orchestrator
+            print(c("  Chat exited. Waiting for orchestrator to complete...", Colors.DIM))
+            result = await orchestrator_task
+
+        # Update project state on completion
+        if project_path:
+            status = result.get("status", "unknown")
+            update_project_status(config, status)
+
+        # Print detailed summary
+        events_file = config.orchestra_dir / "events.json"
+        print_detailed_summary(result, events_file, start_time)
+
+        status = result.get("status", "unknown")
+        exit_code = 0 if status == "success" else 1
+        return exit_code, result
+
+    except KeyboardInterrupt:
+        print()
+        print(c("  [INFO] Interrupted by user", Colors.BRIGHT_YELLOW))
+        if project_path:
+            update_project_status(config, "interrupted")
+        await orchestrator.shutdown()
+        return 130, {"status": "interrupted", "tasks": {}}
+
+
 async def retry_failed_tasks(
     config: Config,
     verbose: bool,
@@ -1006,6 +1106,13 @@ def main() -> int:
     # Dry run mode
     if args.dry_run:
         return asyncio.run(run_dry_run(task, config, verbose, project_path))
+
+    # Chat mode - interactive REPL during execution
+    if args.chat:
+        exit_code, last_result = asyncio.run(
+            run_with_chat(task, config, verbose, args.timeout, args.max_retries, project_path)
+        )
+        return exit_code
 
     # Main execution loop
     last_result: dict = {}

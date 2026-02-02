@@ -377,3 +377,23 @@ class TaskQueue:
     def is_all_done(self) -> bool:
         """Check if all tasks are completed."""
         return len(self.pending) == 0 and len(self.in_progress) == 0
+
+    def cancel_task(self, task_id: str) -> Task | None:
+        """
+        Cancel a pending task by removing it from the queue.
+
+        Args:
+            task_id: ID of the task to cancel
+
+        Returns:
+            The cancelled Task if found, None if not found or already in progress
+        """
+        pending = self.pending
+
+        for i, task in enumerate(pending):
+            if task.id == task_id:
+                cancelled = pending.pop(i)
+                self._save_tasks("pending.json", pending)
+                return cancelled
+
+        return None
