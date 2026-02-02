@@ -6,6 +6,7 @@ Provides:
 - Execution control (pause/resume)
 - Task injection
 - Natural language Q&A via Claude
+- Organic flow commands (quality, contracts, flow, intervene)
 """
 
 import asyncio
@@ -14,50 +15,55 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from .orchestrator import Orchestrator
 
 from .config import Config, TerminalID
+from .cli_display import (
+    Colors,
+    c,
+    quality_bar,
+    quality_label,
+    get_terminal_badge,
+    print_organic_status,
+    print_contracts_summary,
+    print_intervention_help,
+    print_flow_state,
+    TerminalStatus,
+    ContractDisplay,
+    FlowState,
+    InterventionType,
+    TERMINAL_PERSONALITIES,
+)
 
 
 # =============================================================================
-# ANSI Colors for Chat Output
+# ANSI Colors for Chat Output (using cli_display Colors)
 # =============================================================================
 
 class ChatColors:
-    """Colors for chat interface."""
+    """Colors for chat interface - wraps cli_display.Colors."""
 
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
+    RESET = Colors.RESET
+    BOLD = Colors.BOLD
+    DIM = Colors.DIM
 
     # Manager colors
-    MANAGER = "\033[96m"      # Cyan
-    USER = "\033[97m"         # White
-    SUCCESS = "\033[92m"      # Green
-    WARNING = "\033[93m"      # Yellow
-    ERROR = "\033[91m"        # Red
-    INFO = "\033[94m"         # Blue
+    MANAGER = Colors.BRIGHT_CYAN
+    USER = Colors.BRIGHT_WHITE
+    SUCCESS = Colors.BRIGHT_GREEN
+    WARNING = Colors.BRIGHT_YELLOW
+    ERROR = Colors.BRIGHT_RED
+    INFO = Colors.BRIGHT_BLUE
 
-    # Terminal colors
-    T1 = "\033[96m"   # Cyan - UI/UX
-    T2 = "\033[95m"   # Magenta - Features
-    T3 = "\033[93m"   # Yellow - Docs
-    T4 = "\033[94m"   # Blue - Strategy
-
-    @classmethod
-    def disable(cls):
-        """Disable colors for non-TTY output."""
-        for attr in dir(cls):
-            if not attr.startswith('_') and attr != 'disable':
-                setattr(cls, attr, "")
-
-
-# Disable colors if not a TTY
-if not sys.stdout.isatty():
-    ChatColors.disable()
+    # Terminal colors (use personality colors)
+    T1 = Colors.BRIGHT_CYAN
+    T2 = Colors.BRIGHT_MAGENTA
+    T3 = Colors.BRIGHT_YELLOW
+    T4 = Colors.BRIGHT_BLUE
+    T5 = Colors.BRIGHT_RED
 
 
 # =============================================================================
@@ -121,18 +127,29 @@ class ManagerChat:
     responses about execution state via Claude.
     """
 
-    # Built-in commands
+    # Built-in commands - organized by category
     COMMANDS = {
+        # Status & Monitoring
         "status": "Show overall execution status",
-        "status t1": "Show T1 (UI/UX) terminal status",
-        "status t2": "Show T2 (Features) terminal status",
-        "status t3": "Show T3 (Docs) terminal status",
-        "status t4": "Show T4 (Strategy) terminal status",
+        "status <t1-t5>": "Show specific terminal status",
+        "quality": "Show quality gradients for all terminals",
+        "flow": "Show current flow state (organic model)",
+        "contracts": "Show all active interface contracts",
+
+        # Control
         "pause": "Pause execution (current tasks will complete)",
         "resume": "Resume execution",
+
+        # Task Management
         "inject: <task>": "Inject a new task into the queue",
         "cancel <task_id>": "Cancel a pending task",
         "tasks": "List all tasks with status",
+
+        # Organic Interventions
+        "intervene": "Show intervention types",
+        "intervene <type> <target>": "Manual intervention (AMPLIFY, REDIRECT, etc.)",
+
+        # Info
         "reports": "Show recent reports from terminals",
         "help": "Show this help message",
         "quit": "Exit chat (orchestrator continues)",
@@ -158,12 +175,10 @@ class ManagerChat:
 
     def _get_terminal_color(self, terminal_id: str) -> str:
         """Get color for a terminal."""
-        return {
-            "t1": ChatColors.T1,
-            "t2": ChatColors.T2,
-            "t3": ChatColors.T3,
-            "t4": ChatColors.T4,
-        }.get(terminal_id, ChatColors.INFO)
+        personality = TERMINAL_PERSONALITIES.get(terminal_id)
+        if personality:
+            return personality.color
+        return ChatColors.INFO
 
     # =========================================================================
     # Command Parsing
@@ -193,10 +208,25 @@ class ManagerChat:
         if text.lower().startswith("status "):
             return "status", text[7:].strip()
 
-        # Simple commands
+        # Check for intervene command
+        if text.lower().startswith("intervene"):
+            parts = text.split(maxsplit=1)
+            args = parts[1] if len(parts) > 1 else ""
+            return "intervene", args
+
+        # Simple commands (including new organic commands)
         lower = text.lower()
-        if lower in ["status", "pause", "resume", "tasks", "reports", "help", "quit", "exit", "q"]:
-            return lower if lower not in ["exit", "q"] else "quit", ""
+        simple_commands = [
+            "status", "pause", "resume", "tasks", "reports", "help",
+            "quit", "exit", "q",
+            # New organic commands
+            "quality", "flow", "contracts", "intervene",
+        ]
+
+        if lower in simple_commands:
+            if lower in ["exit", "q"]:
+                return "quit", ""
+            return lower, ""
 
         # Natural language query
         return "query", text
@@ -386,13 +416,12 @@ class ManagerChat:
     async def cmd_reports(self) -> str:
         """Handle reports command to show recent terminal reports."""
         lines = ["Recent Reports:", ""]
-        terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
 
         for tid in ["t1", "t2", "t3", "t4", "t5"]:
             reports = self.orchestrator.report_manager.get_reports_for_terminal(tid, limit=2)
             if reports:
-                color = self._get_terminal_color(tid)
-                lines.append(f"{color}[{tid.upper()}] {terminal_names.get(tid, '')}{ChatColors.RESET}")
+                badge = get_terminal_badge(tid)
+                lines.append(badge)
 
                 for report in reports:
                     lines.append(f"  {report.summary[:70]}...")
@@ -406,17 +435,336 @@ class ManagerChat:
 
         return "\n".join(lines)
 
-    def cmd_help(self) -> str:
-        """Handle help command."""
-        lines = ["Available Commands:", ""]
+    # =========================================================================
+    # Organic Model Commands
+    # =========================================================================
 
-        for cmd, desc in self.COMMANDS.items():
-            lines.append(f"  {ChatColors.BOLD}{cmd}{ChatColors.RESET}")
-            lines.append(f"    {ChatColors.DIM}{desc}{ChatColors.RESET}")
+    async def cmd_quality(self) -> str:
+        """Handle quality command - show quality gradients for all terminals."""
+        lines = [c("Quality Gradients:", Colors.BOLD, Colors.WHITE), ""]
+
+        status = self.orchestrator.get_detailed_status()
+        terminals = status.get("terminals", {})
+
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+            t_info = terminals.get(tid, {})
+            personality = TERMINAL_PERSONALITIES.get(tid)
+
+            if not personality:
+                continue
+
+            # Get quality from reports (estimate based on completed tasks)
+            reports = self.orchestrator.report_manager.get_reports_for_terminal(tid, limit=5)
+
+            # Estimate quality based on report completeness
+            if reports:
+                # Simple heuristic: more components + files = higher quality
+                total_components = sum(len(r.components_created) for r in reports)
+                total_files = sum(len(r.files_created) + len(r.files_modified) for r in reports)
+                # Rough quality estimate
+                quality = min(1.0, (total_components * 0.1 + total_files * 0.05 + 0.2))
+            else:
+                quality = 0.0
+
+            # Current work
+            current_task = t_info.get("current_task")
+            work_str = current_task[:30] if current_task else "(idle)"
+
+            # Build display line
+            badge = get_terminal_badge(tid, include_name=True)
+            qbar = quality_bar(quality, 10)
+            qlabel = quality_label(quality)
+
+            lines.append(f"  {badge}")
+            lines.append(f"    {qbar} {quality:.2f} - {qlabel}")
+            lines.append(f"    Current: {c(work_str, Colors.DIM)}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    async def cmd_contracts(self) -> str:
+        """Handle contracts command - show all interface contracts."""
+        lines = [c("Interface Contracts:", Colors.BOLD, Colors.WHITE), ""]
+
+        # Get contracts from contract manager
+        contracts = self.orchestrator.contract_manager.list_contracts()
+
+        if not contracts:
+            lines.append(c("  No contracts defined yet.", Colors.DIM))
+            lines.append("")
+            lines.append(c("  Contracts are created when T1/T2 define interface expectations.", Colors.DIM))
+            return "\n".join(lines)
+
+        # Group by status
+        status_groups = {"proposed": [], "implemented": [], "verified": []}
+        for contract in contracts:
+            status_groups[contract.status].append(contract)
+
+        status_colors = {
+            "proposed": Colors.BRIGHT_YELLOW,
+            "implemented": Colors.BRIGHT_CYAN,
+            "verified": Colors.BRIGHT_GREEN,
+        }
+
+        status_icons = {
+            "proposed": "[?]",
+            "implemented": "[>]",
+            "verified": "[+]",
+        }
+
+        for status_name, status_contracts in status_groups.items():
+            if status_contracts:
+                color = status_colors[status_name]
+                lines.append(c(f"  {status_name.upper()} ({len(status_contracts)}):", color, Colors.BOLD))
+
+                for contract in status_contracts:
+                    icon = c(status_icons[status_name], color)
+                    defined_by = get_terminal_badge(contract.defined_by, include_name=False)
+
+                    impl_str = ""
+                    if contract.implemented_by:
+                        impl_by = get_terminal_badge(contract.implemented_by, include_name=False)
+                        impl_str = f" -> {impl_by}"
+
+                    lines.append(f"    {icon} {c(contract.name, Colors.WHITE)} {defined_by}{impl_str}")
+
+                lines.append("")
+
+        # Summary
+        total = len(contracts)
+        verified = len(status_groups["verified"])
+        lines.append(c(f"  Total: {total} contracts, {verified} verified", Colors.DIM))
+
+        return "\n".join(lines)
+
+    async def cmd_flow(self) -> str:
+        """Handle flow command - show current organic flow state."""
+        lines = [c("Organic Flow State:", Colors.BOLD, Colors.WHITE), ""]
+
+        status = self.orchestrator.get_detailed_status()
+        terminals = status.get("terminals", {})
+        tasks = status.get("tasks", {})
+
+        # Determine overall flow state
+        in_progress_count = tasks.get("in_progress_count", 0)
+        pending_count = tasks.get("pending_count", 0)
+        paused = status.get("paused", False)
+
+        flowing_terminals = []
+        blocked_terminals = []
+        idle_terminals = []
+
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+            t_info = terminals.get(tid, {})
+            state = t_info.get("state", "unknown")
+            current_task = t_info.get("current_task")
+
+            if current_task:
+                flowing_terminals.append(tid)
+            elif state == "blocked" or state == "error":
+                blocked_terminals.append(tid)
+            else:
+                idle_terminals.append(tid)
+
+        # Overall state
+        if paused:
+            overall_state: FlowState = "syncing"
+            state_desc = "PAUSED"
+            state_color = Colors.BRIGHT_YELLOW
+        elif blocked_terminals and not flowing_terminals:
+            overall_state = "blocked"
+            state_desc = "BLOCKED"
+            state_color = Colors.BRIGHT_RED
+        elif in_progress_count == 0 and pending_count == 0:
+            overall_state = "completing"
+            state_desc = "COMPLETING"
+            state_color = Colors.BRIGHT_GREEN
+        elif flowing_terminals:
+            overall_state = "flowing"
+            state_desc = "FLOWING"
+            state_color = Colors.BRIGHT_GREEN
+        else:
+            overall_state = "idle"
+            state_desc = "IDLE"
+            state_color = Colors.DIM
+
+        lines.append(f"  Overall: {c(state_desc, state_color, Colors.BOLD)}")
+        lines.append("")
+
+        # Terminal states
+        if flowing_terminals:
+            badges = " ".join(get_terminal_badge(t, include_name=False) for t in flowing_terminals)
+            lines.append(f"  {c('Flowing:', Colors.BRIGHT_GREEN)} {badges}")
+
+        if blocked_terminals:
+            badges = " ".join(get_terminal_badge(t, include_name=False) for t in blocked_terminals)
+            lines.append(f"  {c('Blocked:', Colors.BRIGHT_RED)} {badges}")
+
+        if idle_terminals:
+            badges = " ".join(get_terminal_badge(t, include_name=False) for t in idle_terminals)
+            lines.append(f"  {c('Idle:', Colors.DIM)} {badges}")
 
         lines.append("")
-        lines.append("You can also ask natural language questions about the execution.")
-        lines.append("Example: \"What has T2 built so far?\" or \"Why is T1 taking so long?\"")
+
+        # Task flow stats
+        completed = tasks.get("completed_count", 0)
+        total = tasks.get("total_count", 0)
+
+        if total > 0:
+            progress = completed / total
+            progress_bar = quality_bar(progress, 20)
+            lines.append(f"  Progress: {progress_bar} {completed}/{total}")
+        else:
+            lines.append(f"  Progress: {c('No tasks yet', Colors.DIM)}")
+
+        # Phase info (still useful context)
+        phase = status.get("phase", 1)
+        phase_names = {1: "Build", 2: "Integrate", 3: "Test"}
+        lines.append(f"  Phase: {phase} ({phase_names.get(phase, 'Unknown')})")
+
+        return "\n".join(lines)
+
+    async def cmd_intervene(self, args: str = "") -> str:
+        """Handle intervene command - manual interventions."""
+        if not args:
+            # Show intervention help
+            lines = [c("Intervention Types:", Colors.BOLD, Colors.WHITE), ""]
+
+            interventions = [
+                ("AMPLIFY", Colors.BRIGHT_GREEN, "Boost priority of promising work"),
+                ("REDIRECT", Colors.BRIGHT_YELLOW, "Change direction of a terminal"),
+                ("BRIDGE", Colors.BRIGHT_CYAN, "Connect two terminals' work"),
+                ("CLARIFY", Colors.BRIGHT_BLUE, "Request clarification from terminal"),
+                ("ACCELERATE", Colors.BRIGHT_MAGENTA, "Speed up slow progress"),
+                ("PAUSE", Colors.BRIGHT_RED, "Temporarily pause terminal"),
+            ]
+
+            for name, color, desc in interventions:
+                lines.append(f"  {c(name.ljust(12), color, Colors.BOLD)} {desc}")
+
+            lines.append("")
+            lines.append(c("  Usage: intervene <TYPE> <target> [message]", Colors.DIM))
+            lines.append(c("  Example: intervene AMPLIFY t1", Colors.DIM))
+            lines.append(c("  Example: intervene REDIRECT t2 'Focus on API endpoints'", Colors.DIM))
+
+            return "\n".join(lines)
+
+        # Parse intervention
+        parts = args.split(maxsplit=2)
+        if len(parts) < 2:
+            return c("Usage: intervene <TYPE> <target> [message]", Colors.BRIGHT_RED)
+
+        intervention_type = parts[0].upper()
+        target = parts[1].lower()
+        message = parts[2] if len(parts) > 2 else None
+
+        valid_types = ["AMPLIFY", "REDIRECT", "BRIDGE", "CLARIFY", "ACCELERATE", "PAUSE"]
+        if intervention_type not in valid_types:
+            return c(f"Unknown intervention type: {intervention_type}. Valid: {', '.join(valid_types)}", Colors.BRIGHT_RED)
+
+        valid_targets = ["t1", "t2", "t3", "t4", "t5"]
+        if target not in valid_targets:
+            return c(f"Unknown target: {target}. Valid: {', '.join(valid_targets)}", Colors.BRIGHT_RED)
+
+        # Execute intervention
+        return await self._execute_intervention(intervention_type, target, message)
+
+    async def _execute_intervention(
+        self,
+        intervention_type: str,
+        target: str,
+        message: str | None,
+    ) -> str:
+        """Execute an intervention action."""
+        # Build intervention message for the message bus
+        intervention_colors = {
+            "AMPLIFY": Colors.BRIGHT_GREEN,
+            "REDIRECT": Colors.BRIGHT_YELLOW,
+            "BRIDGE": Colors.BRIGHT_CYAN,
+            "CLARIFY": Colors.BRIGHT_BLUE,
+            "ACCELERATE": Colors.BRIGHT_MAGENTA,
+            "PAUSE": Colors.BRIGHT_RED,
+        }
+
+        color = intervention_colors.get(intervention_type, Colors.WHITE)
+
+        if intervention_type == "AMPLIFY":
+            broadcast = f"## INTERVENTION: AMPLIFY\n\n{target.upper()}, your current work looks promising. Continue with higher priority.\n\n{message or ''}"
+        elif intervention_type == "REDIRECT":
+            if not message:
+                return c("REDIRECT requires a message. Usage: intervene REDIRECT t2 'Focus on X'", Colors.BRIGHT_RED)
+            broadcast = f"## INTERVENTION: REDIRECT\n\n{target.upper()}, please adjust focus:\n\n{message}"
+        elif intervention_type == "BRIDGE":
+            broadcast = f"## INTERVENTION: BRIDGE\n\n{target.upper()}, coordinate with other terminals on current work.\n\n{message or 'Check reports from other terminals.'}"
+        elif intervention_type == "CLARIFY":
+            broadcast = f"## INTERVENTION: CLARIFY\n\n{target.upper()}, please provide clarification on your current progress.\n\n{message or ''}"
+        elif intervention_type == "ACCELERATE":
+            broadcast = f"## INTERVENTION: ACCELERATE\n\n{target.upper()}, please speed up current work. Skip non-essential polish.\n\n{message or ''}"
+        elif intervention_type == "PAUSE":
+            broadcast = f"## INTERVENTION: PAUSE\n\n{target.upper()}, please pause current work until further notice.\n\n{message or ''}"
+        else:
+            return c(f"Unknown intervention: {intervention_type}", Colors.BRIGHT_RED)
+
+        # Send via message bus
+        self.orchestrator.message_bus.send(
+            sender="manager",
+            recipient=target,  # type: ignore
+            content=broadcast,
+            msg_type="intervention",
+            metadata={"intervention_type": intervention_type},
+        )
+
+        # Log the intervention
+        self.orchestrator.event_logger.log_event("intervention", {
+            "type": intervention_type,
+            "target": target,
+            "message": message,
+        })
+
+        return c(f"Intervention {intervention_type} sent to {target.upper()}", color, Colors.BOLD)
+
+    def cmd_help(self) -> str:
+        """Handle help command with categorized display."""
+        lines = [c("Manager Chat Commands:", Colors.BOLD, Colors.WHITE), ""]
+
+        # Group commands by category
+        categories = {
+            "Status & Monitoring": [
+                ("status", "Show overall execution status"),
+                ("status <t1-t5>", "Show specific terminal status"),
+                ("quality", "Show quality gradients for all terminals"),
+                ("flow", "Show current flow state (organic model)"),
+                ("contracts", "Show all active interface contracts"),
+            ],
+            "Control": [
+                ("pause", "Pause execution"),
+                ("resume", "Resume execution"),
+            ],
+            "Task Management": [
+                ("inject: <task>", "Inject a new task into the queue"),
+                ("cancel <id>", "Cancel a pending task"),
+                ("tasks", "List all tasks with status"),
+            ],
+            "Interventions": [
+                ("intervene", "Show intervention types"),
+                ("intervene <type> <target>", "Manual intervention"),
+            ],
+            "Info": [
+                ("reports", "Show recent reports from terminals"),
+                ("help", "Show this help message"),
+                ("quit", "Exit chat (orchestrator continues)"),
+            ],
+        }
+
+        for category, commands in categories.items():
+            lines.append(c(f"  {category}:", Colors.BRIGHT_CYAN, Colors.BOLD))
+            for cmd, desc in commands:
+                lines.append(f"    {c(cmd.ljust(26), Colors.WHITE)} {c(desc, Colors.DIM)}")
+            lines.append("")
+
+        lines.append(c("  Natural Language:", Colors.BRIGHT_CYAN, Colors.BOLD))
+        lines.append(f"    {c('Ask anything about the execution state.', Colors.DIM)}")
+        lines.append(f"    {c('Example: \"What has T2 built?\" or \"Why is T1 slow?\"', Colors.DIM)}")
 
         return "\n".join(lines)
 
@@ -523,6 +871,15 @@ Answer the user's question concisely based on the current execution state.
             response = await self.cmd_tasks()
         elif cmd == "reports":
             response = await self.cmd_reports()
+        # New organic commands
+        elif cmd == "quality":
+            response = await self.cmd_quality()
+        elif cmd == "contracts":
+            response = await self.cmd_contracts()
+        elif cmd == "flow":
+            response = await self.cmd_flow()
+        elif cmd == "intervene":
+            response = await self.cmd_intervene(args)
         elif cmd == "help":
             response = self.cmd_help()
         elif cmd == "quit":
@@ -562,12 +919,13 @@ async def chat_repl(manager: ManagerChat) -> None:
     """
     # Print welcome message
     print()
-    print(f"{ChatColors.BOLD}{'=' * 50}{ChatColors.RESET}")
-    print(f"{ChatColors.MANAGER}  ARCHON - Manager Chat Mode{ChatColors.RESET}")
-    print(f"{ChatColors.BOLD}{'=' * 50}{ChatColors.RESET}")
+    print(c("    ╭" + "─" * 48 + "╮", Colors.BRIGHT_CYAN))
+    print(c("    │", Colors.BRIGHT_CYAN) + c("  ARCHON - Manager Chat", Colors.BRIGHT_WHITE, Colors.BOLD) + " " * 24 + c("│", Colors.BRIGHT_CYAN))
+    print(c("    │", Colors.BRIGHT_CYAN) + c("  Organic Flow Control Interface", Colors.DIM) + " " * 15 + c("│", Colors.BRIGHT_CYAN))
+    print(c("    ╰" + "─" * 48 + "╯", Colors.BRIGHT_CYAN))
     print()
-    print(f"{ChatColors.DIM}Type 'help' for available commands.{ChatColors.RESET}")
-    print(f"{ChatColors.DIM}Type 'quit' to exit chat (orchestrator continues).{ChatColors.RESET}")
+    print(c("    Commands: status, quality, flow, contracts, intervene, help", Colors.DIM))
+    print(c("    Type 'quit' to exit (orchestrator continues)", Colors.DIM))
     print()
 
     while manager.is_running:

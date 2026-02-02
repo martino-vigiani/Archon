@@ -2,6 +2,21 @@
 Task Queue for managing work distribution across terminals.
 
 Handles task creation, assignment, status tracking, and completion.
+
+## Organic Flow Model (v2.0)
+
+This module supports both the legacy phase-based model and the new organic flow model.
+
+### Legacy Model (deprecated but supported):
+- Tasks have `phase` (0-3) that gates execution
+- Phase transitions happen when all tasks in a phase complete
+- Rigid sequential progression
+
+### Organic Flow Model:
+- Tasks have `quality_level` (0.0-1.0) instead of binary completion
+- Work flows based on dependencies and terminal availability
+- Manager uses interventions (AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE) to guide flow
+- Terminals interpret intent rather than receiving rigid assignments
 """
 
 import json
@@ -29,9 +44,29 @@ class TaskPriority(str, Enum):
     CRITICAL = "critical"
 
 
+class FlowState(str, Enum):
+    """
+    Organic flow states for tasks and terminals.
+
+    Unlike the rigid phase model, flow states describe the current
+    health of work rather than sequential progression.
+    """
+    FLOWING = "flowing"       # Work progressing normally
+    BLOCKED = "blocked"       # Work stopped due to dependency
+    FLOURISHING = "flourishing"  # Work exceeding expectations
+    STALLED = "stalled"       # Work slow/stuck without clear blocker
+    CONVERGING = "converging" # Work approaching completion
+
+
 @dataclass
 class Task:
-    """A single task to be executed by a terminal."""
+    """
+    A single task to be executed by a terminal.
+
+    Supports both legacy phase model and new organic flow model:
+    - Legacy: Uses `phase` (0-3) to gate execution
+    - Organic: Uses `quality_level` (0.0-1.0) and `flow_state` for continuous tracking
+    """
 
     id: str
     title: str
@@ -40,7 +75,16 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
     dependencies: list[str] = field(default_factory=list)
-    phase: int = 1  # 0 = planning, 1 = immediate (no deps), 2 = integration, 3 = testing
+
+    # Legacy phase field (deprecated, kept for backward compatibility)
+    # 0 = planning, 1 = immediate (no deps), 2 = integration, 3 = testing
+    phase: int = 1
+
+    # Organic Flow Model fields (v2.0)
+    quality_level: float = 0.0  # 0.0 = not started, 1.0 = complete, values in between = partial
+    flow_state: FlowState = FlowState.FLOWING
+    intent: str | None = None  # High-level intent/goal for the task (organic planning)
+
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: str | None = None
     completed_at: str | None = None
@@ -58,6 +102,9 @@ class Task:
             "priority": self.priority.value,
             "dependencies": self.dependencies,
             "phase": self.phase,
+            "quality_level": self.quality_level,
+            "flow_state": self.flow_state.value,
+            "intent": self.intent,
             "created_at": self.created_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
@@ -73,32 +120,80 @@ class Task:
         # Handle older tasks without phase field
         if "phase" not in data:
             data["phase"] = 1
+        # Handle older tasks without organic flow fields
+        if "quality_level" not in data:
+            data["quality_level"] = 0.0
+        if "flow_state" not in data:
+            data["flow_state"] = FlowState.FLOWING
+        elif isinstance(data["flow_state"], str):
+            data["flow_state"] = FlowState(data["flow_state"])
+        if "intent" not in data:
+            data["intent"] = None
         return cls(**data)
 
     def is_ready(self, completed_task_ids: set[str], current_phase: int = 0) -> bool:
         """
         Check if task is ready to execute.
 
-        Phase 0 tasks: Always ready (no blocking dependencies) - Planning phase
-        Phase 1 tasks: Ready when Phase 0 completes (or immediately if no Phase 0)
-        Phase 2+ tasks: Ready when their phase is reached
+        ORGANIC FLOW MODEL (v2.0):
+        Tasks are ready when their dependencies are met AND a terminal is available.
+        There are no phase gates - work flows based on readiness and availability.
 
-        Dependencies are SOFT in parallel execution - they inform but don't block.
+        LEGACY BEHAVIOR (for backward compatibility):
+        The phase parameter is still accepted but only used for soft prioritization.
+        Phase 0/1 tasks: Always ready (no blocking dependencies)
+        Phase 2+ tasks: Check dependencies
+
+        Dependencies are SOFT in parallel execution - they inform but don't block
+        initial work. Tasks can start with mock data and integrate later.
         """
-        # Phase 0 tasks are always ready - planning phase
-        if self.phase == 0:
-            return True
-
-        # Phase 1 tasks are always ready - parallel execution
-        if self.phase == 1:
-            return True
-
-        # Phase 2+ tasks wait for their phase
-        if self.phase > current_phase:
+        # ORGANIC: Check flow state - blocked tasks are not ready
+        if self.flow_state == FlowState.BLOCKED:
             return False
 
-        # Once phase is reached, check dependencies (soft check for awareness)
-        return all(dep in completed_task_ids for dep in self.dependencies)
+        # ORGANIC: Check dependencies (soft check - can still start with partial deps)
+        # A task is fully ready if all deps are met
+        deps_met = all(dep in completed_task_ids for dep in self.dependencies)
+
+        # LEGACY COMPATIBILITY: Phase 0/1 are always ready for initial work
+        if self.phase <= 1:
+            return True
+
+        # Phase 2+ tasks prefer dependencies to be met, but we use soft blocking
+        # If current_phase >= task.phase, allow the task to start
+        if current_phase >= self.phase:
+            return deps_met
+
+        return False
+
+    def update_quality(self, new_level: float) -> None:
+        """
+        Update the quality level of this task.
+
+        Quality is a gradient (0.0-1.0) not a binary:
+        - 0.0: Not started
+        - 0.1-0.3: Initial work, scaffolding
+        - 0.4-0.6: Core functionality implemented
+        - 0.7-0.9: Integration and polish
+        - 1.0: Complete and verified
+        """
+        self.quality_level = max(0.0, min(1.0, new_level))
+
+        # Update flow state based on quality
+        if self.quality_level >= 0.9:
+            self.flow_state = FlowState.CONVERGING
+        elif self.quality_level >= 0.7:
+            self.flow_state = FlowState.FLOURISHING
+
+    def is_substantially_complete(self, threshold: float = 0.8) -> bool:
+        """
+        Check if task is substantially complete (organic model).
+
+        Unlike binary completion, this allows for gradients:
+        - A task at 80% quality can unblock dependent tasks
+        - Final polish can happen in parallel
+        """
+        return self.quality_level >= threshold
 
 
 class TaskQueue:
@@ -167,8 +262,16 @@ class TaskQueue:
         assigned_to: TerminalID | None = None,
         metadata: dict | None = None,
         phase: int = 1,
+        # Organic flow model parameters (v2.0)
+        intent: str | None = None,
+        quality_target: float = 1.0,
     ) -> Task:
-        """Add a new task to the queue."""
+        """
+        Add a new task to the queue.
+
+        ORGANIC FLOW MODEL (v2.0):
+        Tasks can now include intent and quality_target for organic planning.
+        """
         task = Task(
             id=self._generate_task_id(),
             title=title,
@@ -178,6 +281,10 @@ class TaskQueue:
             phase=phase,
             assigned_to=assigned_to,
             metadata=metadata or {},
+            # Organic flow model fields (v2.0)
+            intent=intent,
+            quality_level=0.0,  # Start at 0, progress tracked during execution
+            flow_state=FlowState.FLOWING,
         )
 
         pending = self.pending
@@ -227,22 +334,34 @@ class TaskQueue:
         """
         Get the next available task for a specific terminal.
 
-        In parallel execution:
-        - Phase 0 tasks: Planning and contracts, always available
-        - Phase 1 tasks: Always available (no blocking)
-        - Phase 2+ tasks: Wait for their phase to be reached
+        ORGANIC FLOW MODEL (v2.0):
+        Tasks are returned based on:
+        1. Assignment (if assigned to this terminal)
+        2. Flow state (not blocked)
+        3. Dependencies (soft check - can start with partial)
+        4. Priority ordering
+
+        The current_phase parameter is kept for backward compatibility
+        but no longer gates execution in the organic model.
         """
         pending = self.pending
         completed = self.completed
+
         # Include both IDs and titles for dependency matching
         completed_ids = {t.id for t in completed} | {t.title for t in completed}
+
+        # Also consider substantially complete tasks (quality >= 0.8) as available dependencies
+        for t in self.in_progress:
+            if t.is_substantially_complete():
+                completed_ids.add(t.id)
+                completed_ids.add(t.title)
 
         for task in pending:
             # Check if task is assigned to this terminal or unassigned
             if task.assigned_to is not None and task.assigned_to != terminal_id:
                 continue
 
-            # Check if task is ready (phase-aware)
+            # Check if task is ready (organic flow-aware)
             if not task.is_ready(completed_ids, current_phase):
                 continue
 
@@ -254,7 +373,10 @@ class TaskQueue:
         """
         Determine the current execution phase based on completed tasks.
 
-        Phase transitions:
+        DEPRECATED: This method exists for backward compatibility.
+        The organic flow model uses get_flow_state() instead.
+
+        Legacy phase transitions:
         - Phase 0: Initial state, planning and contracts
         - Phase 1: When Phase 0 completes (or immediately if no Phase 0 tasks)
         - Phase 2: When ALL Phase 1 tasks complete (if Phase 2 tasks exist)
@@ -306,6 +428,64 @@ class TaskQueue:
             return 1
 
         return 0
+
+    def get_flow_state(self) -> dict:
+        """
+        Get the current organic flow state of the task queue.
+
+        ORGANIC FLOW MODEL (v2.0):
+        Instead of discrete phases, returns a holistic view of work flow:
+        - overall_flow: The dominant flow state across all tasks
+        - quality_average: Average quality level of all tasks
+        - blocked_count: Number of blocked tasks
+        - flourishing_count: Number of tasks exceeding expectations
+        - ready_for_convergence: Whether work is ready to converge/complete
+        """
+        all_tasks = self.pending + self.in_progress + self.completed
+
+        if not all_tasks:
+            return {
+                "overall_flow": FlowState.FLOWING.value,
+                "quality_average": 0.0,
+                "blocked_count": 0,
+                "flourishing_count": 0,
+                "ready_for_convergence": False,
+            }
+
+        # Calculate quality average
+        quality_sum = sum(t.quality_level for t in all_tasks)
+        quality_avg = quality_sum / len(all_tasks)
+
+        # Count flow states
+        blocked_count = len([t for t in all_tasks if t.flow_state == FlowState.BLOCKED])
+        flourishing_count = len([t for t in all_tasks if t.flow_state == FlowState.FLOURISHING])
+        stalled_count = len([t for t in all_tasks if t.flow_state == FlowState.STALLED])
+        converging_count = len([t for t in all_tasks if t.flow_state == FlowState.CONVERGING])
+
+        # Determine overall flow state
+        if blocked_count > len(all_tasks) * 0.3:
+            overall_flow = FlowState.BLOCKED
+        elif stalled_count > len(all_tasks) * 0.3:
+            overall_flow = FlowState.STALLED
+        elif converging_count > len(all_tasks) * 0.5:
+            overall_flow = FlowState.CONVERGING
+        elif flourishing_count > len(all_tasks) * 0.3:
+            overall_flow = FlowState.FLOURISHING
+        else:
+            overall_flow = FlowState.FLOWING
+
+        # Ready for convergence when quality average is high and no blockers
+        ready_for_convergence = quality_avg >= 0.7 and blocked_count == 0
+
+        return {
+            "overall_flow": overall_flow.value,
+            "quality_average": round(quality_avg, 2),
+            "blocked_count": blocked_count,
+            "flourishing_count": flourishing_count,
+            "stalled_count": stalled_count,
+            "converging_count": converging_count,
+            "ready_for_convergence": ready_for_convergence,
+        }
 
     def get_sync_point_status(self) -> dict:
         """
@@ -408,13 +588,20 @@ class TaskQueue:
         return None
 
     def get_status_summary(self) -> dict:
-        """Get a summary of task queue status."""
+        """
+        Get a summary of task queue status.
+
+        Includes both legacy phase info and organic flow state.
+        """
         pending = self.pending
         in_progress = self.in_progress
         completed = self.completed
 
         successful = [t for t in completed if t.status == TaskStatus.COMPLETED]
         failed = [t for t in completed if t.status == TaskStatus.FAILED]
+
+        # Get organic flow state
+        flow_state = self.get_flow_state()
 
         return {
             "pending_count": len(pending),
@@ -424,11 +611,76 @@ class TaskQueue:
             "done_count": len(completed),  # Total finished (success + failed)
             "total_count": len(pending) + len(in_progress) + len(completed),
             "in_progress_tasks": [
-                {"id": t.id, "title": t.title, "assigned_to": t.assigned_to}
+                {"id": t.id, "title": t.title, "assigned_to": t.assigned_to, "quality_level": t.quality_level}
                 for t in in_progress
             ],
             "pending_tasks": [{"id": t.id, "title": t.title} for t in pending[:5]],
+            # Organic flow model additions
+            "flow_state": flow_state,
+            "quality_average": flow_state["quality_average"],
         }
+
+    def update_task_quality(self, task_id: str, quality_level: float) -> Task | None:
+        """
+        Update the quality level of a task (organic flow model).
+
+        Quality is a gradient (0.0-1.0) allowing partial progress tracking.
+        """
+        # Check in_progress first
+        in_progress = self.in_progress
+        for task in in_progress:
+            if task.id == task_id:
+                task.update_quality(quality_level)
+                self._save_tasks("in_progress.json", in_progress)
+                return task
+
+        return None
+
+    def mark_task_blocked(self, task_id: str, reason: str | None = None) -> Task | None:
+        """
+        Mark a task as blocked (organic flow model).
+        """
+        in_progress = self.in_progress
+        for task in in_progress:
+            if task.id == task_id:
+                task.flow_state = FlowState.BLOCKED
+                if reason:
+                    task.metadata["blocked_reason"] = reason
+                self._save_tasks("in_progress.json", in_progress)
+                return task
+
+        pending = self.pending
+        for task in pending:
+            if task.id == task_id:
+                task.flow_state = FlowState.BLOCKED
+                if reason:
+                    task.metadata["blocked_reason"] = reason
+                self._save_tasks("pending.json", pending)
+                return task
+
+        return None
+
+    def unblock_task(self, task_id: str) -> Task | None:
+        """
+        Unblock a task (organic flow model).
+        """
+        in_progress = self.in_progress
+        for task in in_progress:
+            if task.id == task_id:
+                task.flow_state = FlowState.FLOWING
+                task.metadata.pop("blocked_reason", None)
+                self._save_tasks("in_progress.json", in_progress)
+                return task
+
+        pending = self.pending
+        for task in pending:
+            if task.id == task_id:
+                task.flow_state = FlowState.FLOWING
+                task.metadata.pop("blocked_reason", None)
+                self._save_tasks("pending.json", pending)
+                return task
+
+        return None
 
     def clear_all(self) -> None:
         """Clear all task queues."""

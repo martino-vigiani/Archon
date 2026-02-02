@@ -25,9 +25,9 @@ from typing import Callable
 from .config import Config, TerminalID
 from .logger import EventLogger
 from .message_bus import MessageBus
-from .planner import Planner, TaskPlan
+from .planner import Planner, TaskPlan, Intent
 from .report_manager import ReportManager, Report
-from .task_queue import TaskQueue, TaskPriority, Task, TaskStatus
+from .task_queue import TaskQueue, TaskPriority, Task, TaskStatus, FlowState
 from .terminal import Terminal, TerminalState
 from .sync_manager import SyncManager, Heartbeat
 from .contract_manager import ContractManager
@@ -188,6 +188,7 @@ class Orchestrator:
         use_colors: bool = True,
         use_progress_bar: bool = True,
         max_quality_iterations: int = 1,  # Maximum quality check iterations (prevents infinite loops)
+        use_organic_model: bool = False,  # Enable organic flow model (v2.0)
     ):
         self.config = config or Config()
         self.verbose = verbose
@@ -197,6 +198,7 @@ class Orchestrator:
         self.use_colors = use_colors
         self.use_progress_bar = use_progress_bar
         self.max_quality_iterations = max_quality_iterations
+        self.use_organic_model = use_organic_model  # Organic flow model (v2.0)
 
         # Disable colors if requested
         if not use_colors:
@@ -205,7 +207,7 @@ class Orchestrator:
         # Initialize components
         self.message_bus = MessageBus(self.config)
         self.task_queue = TaskQueue(self.config)
-        self.planner = Planner(self.config)
+        self.planner = Planner(self.config, use_organic_model=use_organic_model)
         self.report_manager = ReportManager(self.config)
         self.event_logger = EventLogger(self.config.orchestra_dir / "events.json")
 
@@ -444,6 +446,7 @@ class Orchestrator:
         description: str,
         terminal_id: TerminalID,
         priority: str = "high",
+        intent: str | None = None,
     ) -> Task:
         """
         Inject a new task into the queue during execution.
@@ -453,17 +456,31 @@ class Orchestrator:
             description: Task description
             terminal_id: Which terminal should handle this
             priority: Task priority (low, medium, high, critical)
+            intent: High-level intent (organic flow model)
 
         Returns:
             The created Task object
+
+        ORGANIC FLOW MODEL (v2.0):
+        Injected tasks start in FLOWING state with quality_level 0.0.
+        They are not phase-gated - they start based on terminal availability.
         """
+        # In organic model, use phase 1 (no phase gating)
+        # In legacy model, use current phase
+        phase = 1 if self.use_organic_model else self.task_queue.get_current_phase()
+
         task = self.task_queue.add_task(
             title=title,
             description=description,
             priority=TaskPriority(priority),
             assigned_to=terminal_id,
-            phase=self.task_queue.get_current_phase(),  # Add to current phase
-            metadata={"injected": True, "injected_at": datetime.now().isoformat()},
+            phase=phase,
+            metadata={
+                "injected": True,
+                "injected_at": datetime.now().isoformat(),
+                "intent": intent,
+                "organic_model": self.use_organic_model,
+            },
         )
 
         self._log_info(f"Task injected: {title} -> {terminal_id}")
@@ -512,9 +529,15 @@ class Orchestrator:
 
         Returns comprehensive information about execution state,
         terminals, tasks, and progress.
+
+        ORGANIC FLOW MODEL (v2.0):
+        Includes flow_state with quality gradients instead of just phase.
         """
         # Get task queue status
         task_status = self.task_queue.get_status_summary()
+
+        # Get flow state (organic model)
+        flow_state = self.task_queue.get_flow_state()
 
         # Get terminal states
         terminal_states = {}
@@ -524,6 +547,8 @@ class Orchestrator:
                 "state": terminal.state.value if terminal else "not_started",
                 "current_task": current_task.title if current_task else None,
                 "current_task_id": current_task.id if current_task else None,
+                "quality_level": current_task.quality_level if current_task else 0.0,
+                "flow_state": current_task.flow_state.value if current_task else "idle",
             }
 
         # Calculate duration
@@ -534,12 +559,17 @@ class Orchestrator:
         return {
             "state": "running" if self.is_running else "stopped",
             "paused": not self._paused.is_set(),
-            "phase": self.task_queue.get_current_phase(),
+            "phase": self.task_queue.get_current_phase(),  # Legacy compatibility
             "duration_seconds": round(duration, 1),
             "terminals": terminal_states,
             "tasks": task_status,
             "rate_limited": self._rate_limited,
             "rate_limit_reset": self._rate_limit_reset_time,
+            # Organic flow model additions (v2.0)
+            "flow_state": flow_state,
+            "use_organic_model": self.use_organic_model,
+            "quality_average": flow_state["quality_average"],
+            "ready_for_convergence": flow_state["ready_for_convergence"],
         }
 
     # =========================================================================
@@ -1008,15 +1038,73 @@ This helps the orchestrator coordinate with other terminals.
             await asyncio.sleep(self._manager_loop_interval)
 
     async def _execute_manager_action(self, action: ManagerAction) -> None:
-        """Execute a manager action."""
+        """
+        Execute a manager action.
+
+        ORGANIC FLOW MODEL (v2.0):
+        Handles the 5 intervention types: AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE
+        """
         self._log_info(f"Manager action: {action.action_type.value} - {action.reason}")
         self.event_logger.log_event("manager_action", {
             "type": action.action_type.value,
             "reason": action.reason,
             "priority": action.priority,
+            "flow_state_before": action.flow_state_before,
+            "expected_flow_state_after": action.expected_flow_state_after,
         })
 
-        if action.action_type == ActionType.BROADCAST_UPDATE:
+        # ORGANIC FLOW INTERVENTIONS (v2.0)
+
+        if action.action_type == ActionType.AMPLIFY:
+            # Amplify: Increase focus on flourishing work
+            self._log_success(f"AMPLIFY: {action.reason}")
+            if action.broadcast_message:
+                self.message_bus.broadcast_status(action.broadcast_message)
+            # Could also increase polling frequency for this terminal, etc.
+
+        elif action.action_type == ActionType.REDIRECT:
+            # Redirect: Change direction on stalled work
+            self._log_warning(f"REDIRECT: {action.reason}")
+            if action.broadcast_message:
+                self.message_bus.broadcast_status(action.broadcast_message)
+            # Could also update task description, suggest different approach, etc.
+
+        elif action.action_type == ActionType.MEDIATE:
+            # Mediate: Resolve conflicts between terminals
+            self._log_warning(f"MEDIATE: {action.reason}")
+            if action.broadcast_message:
+                self.message_bus.broadcast_status(action.broadcast_message)
+            # Notify specific conflict parties
+            for party in action.conflict_parties:
+                self.message_bus.send(
+                    sender="orchestrator",
+                    recipient=party,
+                    content=f"Conflict mediation required: {action.resolution_approach}",
+                    msg_type="coordination",
+                )
+
+        elif action.action_type == ActionType.INJECT:
+            # Inject: Add new work (alias for INJECT_TASK)
+            if action.task_title and action.task_description and action.target_terminal:
+                await self.inject_task(
+                    title=action.task_title,
+                    description=action.task_description,
+                    terminal_id=action.target_terminal,
+                    priority=action.priority,
+                    intent=action.task_intent,
+                )
+
+        elif action.action_type == ActionType.PRUNE:
+            # Prune: Remove or deprioritize unproductive work
+            self._log_warning(f"PRUNE: {action.reason}")
+            for task_id in action.task_ids_to_prune:
+                # Mark task as blocked/deprioritized
+                self.task_queue.mark_task_blocked(task_id, action.prune_reason)
+                self._log_info(f"Deprioritized task: {task_id}")
+
+        # LEGACY ACTIONS (backward compatibility)
+
+        elif action.action_type == ActionType.BROADCAST_UPDATE:
             if action.broadcast_message:
                 self.message_bus.broadcast_status(action.broadcast_message)
 
@@ -1027,19 +1115,26 @@ This helps the orchestrator coordinate with other terminals.
                     description=action.task_description,
                     terminal_id=action.target_terminal,
                     priority=action.priority,
+                    intent=action.task_intent,
                 )
 
         elif action.action_type == ActionType.TRIGGER_SYNC_POINT:
-            self._log_info("SYNC POINT TRIGGERED")
-            # Broadcast sync point to all terminals
-            self.message_bus.broadcast_status(
-                f"## 🔄 SYNC POINT\n\nPhase transition triggered.\n"
-                f"All terminals should check for phase-specific tasks."
-            )
+            # In organic model, this becomes "convergence point"
+            if self.use_organic_model:
+                self._log_info("CONVERGENCE POINT TRIGGERED")
+                self.message_bus.broadcast_status(
+                    f"## CONVERGENCE POINT\n\nWork quality threshold reached.\n"
+                    f"Quality average: {action.flow_state_before or 'N/A'}"
+                )
+            else:
+                self._log_info("SYNC POINT TRIGGERED")
+                self.message_bus.broadcast_status(
+                    f"## SYNC POINT\n\nPhase transition triggered.\n"
+                    f"All terminals should check for phase-specific tasks."
+                )
 
         elif action.action_type == ActionType.ESCALATE:
             self._log_warning(f"ESCALATION: {action.reason}")
-            # Log for dashboard visibility
             self._write_to_log_file(f"ESCALATION: {action.reason}", "escalate")
 
     # =========================================================================
@@ -1150,16 +1245,26 @@ If the task is not critical, you may skip it with an explanation.
         """
         Main loop that assigns and monitors tasks.
 
-        PARALLEL EXECUTION:
+        LEGACY PARALLEL EXECUTION:
         - Phase 1: ALL terminals start immediately (no blocking dependencies)
         - Phase 2: Integration tasks (after Phase 1 completes)
         - Phase 3: Testing/verification tasks (after Phase 2 completes)
-        """
-        self._log_info("Starting PARALLEL task execution loop...")
 
-        # Track current phase
+        ORGANIC FLOW MODEL (v2.0):
+        - Continuous observation loop instead of phase progression
+        - Tasks assigned based on flow state and terminal availability
+        - Quality gradients tracked instead of binary completion
+        - Manager interventions guide work (AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE)
+        """
+        if self.use_organic_model:
+            self._log_info("Starting ORGANIC FLOW observation loop...")
+        else:
+            self._log_info("Starting PARALLEL task execution loop...")
+
+        # Track current phase (legacy) / flow state (organic)
         current_phase = 1
         phase_announced = {1: False, 2: False, 3: False}
+        last_flow_state = None
 
         while self.is_running:
             # Check if shutdown was requested
@@ -1202,26 +1307,59 @@ If the task is not critical, you may skip it with an explanation.
                     break
                 # Otherwise continue with fix tasks
 
-            # Determine current phase from task completion state
-            new_phase = self.task_queue.get_current_phase()
-            if new_phase != current_phase:
-                current_phase = new_phase
-                if not phase_announced.get(current_phase, True):
-                    self._log_info(f"{'='*40}")
-                    self._log_info(f"ENTERING PHASE {current_phase}")
-                    if current_phase == 2:
-                        self._log_info("Integration phase: connecting components")
-                    elif current_phase == 3:
-                        self._log_info("Testing phase: verification and polish")
-                    self._log_info(f"{'='*40}")
-                    phase_announced[current_phase] = True
+            # ORGANIC FLOW MODEL: Track flow state changes
+            if self.use_organic_model:
+                flow_state = self.task_queue.get_flow_state()
+                current_flow = flow_state["overall_flow"]
 
-                    # Broadcast phase change to all terminals
+                if current_flow != last_flow_state:
+                    last_flow_state = current_flow
+                    self._log_info(f"{'='*40}")
+                    self._log_info(f"FLOW STATE: {current_flow.upper()}")
+                    self._log_info(f"Quality average: {flow_state['quality_average']:.0%}")
+
+                    if current_flow == FlowState.CONVERGING.value:
+                        self._log_info("Work converging toward completion")
+                    elif current_flow == FlowState.BLOCKED.value:
+                        self._log_warning("Work blocked - intervention may be needed")
+                    elif current_flow == FlowState.FLOURISHING.value:
+                        self._log_success("Work flourishing - great progress!")
+                    elif current_flow == FlowState.STALLED.value:
+                        self._log_warning("Work stalled - may need redirection")
+
+                    self._log_info(f"{'='*40}")
+
+                    # Broadcast flow state change
                     self.message_bus.broadcast_status(
-                        f"## PHASE {current_phase} STARTED\n\n"
-                        f"{'Integration' if current_phase == 2 else 'Testing'} phase beginning. "
-                        f"Check .orchestra/reports/ for other terminals' work."
+                        f"## FLOW STATE: {current_flow.upper()}\n\n"
+                        f"Quality: {flow_state['quality_average']:.0%}\n"
+                        f"Blocked: {flow_state['blocked_count']}, Flourishing: {flow_state['flourishing_count']}"
                     )
+
+                # In organic model, phase is just for backward compatibility
+                current_phase = self.task_queue.get_current_phase()
+
+            else:
+                # LEGACY: Determine current phase from task completion state
+                new_phase = self.task_queue.get_current_phase()
+                if new_phase != current_phase:
+                    current_phase = new_phase
+                    if not phase_announced.get(current_phase, True):
+                        self._log_info(f"{'='*40}")
+                        self._log_info(f"ENTERING PHASE {current_phase}")
+                        if current_phase == 2:
+                            self._log_info("Integration phase: connecting components")
+                        elif current_phase == 3:
+                            self._log_info("Testing phase: verification and polish")
+                        self._log_info(f"{'='*40}")
+                        phase_announced[current_phase] = True
+
+                        # Broadcast phase change to all terminals
+                        self.message_bus.broadcast_status(
+                            f"## PHASE {current_phase} STARTED\n\n"
+                            f"{'Integration' if current_phase == 2 else 'Testing'} phase beginning. "
+                            f"Check .orchestra/reports/ for other terminals' work."
+                        )
 
             # Get completed task IDs AND titles for dependency checking
             completed = self.task_queue.completed
@@ -1271,10 +1409,13 @@ If the task is not critical, you may skip it with an explanation.
                     )
                     self._running_tasks[terminal_id] = future
 
-            # Update status with phase info
+            # Update status with phase/flow info
+            flow_state_data = self.task_queue.get_flow_state() if self.use_organic_model else {}
             self._update_status({
                 "state": "running",
                 "current_phase": current_phase,
+                "use_organic_model": self.use_organic_model,
+                "flow_state": flow_state_data if self.use_organic_model else None,
                 "terminals": {
                     tid: {
                         "state": t.state.value,
@@ -1563,6 +1704,11 @@ def main():
         action="store_true",
         help="Quiet mode (less verbose output)"
     )
+    parser.add_argument(
+        "--organic",
+        action="store_true",
+        help="Use organic flow model (v2.0) instead of phase-based execution"
+    )
 
     args = parser.parse_args()
 
@@ -1588,6 +1734,7 @@ def main():
         enable_quality_check=not args.no_quality_check,
         use_colors=not args.no_colors,
         use_progress_bar=not args.no_progress,
+        use_organic_model=args.organic,
     )
 
     # Run

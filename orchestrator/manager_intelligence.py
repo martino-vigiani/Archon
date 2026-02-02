@@ -6,6 +6,19 @@ that analyzes heartbeats, detects conflicts, and makes coordination decisions in
 
 This is the core of "Company Mode" - where the orchestrator acts like a CEO managing
 engineers, not just a cron job distributing tasks.
+
+## Organic Flow Model (v2.0)
+
+The manager uses 5 intervention types instead of rigid phase transitions:
+
+1. AMPLIFY - Increase resources/attention on flourishing work
+2. REDIRECT - Change direction when work is stalled or misaligned
+3. MEDIATE - Resolve conflicts between terminals
+4. INJECT - Add new work to fill gaps or unblock
+5. PRUNE - Remove or deprioritize work that's not valuable
+
+Decisions are based on flow state (flowing/blocked/flourishing/stalled/converging)
+rather than phase completion gates.
 """
 
 import json
@@ -17,7 +30,7 @@ from typing import Literal
 
 from .config import Config, TerminalID
 from .report_manager import Report
-from .task_queue import Task, TaskQueue
+from .task_queue import Task, TaskQueue, FlowState
 
 
 # =============================================================================
@@ -101,14 +114,34 @@ class TerminalHeartbeat:
 
 
 class ActionType(Enum):
-    """Types of actions the manager can take."""
+    """
+    Types of actions the manager can take.
 
+    ORGANIC FLOW INTERVENTIONS (v2.0):
+    - AMPLIFY: Increase resources/attention on flourishing work
+    - REDIRECT: Change direction when work is stalled or misaligned
+    - MEDIATE: Resolve conflicts between terminals
+    - INJECT: Add new work to fill gaps or unblock (same as inject_task)
+    - PRUNE: Remove or deprioritize work that's not valuable
+
+    LEGACY ACTIONS (kept for backward compatibility):
+    - REORDER_TASKS, PAUSE_TERMINAL, RESUME_TERMINAL, etc.
+    """
+
+    # Organic Flow Interventions (v2.0)
+    AMPLIFY = "amplify"                      # Increase focus on flourishing work
+    REDIRECT = "redirect"                    # Change direction on stalled work
+    MEDIATE = "mediate"                      # Resolve conflicts between terminals
+    INJECT = "inject"                        # Add new work (alias for inject_task)
+    PRUNE = "prune"                          # Remove/deprioritize unproductive work
+
+    # Legacy Actions (backward compatibility)
     REORDER_TASKS = "reorder_tasks"          # Reorder task queue for better flow
     INJECT_TASK = "inject_task"              # Add emergency/unblocking task
     BROADCAST_UPDATE = "broadcast_update"    # Send coordination message to all
     PAUSE_TERMINAL = "pause_terminal"        # Tell terminal to wait
     RESUME_TERMINAL = "resume_terminal"      # Resume paused terminal
-    ESCALATE = "escalate"                     # Needs human attention
+    ESCALATE = "escalate"                    # Needs human attention
     TRIGGER_SYNC_POINT = "trigger_sync_point" # Force a synchronization point
 
 
@@ -118,6 +151,14 @@ class ManagerAction:
     An action the manager intelligence wants to take.
 
     The orchestrator will execute these actions to coordinate terminals.
+
+    ORGANIC FLOW MODEL (v2.0):
+    Actions now include intervention-specific data for the 5 intervention types:
+    - AMPLIFY: quality_boost, resource_increase
+    - REDIRECT: new_direction, reason_for_redirect
+    - MEDIATE: conflict_parties, resolution_approach
+    - INJECT: task_title, task_description (same as legacy)
+    - PRUNE: task_ids_to_prune, prune_reason
     """
 
     action_type: ActionType
@@ -128,15 +169,37 @@ class ManagerAction:
     target_terminal: TerminalID | None = None
     affected_terminals: list[TerminalID] = field(default_factory=list)
 
-    # For INJECT_TASK
+    # For INJECT_TASK / INJECT
     task_title: str | None = None
     task_description: str | None = None
+    task_intent: str | None = None  # High-level intent for organic model
 
     # For BROADCAST_UPDATE
     broadcast_message: str | None = None
 
     # For REORDER_TASKS
     new_task_order: list[str] | None = None  # List of task IDs in desired order
+
+    # Organic Flow Intervention Data (v2.0)
+    # For AMPLIFY
+    quality_boost: float | None = None  # How much to boost quality expectation
+    resource_increase: str | None = None  # Description of resource increase
+
+    # For REDIRECT
+    new_direction: str | None = None  # New direction for the work
+    redirect_reason: str | None = None  # Why we're redirecting
+
+    # For MEDIATE
+    conflict_parties: list[TerminalID] = field(default_factory=list)
+    resolution_approach: str | None = None  # How to resolve the conflict
+
+    # For PRUNE
+    task_ids_to_prune: list[str] = field(default_factory=list)
+    prune_reason: str | None = None
+
+    # Flow state context
+    flow_state_before: str | None = None  # Flow state that triggered this action
+    expected_flow_state_after: str | None = None  # Expected flow state after action
 
     # Metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -150,8 +213,19 @@ class ManagerAction:
             "affected_terminals": self.affected_terminals,
             "task_title": self.task_title,
             "task_description": self.task_description,
+            "task_intent": self.task_intent,
             "broadcast_message": self.broadcast_message,
             "new_task_order": self.new_task_order,
+            "quality_boost": self.quality_boost,
+            "resource_increase": self.resource_increase,
+            "new_direction": self.new_direction,
+            "redirect_reason": self.redirect_reason,
+            "conflict_parties": self.conflict_parties,
+            "resolution_approach": self.resolution_approach,
+            "task_ids_to_prune": self.task_ids_to_prune,
+            "prune_reason": self.prune_reason,
+            "flow_state_before": self.flow_state_before,
+            "expected_flow_state_after": self.expected_flow_state_after,
             "created_at": self.created_at,
         }
 
@@ -207,6 +281,14 @@ class ManagerIntelligence:
     - Decides when to reorder tasks
     - Detects stalled progress
 
+    ORGANIC FLOW MODEL (v2.0):
+    The manager now uses 5 intervention types:
+    - AMPLIFY: Increase resources/attention on flourishing work
+    - REDIRECT: Change direction when work is stalled or misaligned
+    - MEDIATE: Resolve conflicts between terminals
+    - INJECT: Add new work to fill gaps or unblock
+    - PRUNE: Remove or deprioritize work that's not valuable
+
     All decisions are made with HEURISTICS (no Claude API calls) to keep it fast
     and cost-free.
     """
@@ -220,15 +302,23 @@ class ManagerIntelligence:
         self.blocked_threshold_seconds = 120  # 2 minutes blocked = intervention needed
         self.file_conflict_threshold = 2  # Number of terminals editing same file
 
+        # Organic flow thresholds (v2.0)
+        self.quality_flourishing_threshold = 0.7  # Quality level to consider flourishing
+        self.quality_stalled_threshold = 0.3  # Quality level below which work is stalled
+        self.flow_check_interval = 30  # Seconds between flow state checks
+
         # Decision history (to avoid duplicate actions)
         self._action_history: list[ManagerAction] = []
         self._last_decision_time = datetime.now()
+        self._last_flow_check_time = datetime.now()
 
         # Deduplication tracking (to prevent duplicate actions)
         self._addressed_mismatches: set[str] = set()  # Track addressed interface mismatches
         self._addressed_conflicts: set[str] = set()  # Track addressed file conflicts
         self._triggered_sync_points: set[int] = set()  # Track triggered sync points by phase
         self._injected_task_keys: set[str] = set()  # Track injected task titles
+        self._amplified_tasks: set[str] = set()  # Track tasks we've already amplified
+        self._redirected_tasks: set[str] = set()  # Track tasks we've already redirected
 
     # =========================================================================
     # Main Analysis Entry Point
@@ -245,15 +335,43 @@ class ManagerIntelligence:
 
         This is the main entry point called by the orchestrator regularly.
 
+        ORGANIC FLOW MODEL (v2.0):
+        In addition to legacy checks, this now analyzes flow state and uses
+        the 5 intervention types (AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE).
+
         Args:
             heartbeats: Current heartbeat from each terminal
             contracts: Recent reports/contracts from each terminal
-            current_phase: Current execution phase (1, 2, or 3)
+            current_phase: Current execution phase (kept for backward compatibility)
 
         Returns:
             List of actions to take (may be empty if everything is fine)
         """
         actions: list[ManagerAction] = []
+
+        # Get overall flow state
+        flow_state = self.task_queue.get_flow_state()
+
+        # ORGANIC FLOW CHECKS (v2.0)
+        # These are checked first as they're more holistic
+
+        # Check for flourishing work that should be amplified
+        amplify_actions = self._check_for_amplify_opportunities(heartbeats, flow_state)
+        actions.extend(amplify_actions)
+
+        # Check for stalled work that should be redirected
+        redirect_actions = self._check_for_redirect_opportunities(heartbeats, flow_state)
+        actions.extend(redirect_actions)
+
+        # Check for conflicts that need mediation
+        mediate_actions = self._check_for_mediation_needs(heartbeats, contracts)
+        actions.extend(mediate_actions)
+
+        # Check for pruning opportunities
+        prune_actions = self._check_for_prune_opportunities(flow_state)
+        actions.extend(prune_actions)
+
+        # LEGACY CHECKS (backward compatibility)
 
         # 1. Check for stalled terminals
         stalled = self.detect_stalled_terminals(heartbeats)
@@ -263,6 +381,7 @@ class ManagerIntelligence:
                 reason=f"Terminal {terminal_id} stalled for {self.stall_threshold_seconds}s",
                 priority="high",
                 target_terminal=terminal_id,
+                flow_state_before=flow_state["overall_flow"],
             ))
 
         # 2. Check for blocked terminals
@@ -294,13 +413,17 @@ class ManagerIntelligence:
                     self._addressed_mismatches.add(mismatch_key)
 
         # 5. Check if we should trigger a sync point - with deduplication
+        # NOTE: In organic model, sync points are replaced by flow convergence
         if current_phase not in self._triggered_sync_points:
-            if self.should_trigger_sync_point(heartbeats, current_phase):
+            # Use flow state instead of phase completion
+            if flow_state["ready_for_convergence"] or self.should_trigger_sync_point(heartbeats, current_phase):
                 actions.append(ManagerAction(
                     action_type=ActionType.TRIGGER_SYNC_POINT,
-                    reason=f"All Phase {current_phase} work complete, ready for next phase",
+                    reason=f"Work converging (quality avg: {flow_state['quality_average']})",
                     priority="high",
                     affected_terminals=list(heartbeats.keys()),
+                    flow_state_before=flow_state["overall_flow"],
+                    expected_flow_state_after=FlowState.CONVERGING.value,
                 ))
                 self._triggered_sync_points.add(current_phase)
 
@@ -312,6 +435,164 @@ class ManagerIntelligence:
         # Store actions in history
         self._action_history.extend(actions)
         self._last_decision_time = datetime.now()
+
+        return actions
+
+    # =========================================================================
+    # Organic Flow Interventions (v2.0)
+    # =========================================================================
+
+    def _check_for_amplify_opportunities(
+        self,
+        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        flow_state: dict,
+    ) -> list[ManagerAction]:
+        """
+        Check for flourishing work that should be amplified.
+
+        AMPLIFY intervention: Increase resources/attention on work that's
+        exceeding expectations to help it reach completion faster.
+        """
+        actions: list[ManagerAction] = []
+
+        # Find tasks that are flourishing (quality > threshold)
+        in_progress = self.task_queue.in_progress
+        for task in in_progress:
+            if task.id in self._amplified_tasks:
+                continue
+
+            if task.quality_level >= self.quality_flourishing_threshold:
+                # This task is doing well - amplify it
+                actions.append(ManagerAction(
+                    action_type=ActionType.AMPLIFY,
+                    reason=f"Task '{task.title}' flourishing at {task.quality_level:.0%} quality",
+                    priority="medium",
+                    target_terminal=task.assigned_to,
+                    quality_boost=0.1,  # Aim for 10% more quality
+                    resource_increase=f"Prioritize completion of {task.title}",
+                    flow_state_before=flow_state["overall_flow"],
+                    expected_flow_state_after=FlowState.CONVERGING.value,
+                    broadcast_message=f"Great progress on '{task.title}'! Keep the momentum.",
+                ))
+                self._amplified_tasks.add(task.id)
+
+        return actions
+
+    def _check_for_redirect_opportunities(
+        self,
+        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        flow_state: dict,
+    ) -> list[ManagerAction]:
+        """
+        Check for stalled work that should be redirected.
+
+        REDIRECT intervention: Change direction when work is stalled or
+        misaligned with project goals.
+        """
+        actions: list[ManagerAction] = []
+
+        # Find tasks that are stalled (low quality, long time in progress)
+        in_progress = self.task_queue.in_progress
+        for task in in_progress:
+            if task.id in self._redirected_tasks:
+                continue
+
+            # Check if task is stalled
+            if task.started_at:
+                try:
+                    start_time = datetime.fromisoformat(task.started_at)
+                    elapsed = (datetime.now() - start_time).total_seconds()
+
+                    # Stalled: low quality AND long time elapsed
+                    if task.quality_level < self.quality_stalled_threshold and elapsed > 300:
+                        actions.append(ManagerAction(
+                            action_type=ActionType.REDIRECT,
+                            reason=f"Task '{task.title}' stalled at {task.quality_level:.0%} for {elapsed/60:.1f}m",
+                            priority="high",
+                            target_terminal=task.assigned_to,
+                            new_direction="Simplify approach or break into smaller pieces",
+                            redirect_reason=f"Low progress after {elapsed/60:.1f} minutes",
+                            flow_state_before=FlowState.STALLED.value,
+                            expected_flow_state_after=FlowState.FLOWING.value,
+                            broadcast_message=f"Consider simplifying '{task.title}' - breaking it down may help.",
+                        ))
+                        self._redirected_tasks.add(task.id)
+                except (ValueError, TypeError):
+                    pass
+
+        return actions
+
+    def _check_for_mediation_needs(
+        self,
+        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        contracts: dict[TerminalID, list[Report]],
+    ) -> list[ManagerAction]:
+        """
+        Check for conflicts that need mediation.
+
+        MEDIATE intervention: Resolve conflicts between terminals through
+        coordination rather than just broadcasting warnings.
+        """
+        actions: list[ManagerAction] = []
+
+        # Check for interface mismatches that indicate deeper conflicts
+        mismatches = self.detect_interface_mismatches(contracts)
+        if len(mismatches) > 2:
+            # Multiple mismatches suggest T1/T2 are not aligned
+            actions.append(ManagerAction(
+                action_type=ActionType.MEDIATE,
+                reason=f"Multiple interface mismatches ({len(mismatches)}) between T1 and T2",
+                priority="high",
+                conflict_parties=["t1", "t2"],
+                resolution_approach="Schedule alignment check - T1 and T2 should review each other's contracts",
+                flow_state_before=FlowState.BLOCKED.value,
+                expected_flow_state_after=FlowState.FLOWING.value,
+                broadcast_message=(
+                    "T1 and T2: Please pause and align your interfaces. "
+                    "Check .orchestra/contracts/ for the latest expectations."
+                ),
+            ))
+
+        return actions
+
+    def _check_for_prune_opportunities(
+        self,
+        flow_state: dict,
+    ) -> list[ManagerAction]:
+        """
+        Check for work that should be pruned.
+
+        PRUNE intervention: Remove or deprioritize work that's not valuable
+        or is blocking more important work.
+        """
+        actions: list[ManagerAction] = []
+
+        # Find low-priority pending tasks when we have blocked high-priority work
+        pending = self.task_queue.pending
+        blocked_high_priority = [
+            t for t in pending
+            if t.flow_state == FlowState.BLOCKED and t.priority.value in ["critical", "high"]
+        ]
+
+        if blocked_high_priority:
+            # Look for low priority tasks that could be pruned
+            low_priority_pending = [
+                t for t in pending
+                if t.priority.value in ["low", "medium"] and t.flow_state != FlowState.BLOCKED
+            ]
+
+            if len(low_priority_pending) > 3:
+                # Too many low priority tasks - suggest pruning
+                task_ids = [t.id for t in low_priority_pending[:2]]
+                actions.append(ManagerAction(
+                    action_type=ActionType.PRUNE,
+                    reason=f"High-priority work blocked while {len(low_priority_pending)} low-priority tasks pending",
+                    priority="medium",
+                    task_ids_to_prune=task_ids,
+                    prune_reason="Deprioritize to focus on blocked high-priority work",
+                    flow_state_before=flow_state["overall_flow"],
+                    expected_flow_state_after=FlowState.FLOWING.value,
+                ))
 
         return actions
 
@@ -777,3 +1058,6 @@ class ManagerIntelligence:
         self._addressed_conflicts.clear()
         self._triggered_sync_points.clear()
         self._injected_task_keys.clear()
+        # Organic flow tracking (v2.0)
+        self._amplified_tasks.clear()
+        self._redirected_tasks.clear()

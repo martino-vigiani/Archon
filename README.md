@@ -5,12 +5,12 @@
 <h1 align="center">ARCHON</h1>
 
 <p align="center">
-  <strong>Multi-Agent Development Orchestrator</strong><br>
-  <sub>Autonomous software development through coordinated AI agents</sub>
+  <strong>Organic Multi-Agent Development</strong><br>
+  <sub>Software that grows through collaborative intelligence</sub>
 </p>
 
 <p align="center">
-  <a href="#features"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
+  <a href="#terminals"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-15-green?style=flat-square" alt="15 Subagents"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
@@ -21,19 +21,38 @@
 
 ## What is Archon?
 
-Archon is an **AI manager** that coordinates **5 parallel Claude Code terminals** to build software autonomously. It operates like a real software company where engineers work in sync, share contracts, and deliver tested code.
+Archon is a **gardener of intelligence** - it cultivates 5 parallel Claude Code terminals, each with a distinct personality, and guides them toward creating software through organic collaboration rather than rigid command.
 
 ```
-You (CEO) → Archon (Manager) → 5 Terminals (Engineers) → Working Software
+                    ┌─────────────────┐
+                    │     ARCHON      │
+                    │   The Gardener  │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │   Observes   │   Nurtures   │
+              │              │              │
+    ┌─────────┴─────────────────────────────┴─────────┐
+    │                                                 │
+    │   T1          T2          T3          T4       T5
+    │   The         The         The         The      The
+    │   Craftsman   Architect   Narrator    Strategist Skeptic
+    │                                                 │
+    └─────────────────────┬───────────────────────────┘
+                          │
+              ┌───────────┴───────────┐
+              │     NEGOTIATIONS      │
+              │   Contracts & Flow    │
+              └───────────────────────┘
 ```
 
-Give Archon a task like *"Create an iOS counter app"* and it will:
+Give Archon an **intent** like *"Create an iOS counter app"* and watch it:
 
-1. **Plan** → Define MVP scope, create interface contracts
-2. **Build in Parallel** → All terminals start immediately, no waiting
-3. **Coordinate in Real-Time** → Heartbeats, sync points, manager intelligence
-4. **Test Continuously** → T5 validates builds throughout, not just at the end
-5. **Deliver** → Complete, tested, documented application
+1. **Seed** - Plant the intent across all terminals
+2. **Grow** - Terminals develop their specialties organically
+3. **Negotiate** - Craftspeople exchange contracts and resolve differences
+4. **Cultivate** - The gardener observes quality and intervenes when needed
+5. **Harvest** - Complete, tested, documented application emerges
 
 ---
 
@@ -59,194 +78,172 @@ python -m orchestrator --dashboard "Create a habit tracking iOS app"
 
 ---
 
-## Features
+## The Organic Philosophy
 
-| Feature | Description |
-|---------|-------------|
-| **Company Mode** | Terminals work like a real team - synced, coordinated, accountable |
-| **4-Phase Workflow** | Plan → Build → Integrate → Test |
-| **Real-Time Coordination** | Heartbeats every 30s, sync points at phase boundaries |
-| **Interface Contracts** | T1 defines expectations, T2 implements, T5 verifies |
-| **Continuous Testing** | T5 validates builds throughout, not just Phase 3 |
-| **Manager Intelligence** | Active coordination - detects conflicts, injects tasks, triggers sync |
-| **15 Expert Subagents** | Specialized AI for SwiftUI, React, databases, testing, ML... |
-| **Real-Time Dashboard** | Monitor progress at `localhost:8420` |
+Archon rejects the factory model of software development. Instead of treating AI agents as assembly line workers executing predefined tasks, Archon cultivates them as craftspeople with distinct personalities and expertise.
 
----
+### Core Principles
 
-## How It Works: 4-Phase Execution
+| Traditional | Organic |
+|-------------|---------|
+| **Task** - "Do exactly this" | **Intent** - "We want to achieve this" |
+| **Phase** - "First A, then B, then C" | **Flow** - "Work naturally, negotiate as needed" |
+| **Distribution** - "Manager assigns all work" | **Observation** - "Terminals choose, manager guides" |
+| **Binary Status** - "Done or not done" | **Quality Gradient** - "0.0 to 1.0 readiness" |
 
-Archon runs all terminals **simultaneously** with intelligent coordination:
+### Why Organic?
 
-```
-PHASE 0: PLANNING & CONTRACTS (2-5 min)
-┌─────────────────────────────────────────────────────────────┐
-│  T4 ──→ Broadcasts MVP scope to all terminals               │
-│  T1 ──→ Creates interface contracts for T2                  │
-│  T5 ──→ Sets up monitoring infrastructure                   │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-PHASE 1: PARALLEL BUILD (10-20 min)
-┌─────────────────────────────────────────────────────────────┐
-│  T1 ──→ Creates UI with mock data                           │
-│  T2 ──→ Builds architecture, models, tests                  │
-│  T3 ──→ Creates documentation structure                     │
-│  T5 ──→ Continuous build validation (every 2 min)           │
-│                                                             │
-│  📡 Heartbeats every 30s | Manager monitors for conflicts   │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-         ═══════ SYNC POINT A: Mid-Build Check ═══════
-                            ↓
-PHASE 2: INTEGRATION (5-10 min)
-┌─────────────────────────────────────────────────────────────┐
-│  T1 ──→ Connects UI to T2's real APIs                       │
-│  T2 ──→ Matches T1's interface contracts                    │
-│  T5 ──→ Validates contract implementations                  │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-         ═══════ SYNC POINT B: Pre-Release ═══════
-                            ↓
-PHASE 3: TEST & VERIFY (2-5 min)
-┌─────────────────────────────────────────────────────────────┐
-│  T5 ──→ Full test suite, quality gates                      │
-│  T1 ──→ Verifies UI compilation and previews                │
-│  T3 ──→ Finalizes documentation                             │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-                    ✅ Working Software
-```
+Traditional orchestration systems fail because they try to predict every dependency upfront. Real software development is emergent - the UI reveals needed APIs, tests expose edge cases, documentation clarifies requirements.
+
+Archon embraces this uncertainty. Terminals work in their natural rhythm, communicating through contracts and negotiations. The manager watches quality gradients and intervenes only when the garden needs tending.
 
 ---
 
-## Company Mode Architecture
+## Terminal Personalities
 
-Archon's "Company Mode" transforms isolated terminals into a coordinated team:
+Each terminal is a craftsperson with a distinct worldview and approach:
 
-### 1. Sync Protocol (Heartbeats)
+### T1 - The Craftsman
 
-Every terminal writes its status every 30 seconds:
+*"I make things beautiful. Every pixel, every interaction, every moment of delight."*
 
-```json
-{
-  "terminal": "t1",
-  "status": "working",
-  "current_task": "Create ProfileView",
-  "progress": "60%",
-  "files_touched": ["Views/ProfileView.swift"],
-  "ready_artifacts": ["UserDisplayData interface"],
-  "waiting_for": null
-}
-```
+The Craftsman obsesses over user experience. They build interfaces that feel alive, creating with mock data first so nothing blocks their creative flow. They define what the user will see and touch.
 
-The orchestrator reads these heartbeats to:
-- Detect blocked or stalled terminals
-- Identify file conflicts
-- Trigger sync points when ready
+| Focus | Subagents |
+|-------|-----------|
+| Visual Design | `swiftui-crafter`, `react-crafter` |
+| Styling | `html-stylist`, `design-system` |
 
-### 2. Interface Contracts
+### T2 - The Architect
 
-Terminals communicate expectations through formal contracts:
+*"I make things reliable. Every foundation solid, every system resilient, every edge case handled."*
 
-```json
-// .orchestra/contracts/UserDisplayData.json
-{
-  "name": "UserDisplayData",
-  "defined_by": "t1",
-  "status": "proposed",
-  "definition": {
-    "fields": [
-      {"name": "id", "type": "UUID"},
-      {"name": "name", "type": "String"}
-    ]
-  }
-}
-```
+The Architect builds what others depend on. They create the models, services, and tests that make software trustworthy. When T1 proposes an interface, T2 makes it real and bulletproof.
 
-**Lifecycle:**
-1. **T1** creates contract (status: `proposed`)
-2. **T2** implements and updates (status: `implemented`)
-3. **T5** verifies match (status: `verified`)
+| Focus | Subagents |
+|-------|-----------|
+| Architecture | `swift-architect`, `node-architect`, `python-architect` |
+| Data | `swiftdata-expert`, `database-expert` |
+| Intelligence | `ml-engineer` |
 
-### 3. Manager Intelligence
+### T3 - The Narrator
 
-The orchestrator actively coordinates:
+*"I explain things clearly. Every concept accessible, every decision documented, every user guided."*
 
-| Detection | Action |
-|-----------|--------|
-| Terminal blocked > 2 min | Inject unblocking task |
-| T1 & T2 touching same file | Broadcast warning, pause one terminal |
-| Interface mismatch | Inject fix task, notify both terminals |
-| All Phase N tasks done | Trigger sync point |
-| No heartbeat > 3 min | Escalate to user |
+The Narrator watches the system grow and captures its story. They write documentation that helps users understand, onboarding that welcomes newcomers, and technical specs that preserve knowledge.
 
-### 4. Continuous Testing (T5)
+| Focus | Subagents |
+|-------|-----------|
+| Documentation | `tech-writer` |
+| Communication | `marketing-strategist` |
 
-T5 doesn't wait for Phase 3 - it validates throughout:
+### T4 - The Strategist
 
-| Phase | T5 Activity |
-|-------|-------------|
-| Phase 0 | Setup monitoring infrastructure |
-| Phase 1 | Build check every 2 min, report errors immediately |
-| Phase 2 | Verify contracts, integration tests |
-| Phase 3 | Full test suite, quality gates, final report |
+*"I see the whole board. Every move connected, every decision aligned, every path leading somewhere."*
+
+The Strategist never blocks - they advise. Early on they broadcast MVP scope so everyone knows the destination. Throughout development they watch for scope creep, suggest pivots, and ensure the team builds the right thing.
+
+| Focus | Subagents |
+|-------|-----------|
+| Product | `product-thinker` |
+| Business | `monetization-expert` |
+
+### T5 - The Skeptic
+
+*"I find every flaw. Every assumption challenged, every path tested, every weakness exposed."*
+
+The Skeptic is the team's immune system. They don't wait until the end - they probe continuously, running builds, checking contracts, finding issues before they compound. When they find problems, they report to the responsible terminal.
+
+| Focus | Subagents |
+|-------|-----------|
+| Quality | `testing-genius` |
+| Validation | `swift-architect`, `node-architect`, `python-architect` |
 
 ---
 
-## Terminals & Subagents
+## How Flow Works
 
-### T1 - UI/UX (Autonomous)
+Unlike rigid phase systems, Archon terminals flow naturally:
 
-**Principle:** *"Build first, integrate later"*
+```
+GROWTH PATTERN (not a phase - terminals flow at their own pace)
 
-| Subagent | Specialty |
-|----------|-----------|
-| `swiftui-crafter` | iOS/macOS SwiftUI interfaces |
-| `react-crafter` | React/Next.js components |
-| `html-stylist` | HTML/CSS/Tailwind styling |
-| `design-system` | Design tokens, colors, typography |
+    T4 broadcasts intent
+           │
+           ├──────────────────────────────────────────────┐
+           │                                              │
+    T1 creates UI          T2 builds foundation          T3 watches
+    with mock data         with real logic               and documents
+           │                      │                            │
+           │                      │                            │
+           └──────── negotiate ───┘                            │
+                         │                                     │
+              contracts form organically                       │
+                         │                                     │
+           ┌─────────────┴─────────────┐                      │
+           │                           │                      │
+    T1 connects to              T2 adapts to                  │
+    real APIs                   UI needs                      │
+           │                           │                      │
+           └───────────────────────────┴──────────────────────┘
+                                │
+                         T5 validates continuously
+                         (builds every 2 min)
+                                │
+                         Quality: 0.0 → 1.0
+                                │
+                         When ready, harvest
+```
 
-### T2 - Features (Autonomous)
+### Quality Gradient
 
-**Principle:** *"Build the foundation fast"*
+Instead of binary "done/not done", Archon tracks quality on a gradient:
 
-| Subagent | Specialty |
-|----------|-----------|
-| `swift-architect` | iOS architecture, MVVM, Clean Architecture |
-| `node-architect` | Node.js/TypeScript backends |
-| `python-architect` | Python apps, FastAPI, async |
-| `swiftdata-expert` | SwiftData/CoreData persistence |
-| `database-expert` | SQL, PostgreSQL, Prisma |
-| `ml-engineer` | Machine learning, AI features |
+| Quality | Meaning |
+|---------|---------|
+| 0.0-0.3 | Early growth - structure forming |
+| 0.3-0.6 | Developing - core functionality emerging |
+| 0.6-0.8 | Maturing - integration happening |
+| 0.8-0.95 | Ripening - testing and polish |
+| 0.95-1.0 | Ready to harvest |
 
-### T3 - Documentation (Progressive)
+The gardener watches this gradient and intervenes when growth stalls or quality drops.
 
-**Principle:** *"Document as it's built"*
+---
 
-| Subagent | Specialty |
-|----------|-----------|
-| `tech-writer` | README, API docs, tutorials |
-| `marketing-strategist` | App Store copy, positioning |
+## Manager Interventions
 
-### T4 - Strategy (Non-blocking)
+The gardener doesn't dictate - they tend. Five types of intervention:
 
-**Principle:** *"Guide, don't block"*
+### AMPLIFY
 
-| Subagent | Specialty |
-|----------|-----------|
-| `product-thinker` | MVP scope, roadmaps, PRDs |
-| `monetization-expert` | Pricing, business models |
+*"T2 is making great progress on the API. T1, consider connecting to their endpoints now."*
 
-### T5 - QA/Testing (Continuous)
+When a terminal produces something valuable, the manager amplifies it - broadcasting the artifact and suggesting others leverage it.
 
-**Principle:** *"Validate continuously, never block"*
+### REDIRECT
 
-| Subagent | Specialty |
-|----------|-----------|
-| `testing-genius` | Property-based testing, chaos engineering, fuzzing |
-| `swift-architect` | iOS build validation, Swift tests |
-| `node-architect` | Node.js tests, npm build verification |
-| `python-architect` | pytest, Python validation |
+*"T1, the login screen is out of MVP scope. Focus on the main counter interface."*
+
+When a terminal drifts from intent, the manager gently redirects without killing their momentum.
+
+### MEDIATE
+
+*"T1 expects `UserProfile.avatarURL`, but T2 implemented `UserProfile.imageData`. Let's negotiate."*
+
+When contracts conflict, the manager facilitates resolution rather than dictating a solution.
+
+### INJECT
+
+*"Nobody is handling the edge case where the counter overflows. T2, consider adding bounds checking."*
+
+When the manager observes a gap, they inject a suggestion without forcing assignment.
+
+### PRUNE
+
+*"T3, the API documentation for the deprecated endpoint can be removed."*
+
+When something is no longer serving the system, the manager suggests pruning to keep the garden healthy.
 
 ---
 
@@ -261,19 +258,19 @@ python -m orchestrator "Create a todo app with SwiftUI"
 # With dashboard (recommended)
 python -m orchestrator --dashboard "Build a REST API"
 
-# Interactive chat mode - control execution in real-time
+# Interactive chat mode - guide the growth in real-time
 python -m orchestrator --chat "Create a meditation app"
 
-# Continuous mode - keeps asking for new tasks
+# Continuous mode - keeps growing new features
 python -m orchestrator --dashboard --continuous
 
-# Dry run - see the plan without executing
+# Dry run - see the growth plan without executing
 python -m orchestrator --dry-run "Create a meditation app"
 
 # Work on existing project
 python -m orchestrator --project ./MyApp "Add dark mode"
 
-# Disable T5 testing (saves API limits)
+# Disable T5 validation (saves API limits)
 python -m orchestrator --no-testing "Quick prototype"
 
 # Combine flags
@@ -284,33 +281,57 @@ python -m orchestrator --chat --dashboard "Build a full-stack app"
 
 | Flag | Description |
 |------|-------------|
-| `--chat` | Interactive Manager Chat (control execution in real-time) |
+| `--chat` | Interactive Gardener Chat (guide growth in real-time) |
 | `--dashboard` | Start web UI at localhost:8420 |
-| `--continuous` | Keep running, prompt for new tasks |
-| `--dry-run` | Show plan without executing |
+| `--continuous` | Keep running, prompt for new intents |
+| `--dry-run` | Show growth plan without executing |
 | `--project PATH` | Work on existing project |
-| `--no-testing` | Disable T5 QA terminal (saves API limits) |
-| `--max-retries N` | Retry failed tasks (default: 2) |
-| `--timeout N` | Max execution time in seconds |
+| `--no-testing` | Disable T5 validation (saves API limits) |
+| `--max-retries N` | Retry failed growth (default: 2) |
+| `--timeout N` | Max growth time in seconds |
 | `-v, --verbose` | Detailed output |
 | `-q, --quiet` | Minimal output |
 
-### Manager Chat (`--chat`)
+### Gardener Chat (`--chat`)
 
-Interactive REPL to communicate with Archon during execution:
+Interactive REPL to guide the organic growth:
 
 ```
-> status              # Overall execution status
-> status t1           # Status of specific terminal
-> pause               # Pause execution
-> resume              # Resume execution
-> inject: Add login   # Add new task on the fly
-> cancel <task_id>    # Cancel pending task
-> tasks               # List all tasks
+> status              # Overall garden health
+> status t1           # Health of specific terminal
+> pause               # Pause growth
+> resume              # Resume growth
+> inject: Add login   # Inject new intent
+> cancel <task_id>    # Cancel pending growth
+> tasks               # List all active growth
 > reports             # Show terminal reports
 > What has T2 built?  # Natural language questions (via Claude)
 > help                # Show all commands
 ```
+
+---
+
+## Subagents
+
+15 specialist subagents that terminals can invoke for deep expertise:
+
+| Domain | Subagent | Specialty |
+|--------|----------|-----------|
+| iOS UI | `swiftui-crafter` | SwiftUI interfaces, animations |
+| Web UI | `react-crafter` | React/Next.js components |
+| Styling | `html-stylist` | HTML/CSS/Tailwind |
+| Design | `design-system` | Tokens, colors, typography |
+| iOS | `swift-architect` | MVVM, Clean Architecture |
+| Node.js | `node-architect` | TypeScript backends |
+| Python | `python-architect` | FastAPI, async patterns |
+| iOS Data | `swiftdata-expert` | SwiftData/CoreData |
+| Database | `database-expert` | SQL, PostgreSQL, Prisma |
+| ML/AI | `ml-engineer` | Machine learning features |
+| Docs | `tech-writer` | README, API docs |
+| Marketing | `marketing-strategist` | App Store, positioning |
+| Product | `product-thinker` | MVP, roadmaps |
+| Business | `monetization-expert` | Pricing, business models |
+| Testing | `testing-genius` | Property testing, fuzzing |
 
 ---
 
@@ -319,39 +340,39 @@ Interactive REPL to communicate with Archon during execution:
 ```
 Archon/
 ├── orchestrator/                # Core Python package
-│   ├── orchestrator.py          # Main coordinator (phase-aware)
-│   ├── planner.py               # Parallel-first task planning
-│   ├── terminal.py              # Claude Code subprocess
-│   ├── task_queue.py            # Phase-based task management
-│   ├── message_bus.py           # Inter-terminal messaging
-│   ├── report_manager.py        # Structured reports
+│   ├── orchestrator.py          # The Gardener
+│   ├── planner.py               # Intent interpretation
+│   ├── terminal.py              # Terminal personality wrapper
+│   ├── task_queue.py            # Organic growth management
+│   ├── message_bus.py           # Inter-terminal negotiation
+│   ├── report_manager.py        # Artifact tracking
 │   │
-│   │── # Company Mode Components
-│   ├── sync_manager.py          # Heartbeat coordination
-│   ├── contract_manager.py      # Interface contracts
-│   ├── manager_intelligence.py  # Active manager decisions
+│   │── # Organic Collaboration Components
+│   ├── sync_manager.py          # Quality gradient tracking
+│   ├── contract_manager.py      # Negotiation contracts
+│   ├── manager_intelligence.py  # Intervention decisions
 │   ├── validator.py             # Continuous validation
 │   │
-│   ├── manager_chat.py          # Interactive chat REPL
-│   └── dashboard.py             # FastAPI web UI
+│   ├── manager_chat.py          # Gardener chat REPL
+│   └── dashboard.py             # Growth visualization UI
 │
 ├── templates/
-│   └── terminal_prompts/        # Autonomous terminal prompts
-│       ├── t1_uiux.md           # "Build first, integrate later"
-│       ├── t2_features.md       # "Build foundation fast"
-│       ├── t3_docs.md           # "Document as it's built"
-│       ├── t4_ideas.md          # "Guide, don't block"
-│       └── t5_qa.md             # "Validate continuously"
+│   └── terminal_prompts/        # Terminal personality definitions
+│       ├── t1_uiux.md           # The Craftsman
+│       ├── t2_features.md       # The Architect
+│       ├── t3_docs.md           # The Narrator
+│       ├── t4_ideas.md          # The Strategist
+│       └── t5_qa.md             # The Skeptic
 │
 ├── .claude/
 │   └── agents/                  # 15 subagent definitions
 │
 ├── .orchestra/                  # Runtime state (gitignored)
 │   ├── state/                   # Terminal heartbeats
-│   ├── contracts/               # Interface contracts
-│   ├── reports/                 # Terminal reports
+│   ├── contracts/               # Negotiation contracts
+│   ├── reports/                 # Terminal artifacts
 │   ├── messages/                # Inter-terminal messages
-│   ├── tasks/                   # Task queue files
+│   ├── tasks/                   # Growth queue
 │   └── qa/                      # T5 validation data
 │
 └── Apps/                        # Generated projects (gitignored)
@@ -359,36 +380,56 @@ Archon/
 
 ---
 
-## Example Output
+## Example: Growing a Counter App
 
-**Prompt:** *"Create a simple iOS counter app"*
+**Intent:** *"Create a simple iOS counter app"*
 
-**What Archon builds:**
+**How Archon grows it:**
+
+```
+1. The Strategist (T4) broadcasts: "MVP = increment, decrement, display"
+
+2. The Craftsman (T1) begins:
+   - Creates CounterView.swift with mock data
+   - Proposes contract: CounterViewModel with count, increment(), decrement()
+
+3. The Architect (T2) simultaneously:
+   - Builds Counter.swift model with bounds checking
+   - Creates CounterViewModel matching T1's contract
+   - Writes unit tests
+
+4. The Narrator (T3) watches and documents:
+   - Creates README.md describing the app
+   - Documents the Counter model API
+
+5. The Skeptic (T5) validates continuously:
+   - Runs swift build every 2 minutes
+   - Verifies T1's contract matches T2's implementation
+   - Reports quality gradient: 0.4 → 0.7 → 0.95
+
+6. Integration flows naturally:
+   - T1 connects to T2's real ViewModel
+   - T2 adjusts API based on T1's needs
+   - Quality reaches 0.95+
+
+7. Harvest: Complete, tested, documented app
+```
+
+**What emerges:**
 
 ```
 Apps/CounterApp/
-├── Package.swift              # Swift package
-├── README.md                  # Professional documentation
-├── CHANGELOG.md               # Version history
-├── docs/                      # API documentation
+├── Package.swift
+├── README.md
 ├── CounterApp/
-│   ├── CounterAppApp.swift    # App entry point
-│   ├── Models/
-│   │   └── Counter.swift      # Business logic
-│   ├── ViewModels/
-│   │   └── CounterViewModel.swift
-│   └── Views/
-│       └── CounterView.swift  # SwiftUI UI
+│   ├── CounterAppApp.swift
+│   ├── Models/Counter.swift
+│   ├── ViewModels/CounterViewModel.swift
+│   └── Views/CounterView.swift
 └── CounterAppTests/
     ├── CounterTests.swift
     └── CounterViewModelTests.swift
 ```
-
-**Execution flow:**
-1. **Phase 0** - T4 broadcasts MVP scope, T1 creates contracts, T5 sets up monitoring
-2. **Phase 1** - T1 builds UI, T2 builds models, T3 creates docs, T5 validates builds
-3. **Phase 2** - T1 connects to real APIs, T2 matches contracts
-4. **Phase 3** - T5 runs full test suite, T3 finalizes docs
 
 ---
 
@@ -399,9 +440,9 @@ Apps/CounterApp/
 | `claude: command not found` | Install [Claude Code CLI](https://github.com/anthropics/claude-code) |
 | Rate limit hit | Use Max 5x subscription or use `--no-testing` |
 | Dashboard not loading | Check if port 8420 is free: `lsof -i :8420` |
-| Task stuck | Check `.orchestra/state/` for heartbeats |
-| Tests failing | T5 will report to responsible terminal |
-| Contract mismatch | Manager Intelligence will inject fix task |
+| Growth stalled | Check `.orchestra/state/` for terminal heartbeats |
+| Quality not improving | T5 will report issues to responsible terminal |
+| Contract mismatch | Manager will facilitate mediation |
 
 ---
 
