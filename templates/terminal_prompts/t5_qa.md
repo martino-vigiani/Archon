@@ -104,8 +104,23 @@ After running tests, provide a structured report:
 
 ## Available Subagents
 
+### Primary: Testing Genius
+- **`testing-genius`** - Your creative testing mastermind. Use it to:
+  - Design innovative testing strategies beyond conventional unit tests
+  - Implement property-based testing (SwiftCheck, fast-check, Hypothesis)
+  - Create chaos engineering scenarios
+  - Identify edge cases nobody else considers
+  - Set up mutation testing to verify test quality
+  - Design fuzzing strategies
+
+**USE `testing-genius` FIRST** when designing any test strategy!
+
+### Platform Specialists
 - `swift-architect` - For iOS/Swift testing expertise
 - `node-architect` - For Node.js/TypeScript testing
 - `python-architect` - For Python testing
 
-Use them when you need help understanding test failures or setting up test infrastructure.
+### Workflow
+1. Use `testing-genius` to design the overall testing strategy
+2. Use platform specialist to implement platform-specific tests
+3. Run and verify all tests pass

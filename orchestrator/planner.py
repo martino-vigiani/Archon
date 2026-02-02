@@ -216,6 +216,10 @@ class Planner:
             if terminal not in ["t1", "t2", "t3", "t4", "t5"]:
                 terminal = "t2"
 
+            # Skip T5 tasks if testing is disabled
+            if terminal == "t5" and self.config.disable_testing:
+                continue
+
             planned_tasks.append(PlannedTask(
                 title=task_data.get("title", "Untitled"),
                 description=task_data.get("description", ""),

@@ -527,10 +527,16 @@ class Orchestrator:
     # =========================================================================
 
     async def spawn_terminals(self) -> None:
-        """Create all 4 terminal workers."""
+        """Create all terminal workers."""
         self._log_info("Creating terminal workers...")
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        terminal_list = ["t1", "t2", "t3", "t4"]
+        if not self.config.disable_testing:
+            terminal_list.append("t5")
+        else:
+            self._log_info("T5 (QA/Testing) disabled via --no-testing")
+
+        for tid in terminal_list:
             terminal_id: TerminalID = tid  # type: ignore
             await self._spawn_terminal(terminal_id)
 

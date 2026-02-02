@@ -110,13 +110,15 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         id="t5",
         role="QA/Testing",
         description="Runs tests, validates outputs, verifies code quality and compilation",
-        subagents=["swift-architect", "node-architect", "python-architect"],
+        subagents=["testing-genius", "swift-architect", "node-architect", "python-architect"],
         keywords=[
             "test", "testing", "verify", "validate", "check", "quality", "qa",
             "build", "compile", "run tests", "pytest", "swift test", "npm test",
             "coverage", "lint", "format", "audit", "security", "scan",
             "unit test", "integration test", "e2e", "assertion", "mock",
-            "fixture", "snapshot", "regression", "benchmark", "performance"
+            "fixture", "snapshot", "regression", "benchmark", "performance",
+            "edge case", "stress test", "chaos", "fuzzing", "property-based",
+            "mutation testing", "test strategy", "test architecture"
         ],
     ),
 }
@@ -254,6 +256,7 @@ class Config:
     # Behavior
     auto_assign_tasks: bool = True
     verbose: bool = True
+    disable_testing: bool = False  # --no-testing flag disables T5 terminal
 
     @property
     def messages_dir(self) -> Path:

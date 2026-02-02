@@ -181,6 +181,7 @@ Terminals don't wait for each other. Instead:
 
 | Subagent | Specialty |
 |----------|-----------|
+| `testing-genius` | **Creative testing mastermind** - property-based testing, chaos engineering, mutation testing, fuzzing |
 | `swift-architect` | iOS build validation, Swift tests |
 | `node-architect` | Node.js tests, npm build verification |
 | `python-architect` | pytest, Python validation |
@@ -190,6 +191,9 @@ T5 runs in Phase 3 to:
 - Run all tests (`swift test`, `npm test`, `pytest`)
 - Check code quality (linting, formatting)
 - Report issues back to responsible terminals
+- Design innovative testing strategies using `testing-genius`
+
+**Note:** T5 can be disabled with `--no-testing` to save API limits
 
 ---
 
@@ -235,6 +239,7 @@ python -m orchestrator --chat --dashboard "Build a full-stack app"
 | `--parallel N` | Number of terminals (default: 4) |
 | `--max-retries N` | Retry failed tasks (default: 2) |
 | `--timeout N` | Max execution time in seconds |
+| `--no-testing` | Disable T5 QA terminal (saves API limits) |
 | `-v, --verbose` | Detailed output |
 | `-q, --quiet` | Minimal output |
 

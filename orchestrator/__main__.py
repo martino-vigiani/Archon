@@ -183,6 +183,12 @@ Examples:
         help="Enable interactive Manager Chat mode (REPL during execution)",
     )
 
+    parser.add_argument(
+        "--no-testing",
+        action="store_true",
+        help="Disable T5 QA/Testing terminal (saves API limits)",
+    )
+
     return parser.parse_args()
 
 
@@ -217,12 +223,15 @@ def print_banner():
 def print_config_summary(args: argparse.Namespace, project_path: Path | None = None):
     """Print current configuration."""
     print(c("    Configuration:", Colors.BOLD, Colors.WHITE))
-    print(f"    {c('Terminals:', Colors.DIM)} {c(str(args.parallel), Colors.BRIGHT_YELLOW)}")
+    terminal_count = args.parallel if not args.no_testing else args.parallel
+    t5_status = " (T5 disabled)" if args.no_testing else " + T5"
+    print(f"    {c('Terminals:', Colors.DIM)} {c(str(terminal_count) + t5_status, Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Max Retries:', Colors.DIM)} {c(str(args.max_retries), Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Timeout:', Colors.DIM)} {c(f'{args.timeout}s', Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.BRIGHT_RED)}")
     print(f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.BRIGHT_RED)}")
     print(f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.BRIGHT_RED)}")
+    print(f"    {c('Testing (T5):', Colors.DIM)} {c('Disabled' if args.no_testing else 'Enabled', Colors.BRIGHT_RED if args.no_testing else Colors.BRIGHT_GREEN)}")
     if project_path:
         print(f"    {c('Project:', Colors.DIM)} {c(str(project_path), Colors.BRIGHT_CYAN)}")
     print()
@@ -1068,6 +1077,7 @@ def main() -> int:
         args.parallel = 10
 
     config.max_terminals = args.parallel
+    config.disable_testing = args.no_testing
 
     if args.config:
         # Load custom config (future: parse JSON config file)
