@@ -387,8 +387,14 @@
 
         .terminals-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 16px;
+        }
+
+        @media (max-width: 1400px) {
+            .terminals-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
 
         @media (max-width: 1200px) {
@@ -1097,6 +1103,28 @@
                         <span class="activity-bar"></span>
                     </div>
                 </div>
+
+                <!-- T5 -->
+                <div class="terminal-card glass-card" id="terminal-t5" data-terminal="t5">
+                    <div class="terminal-header">
+                        <div class="terminal-info">
+                            <span class="terminal-name">T5</span>
+                            <span class="terminal-role">QA/Testing</span>
+                        </div>
+                        <span class="terminal-status idle">
+                            <span class="status-dot"></span>
+                            Idle
+                        </span>
+                    </div>
+                    <div class="terminal-task empty">No active task</div>
+                    <div class="terminal-output empty" id="output-t5">No output</div>
+                    <div class="activity-indicator">
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                        <span class="activity-bar"></span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1175,7 +1203,8 @@
                 t1: { state: 'idle', task: null, role: 'UI/UX Specialist', output: '' },
                 t2: { state: 'idle', task: null, role: 'Features Dev', output: '' },
                 t3: { state: 'idle', task: null, role: 'Documentation', output: '' },
-                t4: { state: 'idle', task: null, role: 'Strategy', output: '' }
+                t4: { state: 'idle', task: null, role: 'Strategy', output: '' },
+                t5: { state: 'idle', task: null, role: 'QA/Testing', output: '' }
             },
             tasks: {
                 pending: [],
@@ -1210,7 +1239,8 @@
             'tech-writer': { icon: '&#9998;', type: 'docs' },
             'marketing-strategist': { icon: '&#9733;', type: 'strategy' },
             'product-thinker': { icon: '&#9679;', type: 'strategy' },
-            'monetization-expert': { icon: '&#36;', type: 'strategy' }
+            'monetization-expert': { icon: '&#36;', type: 'strategy' },
+            'testing-genius': { icon: '&#10003;', type: 'arch' }
         };
 
         // WebSocket connection
@@ -1632,7 +1662,7 @@
 
         // Fetch terminal output
         async function fetchTerminalOutputs() {
-            const terminals = ['t1', 't2', 't3', 't4'];
+            const terminals = ['t1', 't2', 't3', 't4', 't5'];
             for (const tid of terminals) {
                 try {
                     const res = await fetch(`/api/terminal-output/${tid}`);
