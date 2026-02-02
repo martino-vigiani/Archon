@@ -188,6 +188,9 @@ python -m orchestrator "Create a todo app with SwiftUI"
 # With dashboard (recommended)
 python -m orchestrator --dashboard "Build a REST API"
 
+# Interactive chat mode - talk to Archon during execution
+python -m orchestrator --chat "Create a meditation app"
+
 # Continuous mode - keeps asking for new tasks
 python -m orchestrator --dashboard --continuous
 
@@ -199,12 +202,16 @@ python -m orchestrator --project ./MyApp "Add dark mode"
 
 # Resume interrupted session
 python -m orchestrator --resume
+
+# Combine flags
+python -m orchestrator --chat --dashboard "Build a full-stack app"
 ```
 
 ### CLI Options
 
 | Flag | Description |
 |------|-------------|
+| `--chat` | Interactive Manager Chat (control execution in real-time) |
 | `--dashboard` | Start web UI at localhost:8420 |
 | `--continuous` | Keep running, prompt for new tasks |
 | `--dry-run` | Show plan without executing |
@@ -214,6 +221,23 @@ python -m orchestrator --resume
 | `--timeout N` | Max execution time in seconds |
 | `-v, --verbose` | Detailed output |
 | `-q, --quiet` | Minimal output |
+
+### Manager Chat (`--chat`)
+
+Interactive REPL that lets you communicate with Archon during execution:
+
+```
+> status              # Overall execution status
+> status t1           # Status of specific terminal
+> pause               # Pause execution
+> resume              # Resume execution
+> inject: Add login   # Add new task on the fly
+> cancel <task_id>    # Cancel pending task
+> tasks               # List all tasks
+> reports             # Show terminal reports
+> What has T2 built?  # Natural language questions (via Claude)
+> help                # Show all commands
+```
 
 ---
 
@@ -248,6 +272,7 @@ Archon/
 │   ├── report_manager.py   # Structured reports & contracts
 │   ├── message_bus.py      # Inter-terminal messaging
 │   ├── task_queue.py       # Phase-based task management
+│   ├── manager_chat.py     # Interactive chat REPL (--chat)
 │   └── dashboard.py        # FastAPI web UI
 ├── templates/
 │   └── terminal_prompts/   # Autonomous terminal prompts
