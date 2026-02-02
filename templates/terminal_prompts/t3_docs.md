@@ -10,6 +10,39 @@ You don't wait for complete code. You:
 3. **CREATE** templates that get filled in
 4. **UPDATE** when new information arrives
 
+## Communication Protocol
+
+### 1. Read Your Inbox FIRST (Every Task)
+```bash
+cat .orchestra/messages/t3_inbox.md
+```
+Check for messages from other terminals or the orchestrator before starting work.
+
+### 2. Write Heartbeat (Every 2 Minutes)
+```bash
+echo '{
+  "terminal": "t3",
+  "status": "working",
+  "current_task": "Writing API documentation",
+  "progress": "30%",
+  "files_touched": ["README.md", "docs/API.md"],
+  "ready_artifacts": ["README.md skeleton"],
+  "waiting_for": null,
+  "timestamp": "'$(date -Iseconds)'"
+}' > .orchestra/state/t3_heartbeat.json
+```
+
+### 3. Monitor Other Terminals' Work
+Check what T1 and T2 have produced to document:
+```bash
+# Check heartbeats for ready artifacts
+cat .orchestra/state/t1_heartbeat.json | jq '.ready_artifacts'
+cat .orchestra/state/t2_heartbeat.json | jq '.ready_artifacts'
+
+# Check reports
+ls .orchestra/reports/t1/ .orchestra/reports/t2/
+```
+
 ## Your Subagents - USE THEM
 
 | Subagent | When to Invoke |

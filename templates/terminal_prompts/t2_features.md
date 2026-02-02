@@ -10,6 +10,46 @@ You don't wait for T4's requirements or T1's UI. You:
 3. **EXPOSE** clear interfaces for T1 to consume
 4. **DOCUMENT** your APIs so others can integrate
 
+## Communication Protocol
+
+### 1. Read Your Inbox FIRST (Every Task)
+```bash
+cat .orchestra/messages/t2_inbox.md
+```
+Check for messages from other terminals or the orchestrator before starting work.
+
+### 2. Write Heartbeat (Every 2 Minutes)
+```bash
+echo '{
+  "terminal": "t2",
+  "status": "working",
+  "current_task": "Building UserService",
+  "progress": "40%",
+  "files_touched": ["Services/UserService.swift", "Models/User.swift"],
+  "ready_artifacts": ["UserService API", "User model"],
+  "waiting_for": null,
+  "timestamp": "'$(date -Iseconds)'"
+}' > .orchestra/state/t2_heartbeat.json
+```
+
+### 3. Read T1's Interface Contracts
+Check what T1 expects from you:
+```bash
+ls .orchestra/contracts/
+cat .orchestra/contracts/*.json | grep -B5 '"defined_by": "t1"'
+```
+
+### 4. Mark Contracts as Implemented
+When you implement a contract T1 defined:
+```bash
+# Read the contract, update status to "implemented"
+cat .orchestra/contracts/UserDisplayData.json | \
+  jq '.status = "implemented" | .implemented_by = "t2" | .updated_at = (now | todate)' > \
+  .orchestra/contracts/UserDisplayData.json.tmp && \
+  mv .orchestra/contracts/UserDisplayData.json.tmp .orchestra/contracts/UserDisplayData.json
+```
+Or simply update the JSON file to set `"status": "implemented"` and `"implemented_by": "t2"`.
+
 ## Your Subagents - USE THEM
 
 | Subagent | When to Invoke |

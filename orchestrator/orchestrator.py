@@ -29,6 +29,10 @@ from .planner import Planner, TaskPlan
 from .report_manager import ReportManager, Report
 from .task_queue import TaskQueue, TaskPriority, Task, TaskStatus
 from .terminal import Terminal, TerminalState
+from .sync_manager import SyncManager, Heartbeat
+from .contract_manager import ContractManager
+from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType
+from .validator import Validator
 
 
 # =============================================================================
@@ -205,6 +209,16 @@ class Orchestrator:
         self.report_manager = ReportManager(self.config)
         self.event_logger = EventLogger(self.config.orchestra_dir / "events.json")
 
+        # Company Mode components
+        self.sync_manager = SyncManager(self.config)
+        self.contract_manager = ContractManager(self.config)
+        self.manager_intelligence = ManagerIntelligence(self.config, self.task_queue)
+        self.validator = Validator(self.config)
+
+        # Manager loop control
+        self._manager_loop_task: asyncio.Task | None = None
+        self._manager_loop_interval = 5.0  # Check every 5 seconds
+
         # Terminal instances
         self.terminals: dict[TerminalID, Terminal] = {}
 
@@ -367,6 +381,12 @@ class Orchestrator:
         self.task_queue.clear_all()
         self.report_manager.clear_reports()  # Clear previous reports
         self.event_logger.clear()  # Clear previous events
+
+        # Clear Company Mode state
+        self.sync_manager.clear_all_heartbeats()
+        self.contract_manager.clear_contracts()
+        self.manager_intelligence.clear_heartbeats()
+        self.manager_intelligence.clear_action_history()
 
         # Clear orchestrator log file
         log_file = self.config.orchestra_dir / "orchestrator.log"
@@ -931,6 +951,97 @@ This helps the orchestrator coordinate with other terminals.
 
         return "\n".join(context_parts)
 
+    async def _run_manager_loop(self) -> None:
+        """
+        Run the manager intelligence loop.
+
+        This continuously monitors heartbeats and takes coordination actions.
+        Runs in parallel with task execution.
+        """
+        while self.is_running:
+            try:
+                # Check if paused
+                if not self._paused.is_set():
+                    await asyncio.sleep(self._manager_loop_interval)
+                    continue
+
+                # Load current state
+                heartbeats_dict = self.sync_manager.read_all_heartbeats()
+
+                # Convert dict to TerminalHeartbeat objects for manager_intelligence
+                from .manager_intelligence import TerminalHeartbeat
+                heartbeats = {}
+                for tid, hb_data in heartbeats_dict.items():
+                    heartbeats[tid] = TerminalHeartbeat(
+                        terminal_id=tid,
+                        timestamp=hb_data.get("timestamp", ""),
+                        current_task_id=hb_data.get("current_task"),
+                        current_task_title=hb_data.get("current_task"),
+                        progress_percent=int(hb_data.get("progress", "0%").replace("%", "") or 0),
+                        files_being_edited=hb_data.get("files_touched", []),
+                        is_blocked=hb_data.get("status") == "blocked",
+                        blocker_reason=hb_data.get("waiting_for"),
+                    )
+
+                # Get contracts for context
+                contracts = {}
+                for tid in ["t1", "t2", "t3", "t4", "t5"]:
+                    contracts[tid] = self.report_manager.get_reports_for_terminal(tid)
+
+                # Get current phase
+                current_phase = self.task_queue.get_current_phase()
+
+                # Analyze and decide
+                actions = self.manager_intelligence.analyze_and_decide(
+                    heartbeats=heartbeats,
+                    contracts=contracts,
+                    current_phase=current_phase,
+                )
+
+                # Execute actions
+                for action in actions:
+                    await self._execute_manager_action(action)
+
+            except Exception as e:
+                self._log_warning(f"Manager loop error: {e}")
+
+            await asyncio.sleep(self._manager_loop_interval)
+
+    async def _execute_manager_action(self, action: ManagerAction) -> None:
+        """Execute a manager action."""
+        self._log_info(f"Manager action: {action.action_type.value} - {action.reason}")
+        self.event_logger.log_event("manager_action", {
+            "type": action.action_type.value,
+            "reason": action.reason,
+            "priority": action.priority,
+        })
+
+        if action.action_type == ActionType.BROADCAST_UPDATE:
+            if action.broadcast_message:
+                self.message_bus.broadcast_status(action.broadcast_message)
+
+        elif action.action_type == ActionType.INJECT_TASK:
+            if action.task_title and action.task_description and action.target_terminal:
+                await self.inject_task(
+                    title=action.task_title,
+                    description=action.task_description,
+                    terminal_id=action.target_terminal,
+                    priority=action.priority,
+                )
+
+        elif action.action_type == ActionType.TRIGGER_SYNC_POINT:
+            self._log_info("SYNC POINT TRIGGERED")
+            # Broadcast sync point to all terminals
+            self.message_bus.broadcast_status(
+                f"## 🔄 SYNC POINT\n\nPhase transition triggered.\n"
+                f"All terminals should check for phase-specific tasks."
+            )
+
+        elif action.action_type == ActionType.ESCALATE:
+            self._log_warning(f"ESCALATION: {action.reason}")
+            # Log for dashboard visibility
+            self._write_to_log_file(f"ESCALATION: {action.reason}", "escalate")
+
     # =========================================================================
     # Quality Check
     # =========================================================================
@@ -1234,6 +1345,9 @@ If the task is not critical, you may skip it with an explanation.
             # Create terminals
             await self.spawn_terminals()
 
+            # Start manager intelligence loop
+            self._manager_loop_task = asyncio.create_task(self._run_manager_loop())
+
             if not self.terminals:
                 return {"error": "No terminals created"}
 
@@ -1278,6 +1392,14 @@ If the task is not critical, you may skip it with an explanation.
         """Shutdown all terminals and cleanup."""
         self._log_info("Shutting down...")
         self.is_running = False
+
+        # Stop manager loop
+        if self._manager_loop_task:
+            self._manager_loop_task.cancel()
+            try:
+                await self._manager_loop_task
+            except asyncio.CancelledError:
+                pass
 
         # Close progress tracker
         if self._progress:

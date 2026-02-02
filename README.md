@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#features"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
-  <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-14-green?style=flat-square" alt="14 Subagents"></a>
+  <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-15-green?style=flat-square" alt="15 Subagents"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -21,19 +21,19 @@
 
 ## What is Archon?
 
-Archon is an AI manager that coordinates **5 parallel Claude Code terminals** to build software autonomously. Instead of you switching between terminals and copying information manually, Archon does it for you.
+Archon is an **AI manager** that coordinates **5 parallel Claude Code terminals** to build software autonomously. It operates like a real software company where engineers work in sync, share contracts, and deliver tested code.
 
 ```
 You (CEO) → Archon (Manager) → 5 Terminals (Engineers) → Working Software
 ```
 
-Give Archon a task like *"Create an iOS speed test app"* and it will:
+Give Archon a task like *"Create an iOS counter app"* and it will:
 
-1. **Plan** → Break down the task into parallel workstreams
-2. **Execute in Parallel** → All 4 terminals start immediately, no waiting
-3. **Self-Coordinate** → Terminals share interface contracts and adapt
-4. **Test & Verify** → Built-in testing phase ensures working code
-5. **Deliver** → Complete, tested application
+1. **Plan** → Define MVP scope, create interface contracts
+2. **Build in Parallel** → All terminals start immediately, no waiting
+3. **Coordinate in Real-Time** → Heartbeats, sync points, manager intelligence
+4. **Test Continuously** → T5 validates builds throughout, not just at the end
+5. **Deliver** → Complete, tested, documented application
 
 ---
 
@@ -46,8 +46,8 @@ cd Archon
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Run with dashboard
-python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app"
+# Run with dashboard (recommended)
+python -m orchestrator --dashboard "Create a habit tracking iOS app"
 ```
 
 ### Requirements
@@ -63,71 +63,133 @@ python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app
 
 | Feature | Description |
 |---------|-------------|
-| **True Parallel Execution** | All 5 terminals start immediately - no blocking dependencies |
-| **3-Phase Workflow** | Build → Integrate → Test for reliable results |
-| **Autonomous Terminals** | Each terminal makes decisions, uses mock data, self-verifies |
-| **Interface Contracts** | T1 defines what it needs, T2 implements it |
-| **Built-in Testing** | Phase 3 runs `swift build && swift test` automatically |
-| **14 Expert Subagents** | Specialized AI for SwiftUI, React, databases, ML, marketing... |
+| **Company Mode** | Terminals work like a real team - synced, coordinated, accountable |
+| **4-Phase Workflow** | Plan → Build → Integrate → Test |
+| **Real-Time Coordination** | Heartbeats every 30s, sync points at phase boundaries |
+| **Interface Contracts** | T1 defines expectations, T2 implements, T5 verifies |
+| **Continuous Testing** | T5 validates builds throughout, not just Phase 3 |
+| **Manager Intelligence** | Active coordination - detects conflicts, injects tasks, triggers sync |
+| **15 Expert Subagents** | Specialized AI for SwiftUI, React, databases, testing, ML... |
 | **Real-Time Dashboard** | Monitor progress at `localhost:8420` |
 
 ---
 
-## How It Works: 3-Phase Parallel Execution
+## How It Works: 4-Phase Execution
 
-Unlike sequential systems, Archon runs all terminals **simultaneously** from the start:
+Archon runs all terminals **simultaneously** with intelligent coordination:
 
 ```
-PHASE 1: BUILD (All terminals start immediately)
+PHASE 0: PLANNING & CONTRACTS (2-5 min)
 ┌─────────────────────────────────────────────────────────────┐
-│  T1 ──→ Creates UI with mock data                           │
-│  T2 ──→ Builds architecture and models                      │
-│  T3 ──→ Creates documentation structure                     │
-│  T4 ──→ Defines MVP scope (broadcasts in 2 min)             │
+│  T4 ──→ Broadcasts MVP scope to all terminals               │
+│  T1 ──→ Creates interface contracts for T2                  │
+│  T5 ──→ Sets up monitoring infrastructure                   │
 └─────────────────────────────────────────────────────────────┘
                             ↓
-PHASE 2: INTEGRATE (When Phase 1 completes)
+PHASE 1: PARALLEL BUILD (10-20 min)
+┌─────────────────────────────────────────────────────────────┐
+│  T1 ──→ Creates UI with mock data                           │
+│  T2 ──→ Builds architecture, models, tests                  │
+│  T3 ──→ Creates documentation structure                     │
+│  T5 ──→ Continuous build validation (every 2 min)           │
+│                                                             │
+│  📡 Heartbeats every 30s | Manager monitors for conflicts   │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+         ═══════ SYNC POINT A: Mid-Build Check ═══════
+                            ↓
+PHASE 2: INTEGRATION (5-10 min)
 ┌─────────────────────────────────────────────────────────────┐
 │  T1 ──→ Connects UI to T2's real APIs                       │
 │  T2 ──→ Matches T1's interface contracts                    │
+│  T5 ──→ Validates contract implementations                  │
 └─────────────────────────────────────────────────────────────┘
                             ↓
-PHASE 3: TEST & VERIFY (Final phase)
+         ═══════ SYNC POINT B: Pre-Release ═══════
+                            ↓
+PHASE 3: TEST & VERIFY (2-5 min)
 ┌─────────────────────────────────────────────────────────────┐
+│  T5 ──→ Full test suite, quality gates                      │
 │  T1 ──→ Verifies UI compilation and previews                │
-│  T2 ──→ Runs all tests, fixes any failures                  │
 │  T3 ──→ Finalizes documentation                             │
 └─────────────────────────────────────────────────────────────┘
                             ↓
                     ✅ Working Software
 ```
 
-### Key Innovation: Interface Contracts
-
-Terminals don't wait for each other. Instead:
-
-1. **T1** creates UI and documents what data it expects:
-   ```swift
-   // T1 INTERFACE CONTRACT
-   // T2: Please implement a service matching this
-   struct UserDisplayData {
-       let id: UUID
-       let name: String
-       let avatarURL: URL?
-   }
-   ```
-
-2. **T2** reads T1's contracts and implements matching APIs
-
-3. **Phase 2** wires everything together
-
 ---
 
-## Architecture
+## Company Mode Architecture
 
-<p align="center">
-  <img src="assets/architecture.png" alt="Archon Architecture" width="600">
-</p>
+Archon's "Company Mode" transforms isolated terminals into a coordinated team:
+
+### 1. Sync Protocol (Heartbeats)
+
+Every terminal writes its status every 30 seconds:
+
+```json
+{
+  "terminal": "t1",
+  "status": "working",
+  "current_task": "Create ProfileView",
+  "progress": "60%",
+  "files_touched": ["Views/ProfileView.swift"],
+  "ready_artifacts": ["UserDisplayData interface"],
+  "waiting_for": null
+}
+```
+
+The orchestrator reads these heartbeats to:
+- Detect blocked or stalled terminals
+- Identify file conflicts
+- Trigger sync points when ready
+
+### 2. Interface Contracts
+
+Terminals communicate expectations through formal contracts:
+
+```json
+// .orchestra/contracts/UserDisplayData.json
+{
+  "name": "UserDisplayData",
+  "defined_by": "t1",
+  "status": "proposed",
+  "definition": {
+    "fields": [
+      {"name": "id", "type": "UUID"},
+      {"name": "name", "type": "String"}
+    ]
+  }
+}
+```
+
+**Lifecycle:**
+1. **T1** creates contract (status: `proposed`)
+2. **T2** implements and updates (status: `implemented`)
+3. **T5** verifies match (status: `verified`)
+
+### 3. Manager Intelligence
+
+The orchestrator actively coordinates:
+
+| Detection | Action |
+|-----------|--------|
+| Terminal blocked > 2 min | Inject unblocking task |
+| T1 & T2 touching same file | Broadcast warning, pause one terminal |
+| Interface mismatch | Inject fix task, notify both terminals |
+| All Phase N tasks done | Trigger sync point |
+| No heartbeat > 3 min | Escalate to user |
+
+### 4. Continuous Testing (T5)
+
+T5 doesn't wait for Phase 3 - it validates throughout:
+
+| Phase | T5 Activity |
+|-------|-------------|
+| Phase 0 | Setup monitoring infrastructure |
+| Phase 1 | Build check every 2 min, report errors immediately |
+| Phase 2 | Verify contracts, integration tests |
+| Phase 3 | Full test suite, quality gates, final report |
 
 ---
 
@@ -175,25 +237,16 @@ Terminals don't wait for each other. Instead:
 | `product-thinker` | MVP scope, roadmaps, PRDs |
 | `monetization-expert` | Pricing, business models |
 
-### T5 - QA/Testing (Validation)
+### T5 - QA/Testing (Continuous)
 
-**Principle:** *"Trust but verify"*
+**Principle:** *"Validate continuously, never block"*
 
 | Subagent | Specialty |
 |----------|-----------|
-| `testing-genius` | **Creative testing mastermind** - property-based testing, chaos engineering, mutation testing, fuzzing |
+| `testing-genius` | Property-based testing, chaos engineering, fuzzing |
 | `swift-architect` | iOS build validation, Swift tests |
 | `node-architect` | Node.js tests, npm build verification |
 | `python-architect` | pytest, Python validation |
-
-T5 runs in Phase 3 to:
-- Verify all code compiles (`swift build`, `npm run build`)
-- Run all tests (`swift test`, `npm test`, `pytest`)
-- Check code quality (linting, formatting)
-- Report issues back to responsible terminals
-- Design innovative testing strategies using `testing-genius`
-
-**Note:** T5 can be disabled with `--no-testing` to save API limits
 
 ---
 
@@ -208,7 +261,7 @@ python -m orchestrator "Create a todo app with SwiftUI"
 # With dashboard (recommended)
 python -m orchestrator --dashboard "Build a REST API"
 
-# Interactive chat mode - talk to Archon during execution
+# Interactive chat mode - control execution in real-time
 python -m orchestrator --chat "Create a meditation app"
 
 # Continuous mode - keeps asking for new tasks
@@ -220,8 +273,8 @@ python -m orchestrator --dry-run "Create a meditation app"
 # Work on existing project
 python -m orchestrator --project ./MyApp "Add dark mode"
 
-# Resume interrupted session
-python -m orchestrator --resume
+# Disable T5 testing (saves API limits)
+python -m orchestrator --no-testing "Quick prototype"
 
 # Combine flags
 python -m orchestrator --chat --dashboard "Build a full-stack app"
@@ -236,16 +289,15 @@ python -m orchestrator --chat --dashboard "Build a full-stack app"
 | `--continuous` | Keep running, prompt for new tasks |
 | `--dry-run` | Show plan without executing |
 | `--project PATH` | Work on existing project |
-| `--parallel N` | Number of terminals (default: 4) |
+| `--no-testing` | Disable T5 QA terminal (saves API limits) |
 | `--max-retries N` | Retry failed tasks (default: 2) |
 | `--timeout N` | Max execution time in seconds |
-| `--no-testing` | Disable T5 QA terminal (saves API limits) |
 | `-v, --verbose` | Detailed output |
 | `-q, --quiet` | Minimal output |
 
 ### Manager Chat (`--chat`)
 
-Interactive REPL that lets you communicate with Archon during execution:
+Interactive REPL to communicate with Archon during execution:
 
 ```
 > status              # Overall execution status
@@ -262,128 +314,81 @@ Interactive REPL that lets you communicate with Archon during execution:
 
 ---
 
-## Example Output
-
-**Prompt:** *"Create an iOS SpeedTest app with SwiftUI, minimalist design with liquid glass effects"*
-
-<p align="center">
-  <img src="assets/example-speedtest-1.png" alt="SpeedTest Ready" width="250">
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/example-speedtest-2.png" alt="SpeedTest Results" width="250">
-</p>
-
-**What Archon built:**
-- Complete SwiftUI app with MVVM architecture
-- Network speed measurement service with unit tests
-- Animated circular progress indicator
-- Results display with Download, Upload, Ping, Jitter
-- Test history with SwiftData persistence
-- Verified: `swift build && swift test` passed
-
----
-
-## Screenshots
-
-### Dashboard UI
-
-<!-- T1/T2: Add dashboard screenshots showing the orchestrator web UI at localhost:8420 -->
-<p align="center">
-  <em>Dashboard screenshots placeholder - capture from localhost:8420</em>
-</p>
-
-### Light Mode & Dark Mode
-
-Generated projects support both color schemes using the LiquidGlass design system:
-
-<!-- T1: Add side-by-side light/dark mode screenshots of generated apps -->
-| Light Mode | Dark Mode |
-|------------|-----------|
-| *Placeholder: Light mode screenshot* | *Placeholder: Dark mode screenshot* |
-
-### LiquidGlass Components
-
-<!-- T1: Add component showcase screenshots showing glass effects, buttons, cards -->
-<p align="center">
-  <em>Component showcase placeholder - glass cards, buttons, inputs</em>
-</p>
-
----
-
 ## Project Structure
 
 ```
 Archon/
-├── orchestrator/           # Core Python package
-│   ├── orchestrator.py     # Main coordinator (phase-aware)
-│   ├── planner.py          # Parallel-first task planning
-│   ├── terminal.py         # Claude Code subprocess
-│   ├── report_manager.py   # Structured reports & contracts
-│   ├── message_bus.py      # Inter-terminal messaging
-│   ├── task_queue.py       # Phase-based task management
-│   ├── manager_chat.py     # Interactive chat REPL (--chat)
-│   └── dashboard.py        # FastAPI web UI
+├── orchestrator/                # Core Python package
+│   ├── orchestrator.py          # Main coordinator (phase-aware)
+│   ├── planner.py               # Parallel-first task planning
+│   ├── terminal.py              # Claude Code subprocess
+│   ├── task_queue.py            # Phase-based task management
+│   ├── message_bus.py           # Inter-terminal messaging
+│   ├── report_manager.py        # Structured reports
+│   │
+│   │── # Company Mode Components
+│   ├── sync_manager.py          # Heartbeat coordination
+│   ├── contract_manager.py      # Interface contracts
+│   ├── manager_intelligence.py  # Active manager decisions
+│   ├── validator.py             # Continuous validation
+│   │
+│   ├── manager_chat.py          # Interactive chat REPL
+│   └── dashboard.py             # FastAPI web UI
+│
 ├── templates/
-│   └── terminal_prompts/   # Autonomous terminal prompts
-│       ├── t1_uiux.md      # "Build first, integrate later"
-│       ├── t2_features.md  # "Build foundation fast" + tests
-│       ├── t3_docs.md      # "Document as it's built"
-│       └── t4_ideas.md     # "Guide, don't block"
+│   └── terminal_prompts/        # Autonomous terminal prompts
+│       ├── t1_uiux.md           # "Build first, integrate later"
+│       ├── t2_features.md       # "Build foundation fast"
+│       ├── t3_docs.md           # "Document as it's built"
+│       ├── t4_ideas.md          # "Guide, don't block"
+│       └── t5_qa.md             # "Validate continuously"
+│
 ├── .claude/
-│   └── agents/             # 14 subagent definitions
-├── .orchestra/             # Runtime state (gitignored)
-└── Apps/                   # Generated projects (gitignored)
+│   └── agents/                  # 15 subagent definitions
+│
+├── .orchestra/                  # Runtime state (gitignored)
+│   ├── state/                   # Terminal heartbeats
+│   ├── contracts/               # Interface contracts
+│   ├── reports/                 # Terminal reports
+│   ├── messages/                # Inter-terminal messages
+│   ├── tasks/                   # Task queue files
+│   └── qa/                      # T5 validation data
+│
+└── Apps/                        # Generated projects (gitignored)
 ```
 
 ---
 
-## Customization
+## Example Output
 
-### Customizing Terminals
+**Prompt:** *"Create a simple iOS counter app"*
 
-Terminal prompts are in `templates/terminal_prompts/`. Each defines autonomous behavior:
+**What Archon builds:**
 
-```markdown
-# Terminal T1 - UI/UX Specialist (Autonomous Mode)
-
-## Core Principle: BUILD FIRST, INTEGRATE LATER
-
-You don't wait for T2 to give you data models. You:
-1. ASSUME reasonable data structures
-2. CREATE the UI with mock/placeholder data
-3. DESIGN interfaces that T2 will implement
-4. DOCUMENT what you assumed so T2 can match it
+```
+Apps/CounterApp/
+├── Package.swift              # Swift package
+├── README.md                  # Professional documentation
+├── CHANGELOG.md               # Version history
+├── docs/                      # API documentation
+├── CounterApp/
+│   ├── CounterAppApp.swift    # App entry point
+│   ├── Models/
+│   │   └── Counter.swift      # Business logic
+│   ├── ViewModels/
+│   │   └── CounterViewModel.swift
+│   └── Views/
+│       └── CounterView.swift  # SwiftUI UI
+└── CounterAppTests/
+    ├── CounterTests.swift
+    └── CounterViewModelTests.swift
 ```
 
-### Creating Custom Subagents
-
-Subagents are defined in `.claude/agents/`:
-
-```yaml
-# .claude/agents/my-custom-agent.yml
-name: my-custom-agent
-model: opus
-tools: [Read, Write, Edit, Glob, Grep, Bash]
-description: Brief description of specialty.
-prompt: |
-  You are an expert in [domain].
-  ...
-```
-
----
-
-## Configuration
-
-### Claude Settings (`.claude/settings.json`)
-
-```json
-{
-  "permissions": {
-    "allow": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "deny": []
-  },
-  "model": "opus"
-}
-```
+**Execution flow:**
+1. **Phase 0** - T4 broadcasts MVP scope, T1 creates contracts, T5 sets up monitoring
+2. **Phase 1** - T1 builds UI, T2 builds models, T3 creates docs, T5 validates builds
+3. **Phase 2** - T1 connects to real APIs, T2 matches contracts
+4. **Phase 3** - T5 runs full test suite, T3 finalizes docs
 
 ---
 
@@ -392,10 +397,11 @@ prompt: |
 | Problem | Solution |
 |---------|----------|
 | `claude: command not found` | Install [Claude Code CLI](https://github.com/anthropics/claude-code) |
-| Rate limit hit | Use Max 5x subscription or wait for reset |
+| Rate limit hit | Use Max 5x subscription or use `--no-testing` |
 | Dashboard not loading | Check if port 8420 is free: `lsof -i :8420` |
-| Task stuck | Check `.orchestra/` for state, restart orchestrator |
-| Tests failing | Phase 3 will auto-retry; check `.orchestra/reports/t2/` |
+| Task stuck | Check `.orchestra/state/` for heartbeats |
+| Tests failing | T5 will report to responsible terminal |
+| Contract mismatch | Manager Intelligence will inject fix task |
 
 ---
 
@@ -408,7 +414,11 @@ git clone https://github.com/YOUR_USERNAME/Archon.git
 # Create feature branch
 git checkout -b feature/my-feature
 
-# Make changes, then
+# Make changes, then format
+black orchestrator/
+ruff check orchestrator/
+
+# Commit and push
 git commit -m "Add my feature"
 git push origin feature/my-feature
 ```

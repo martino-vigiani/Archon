@@ -40,7 +40,7 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
     dependencies: list[str] = field(default_factory=list)
-    phase: int = 1  # 1 = immediate (no deps), 2 = integration, 3 = testing
+    phase: int = 1  # 0 = planning, 1 = immediate (no deps), 2 = integration, 3 = testing
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: str | None = None
     completed_at: str | None = None
@@ -75,15 +75,20 @@ class Task:
             data["phase"] = 1
         return cls(**data)
 
-    def is_ready(self, completed_task_ids: set[str], current_phase: int = 1) -> bool:
+    def is_ready(self, completed_task_ids: set[str], current_phase: int = 0) -> bool:
         """
         Check if task is ready to execute.
 
-        Phase 1 tasks: Always ready (no blocking dependencies)
+        Phase 0 tasks: Always ready (no blocking dependencies) - Planning phase
+        Phase 1 tasks: Ready when Phase 0 completes (or immediately if no Phase 0)
         Phase 2+ tasks: Ready when their phase is reached
 
-        Dependencies are SOFT in parallel execution - they inform but don't block Phase 1.
+        Dependencies are SOFT in parallel execution - they inform but don't block.
         """
+        # Phase 0 tasks are always ready - planning phase
+        if self.phase == 0:
+            return True
+
         # Phase 1 tasks are always ready - parallel execution
         if self.phase == 1:
             return True
@@ -217,14 +222,15 @@ class TaskQueue:
     def get_next_task_for_terminal(
         self,
         terminal_id: TerminalID,
-        current_phase: int = 1,
+        current_phase: int = 0,
     ) -> Task | None:
         """
         Get the next available task for a specific terminal.
 
         In parallel execution:
-        - Phase 1 tasks are always available (no blocking)
-        - Phase 2+ tasks wait for their phase to be reached
+        - Phase 0 tasks: Planning and contracts, always available
+        - Phase 1 tasks: Always available (no blocking)
+        - Phase 2+ tasks: Wait for their phase to be reached
         """
         pending = self.pending
         completed = self.completed
@@ -249,7 +255,8 @@ class TaskQueue:
         Determine the current execution phase based on completed tasks.
 
         Phase transitions:
-        - Phase 1: Initial state, all terminals start
+        - Phase 0: Initial state, planning and contracts
+        - Phase 1: When Phase 0 completes (or immediately if no Phase 0 tasks)
         - Phase 2: When ALL Phase 1 tasks complete (if Phase 2 tasks exist)
         - Phase 3: When ALL Phase 2 tasks complete (or if no Phase 2 tasks exist)
         """
@@ -261,6 +268,9 @@ class TaskQueue:
         all_tasks = completed + pending + in_progress
 
         # Count tasks by phase
+        phase_0_total = len([t for t in all_tasks if t.phase == 0])
+        phase_0_done = len([t for t in completed if t.phase == 0])
+
         phase_1_total = len([t for t in all_tasks if t.phase == 1])
         phase_1_done = len([t for t in completed if t.phase == 1])
 
@@ -269,8 +279,15 @@ class TaskQueue:
 
         phase_3_total = len([t for t in all_tasks if t.phase == 3])
 
+        # Check Phase 0 completion
+        phase_0_complete = phase_0_total == 0 or phase_0_done >= phase_0_total
+
         # Check if Phase 1 is complete
         phase_1_complete = phase_1_total > 0 and phase_1_done >= phase_1_total
+
+        # If Phase 0 not complete, stay in Phase 0
+        if not phase_0_complete:
+            return 0
 
         # Phase 3 if:
         # - All Phase 2 done, OR
@@ -284,7 +301,43 @@ class TaskQueue:
         if phase_1_complete and phase_2_total > 0:
             return 2
 
-        return 1
+        # Phase 1 if Phase 0 is complete
+        if phase_0_complete:
+            return 1
+
+        return 0
+
+    def get_sync_point_status(self) -> dict:
+        """
+        Get status for sync point decision making.
+
+        Returns:
+            Dictionary with phase completion status
+        """
+        completed = self.completed
+        pending = self.pending
+        in_progress = self.in_progress
+
+        all_tasks = completed + pending + in_progress
+
+        status = {}
+        for phase in [0, 1, 2, 3]:
+            phase_total = len([t for t in all_tasks if t.phase == phase])
+            phase_done = len([t for t in completed if t.phase == phase])
+            phase_in_progress = len([t for t in in_progress if t.phase == phase])
+            phase_pending = len([t for t in pending if t.phase == phase])
+
+            status[f"phase_{phase}"] = {
+                "total": phase_total,
+                "done": phase_done,
+                "in_progress": phase_in_progress,
+                "pending": phase_pending,
+                "complete": phase_total > 0 and phase_done >= phase_total,
+            }
+
+        status["current_phase"] = self.get_current_phase()
+
+        return status
 
     def get_tasks_by_phase(self, phase: int) -> list[Task]:
         """Get all pending tasks for a specific phase."""

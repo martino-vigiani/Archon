@@ -8,7 +8,7 @@ Dependencies are soft (informational), not blocking.
 import json
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .config import Config, TerminalID
 
@@ -22,7 +22,8 @@ class PlannedTask:
     terminal: TerminalID
     priority: str
     dependencies: list[str]  # Soft dependencies - informational only
-    phase: int  # 1 = immediate, 2 = after initial work, 3 = final
+    phase: int  # 0 = planning, 1 = build, 2 = integration, 3 = testing
+    required_subagents: list[str] = field(default_factory=list)  # Suggested subagents
 
 
 @dataclass
@@ -79,8 +80,12 @@ Return ONLY JSON (no markdown):
 
 ## Required Task Structure
 
-PHASE 1 (All terminals start immediately):
-- T4: "Define MVP scope and direction" (priority: critical, phase: 1)
+PHASE 0 (Planning & Contracts - First 2-5 minutes):
+- T4: "Broadcast MVP scope and direction" (priority: critical, phase: 0)
+- T1: "Define interface contracts" (priority: critical, phase: 0)
+- T5: "Setup monitoring infrastructure" (priority: high, phase: 0)
+
+PHASE 1 (Parallel Build - All terminals start immediately):
 - T2: "Build core architecture and models" (priority: critical, phase: 1)
 - T1: "Create UI components with mock data" (priority: critical, phase: 1)
 - T3: "Create documentation structure" (priority: high, phase: 1)
@@ -95,7 +100,7 @@ PHASE 3 (Final - testing, validation, polish):
 - T1: "Verify UI compilation and previews" (phase: 3)
 - T3: "Finalize documentation" (phase: 3)
 
-Return 7-12 tasks covering all phases. JSON only.'''
+Return 8-14 tasks covering all phases. JSON only.'''
 
 
 PLANNER_PROMPT_WITH_PROJECT = '''You are a PARALLEL task planner for an EXISTING PROJECT.
@@ -110,10 +115,11 @@ T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
 
 ## CRITICAL: Parallel Execution Rules
 
-1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
-2. Terminals read existing code and work with it
-3. Phase 2 tasks integrate new code with existing
-4. Phase 3 is final testing and validation by T5
+1. Phase 0 tasks run first (2-5 minutes) - planning and contracts
+2. ALL terminals start in Phase 1 after Phase 0 - NO BLOCKING DEPENDENCIES
+3. Terminals read existing code and work with it
+4. Phase 2 tasks integrate new code with existing
+5. Phase 3 is final testing and validation by T5
 
 ## Existing Project
 
@@ -143,16 +149,17 @@ Return ONLY JSON (no markdown):
       "description": "Specific changes to make, files to modify",
       "terminal": "t1|t2|t3|t4|t5",
       "priority": "critical|high|medium|low",
-      "phase": 1,
-      "dependencies": []
+      "phase": 0,
+      "dependencies": [],
+      "required_subagents": ["subagent-name"]
     }}
   ],
   "execution_order": ["task1", "task2"]
 }}
 
-IMPORTANT: Always include at least one T5 task in Phase 3 to validate the build.
+IMPORTANT: Always include Phase 0 tasks and at least one T5 task in Phase 3 to validate the build.
 
-Return 5-10 tasks. JSON only.'''
+Return 6-12 tasks. JSON only.'''
 
 
 class Planner:
@@ -227,6 +234,7 @@ class Planner:
                 priority=task_data.get("priority", "medium"),
                 dependencies=task_data.get("dependencies", []),
                 phase=task_data.get("phase", 1),
+                required_subagents=task_data.get("required_subagents", []),
             ))
 
         if not planned_tasks:
@@ -279,6 +287,7 @@ class Planner:
         """
         Fallback plan that ensures parallel execution.
 
+        Phase 0 runs first (planning & contracts).
         All Phase 1 tasks have NO dependencies - they all start immediately.
         """
         task_lower = task.lower()
@@ -286,24 +295,66 @@ class Planner:
 
         tasks = []
 
-        # PHASE 1: All start immediately, NO dependencies
+        # PHASE 0: Planning & Contracts
         tasks.append(PlannedTask(
-            title="Define MVP scope and initial direction",
-            description=f"""Immediately analyze and define:
+            title="Broadcast MVP scope and direction",
+            description=f"""Immediately analyze and broadcast within 2 minutes:
 1. MVP scope (3-5 core features maximum)
 2. Visual direction for T1 (style, colors, vibe)
 3. Technical direction for T2 (architecture approach)
 4. Marketing angle for T3
 
-Broadcast this within 2 minutes so other terminals can align.
+Write to .orchestra/messages/broadcast.md so all terminals can read it.
 
 Task context: {task}""",
             terminal="t4",
             priority="critical",
-            dependencies=[],  # NO dependencies
-            phase=1,
+            dependencies=[],
+            phase=0,
+            required_subagents=["product-thinker"],
         ))
 
+        tasks.append(PlannedTask(
+            title="Define interface contracts",
+            description=f"""Create interface contracts in .orchestra/contracts/:
+1. Identify key data models the UI will need
+2. Document expected interfaces/APIs
+3. Create contract files for T2 to implement
+
+Example contract: UserDisplayData.json
+{{
+    "name": "UserDisplayData",
+    "defined_by": "t1",
+    "status": "proposed",
+    "definition": {{"fields": ["id", "name", "email"]}}
+}}
+
+Task context: {task}""",
+            terminal="t1",
+            priority="critical",
+            dependencies=[],
+            phase=0,
+            required_subagents=["swiftui-crafter"],
+        ))
+
+        if not self.config.disable_testing:
+            tasks.append(PlannedTask(
+                title="Setup QA monitoring infrastructure",
+                description="""Setup monitoring in .orchestra/qa/:
+1. Create directory structure
+2. Initialize build tracking
+3. Setup contract monitoring
+4. Prepare for continuous validation
+
+See templates/terminal_prompts/t5_qa.md for Phase 0 instructions.""",
+                terminal="t5",
+                priority="high",
+                dependencies=[],
+                phase=0,
+                required_subagents=["testing-genius"],
+            ))
+
+        # PHASE 1: All start immediately, NO dependencies
         tasks.append(PlannedTask(
             title="Build core architecture and data models",
             description=f"""Start immediately with architecture:
@@ -321,6 +372,7 @@ Task context: {task}""",
             priority="critical",
             dependencies=[],  # NO dependencies
             phase=1,
+            required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
         ))
 
         tasks.append(PlannedTask(
@@ -340,6 +392,7 @@ Task context: {task}""",
             priority="critical",
             dependencies=[],  # NO dependencies
             phase=1,
+            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
         ))
 
         tasks.append(PlannedTask(
@@ -358,6 +411,7 @@ Task context: {task}""",
             priority="high",
             dependencies=[],  # NO dependencies
             phase=1,
+            required_subagents=["tech-writer"],
         ))
 
         # PHASE 2: Integration (soft dependencies)
@@ -372,6 +426,7 @@ Task context: {task}""",
             priority="high",
             dependencies=["Build core architecture and data models"],
             phase=2,
+            required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
         ))
 
         tasks.append(PlannedTask(
@@ -385,12 +440,14 @@ Task context: {task}""",
             priority="high",
             dependencies=["Create UI components with mock data"],
             phase=2,
+            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
         ))
 
         # PHASE 3: Testing and finalization
-        tasks.append(PlannedTask(
-            title="Run all tests and verify build",
-            description="""Final verification:
+        if not self.config.disable_testing:
+            tasks.append(PlannedTask(
+                title="Run all tests and verify build",
+                description="""Final verification:
 1. Run swift build / npm run build
 2. Run swift test / npm test
 3. Fix any compilation errors
@@ -398,11 +455,28 @@ Task context: {task}""",
 5. Ensure no warnings in production code
 
 Do NOT mark complete until all tests pass.""",
-            terminal="t2",
-            priority="critical",
-            dependencies=["Integrate T1 interfaces with T2 implementations"],
-            phase=3,
-        ))
+                terminal="t5",
+                priority="critical",
+                dependencies=["Integrate T1 interfaces with T2 implementations"],
+                phase=3,
+                required_subagents=["testing-genius"],
+            ))
+
+            tasks.append(PlannedTask(
+                title="Validate output quality and completeness",
+                description="""Quality validation:
+1. Verify all contract requirements met
+2. Check code quality metrics
+3. Validate documentation completeness
+4. Ensure all phase objectives achieved
+
+Do NOT mark complete until validation passes.""",
+                terminal="t5",
+                priority="high",
+                dependencies=["Run all tests and verify build"],
+                phase=3,
+                required_subagents=["testing-genius"],
+            ))
 
         tasks.append(PlannedTask(
             title="Verify UI compilation and previews",
@@ -417,6 +491,7 @@ Do NOT mark complete until build succeeds.""",
             priority="high",
             dependencies=["Connect UI to real data services"],
             phase=3,
+            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
         ))
 
         tasks.append(PlannedTask(
@@ -430,11 +505,12 @@ Do NOT mark complete until build succeeds.""",
             priority="medium",
             dependencies=["Create documentation structure"],
             phase=3,
+            required_subagents=["tech-writer"],
         ))
 
         return TaskPlan(
             original_task=task,
-            summary=f"Parallel execution plan: 4 terminals start immediately, then integrate and test",
+            summary=f"4-phase execution plan: Phase 0 (planning), Phase 1 (parallel build), Phase 2 (integration), Phase 3 (testing)",
             tasks=tasks,
             execution_order=[t.title for t in tasks],
         )

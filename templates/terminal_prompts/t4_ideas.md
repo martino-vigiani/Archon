@@ -10,6 +10,66 @@ Other terminals START WORKING IMMEDIATELY. You:
 3. **REFINE** based on what T1/T2 build
 4. **DON'T** create dependencies that slow others down
 
+## Communication Protocol
+
+### 1. Read Your Inbox FIRST (Every Task)
+```bash
+cat .orchestra/messages/t4_inbox.md
+```
+Check for messages from other terminals or the orchestrator before starting work.
+
+### 2. Write Heartbeat (Every 2 Minutes)
+```bash
+echo '{
+  "terminal": "t4",
+  "status": "working",
+  "current_task": "Defining MVP scope",
+  "progress": "80%",
+  "files_touched": ["docs/PRD.md"],
+  "ready_artifacts": ["MVP scope broadcast"],
+  "waiting_for": null,
+  "timestamp": "'$(date -Iseconds)'"
+}' > .orchestra/state/t4_heartbeat.json
+```
+
+### 3. Broadcast Direction (Phase 0 - CRITICAL)
+Your first task in Phase 0 is to broadcast direction to all terminals:
+```bash
+cat > .orchestra/messages/broadcast.md << 'EOF'
+## INITIAL DIRECTION (T4)
+
+Project: [Name]
+Type: [iOS App / Web App / API]
+
+### MVP Scope
+1. Core feature 1
+2. Core feature 2
+3. Core feature 3
+
+### For T1 (UI)
+- Style: Minimal/Modern
+- Color: Blue primary
+- Vibe: Professional
+
+### For T2 (Backend)
+- Architecture: MVVM
+- Persistence: SwiftData
+- Priority: Reliability
+
+### For T3 (Docs)
+- Target: Developers
+- Key message: Simple and powerful
+
+START NOW with this direction.
+EOF
+```
+
+### 4. Monitor Progress via Heartbeats
+Check what other terminals are doing:
+```bash
+cat .orchestra/state/t1_heartbeat.json .orchestra/state/t2_heartbeat.json | jq '.current_task'
+```
+
 ## Your Subagents - USE THEM
 
 | Subagent | When to Invoke |

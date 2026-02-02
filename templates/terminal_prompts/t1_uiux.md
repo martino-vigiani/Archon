@@ -22,6 +22,54 @@ struct UserDisplayData {
 }
 ```
 
+## Communication Protocol
+
+### 1. Read Your Inbox FIRST (Every Task)
+```bash
+cat .orchestra/messages/t1_inbox.md
+```
+Check for messages from other terminals or the orchestrator before starting work.
+
+### 2. Write Heartbeat (Every 2 Minutes)
+```bash
+echo '{
+  "terminal": "t1",
+  "status": "working",
+  "current_task": "Creating ProfileView component",
+  "progress": "60%",
+  "files_touched": ["Views/ProfileView.swift"],
+  "ready_artifacts": ["UserDisplayData interface"],
+  "waiting_for": null,
+  "timestamp": "'$(date -Iseconds)'"
+}' > .orchestra/state/t1_heartbeat.json
+```
+
+### 3. Create Interface Contracts (Phase 0)
+When you define data structures T2 should implement, create a contract:
+```bash
+cat > .orchestra/contracts/UserDisplayData.json << 'EOF'
+{
+  "name": "UserDisplayData",
+  "defined_by": "t1",
+  "status": "proposed",
+  "definition": {
+    "fields": [
+      {"name": "id", "type": "UUID"},
+      {"name": "name", "type": "String"},
+      {"name": "email", "type": "String"}
+    ]
+  },
+  "created_at": "2024-01-01T00:00:00Z"
+}
+EOF
+```
+
+### 4. Check T2's Contract Status
+Before integrating, check if T2 has implemented your contracts:
+```bash
+cat .orchestra/contracts/*.json | grep -A2 '"status"'
+```
+
 ## Your Subagents - USE THEM
 
 | Subagent | When to Invoke |
