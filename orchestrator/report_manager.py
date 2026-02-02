@@ -201,7 +201,7 @@ class ReportManager:
     def _ensure_dirs(self) -> None:
         """Create report directories for each terminal."""
         self.reports_dir.mkdir(parents=True, exist_ok=True)
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             (self.reports_dir / tid).mkdir(exist_ok=True)
         # Also create a summary directory
         (self.reports_dir / "summary").mkdir(exist_ok=True)
@@ -475,7 +475,7 @@ class ReportManager:
         context_parts = []
 
         # Get reports from all OTHER terminals
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             if tid == target_terminal:
                 continue
 
@@ -565,7 +565,7 @@ class ReportManager:
             "t1": [], "t2": [], "t3": [], "t4": []
         }
 
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             reports = self.get_reports_for_terminal(tid, limit=10)  # type: ignore
             for report in reports:
                 for dep in report.dependencies_needed:
@@ -583,7 +583,7 @@ class ReportManager:
                     f.unlink()
         else:
             # Clear all
-            for tid in ["t1", "t2", "t3", "t4"]:
+            for tid in ["t1", "t2", "t3", "t4", "t5"]:
                 self.clear_reports(tid)  # type: ignore
             # Also clear summary
             summary_dir = self.reports_dir / "summary"

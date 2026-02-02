@@ -617,7 +617,7 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
             "t4": Colors.BRIGHT_YELLOW,
         }
 
-        for term_id in ["t1", "t2", "t3", "t4"]:
+        for term_id in ["t1", "t2", "t3", "t4", "t5"]:
             if term_id in terminal_stats:
                 stats = terminal_stats[term_id]
                 color = terminal_colors.get(term_id, Colors.WHITE)

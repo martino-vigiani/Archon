@@ -209,7 +209,7 @@ class ManagerChat:
         """Handle status command."""
         status = self.orchestrator.get_detailed_status()
 
-        if args and args.lower() in ["t1", "t2", "t3", "t4"]:
+        if args and args.lower() in ["t1", "t2", "t3", "t4", "t5"]:
             # Terminal-specific status
             return self._format_terminal_status(args.lower(), status)
         else:
@@ -254,7 +254,7 @@ class ManagerChat:
         terminals = status.get("terminals", {})
         terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
 
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             t_info = terminals.get(tid, {})
             t_state = t_info.get("state", "unknown")
             t_task = t_info.get("current_task", None)
@@ -388,7 +388,7 @@ class ManagerChat:
         lines = ["Recent Reports:", ""]
         terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
 
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             reports = self.orchestrator.report_manager.get_reports_for_terminal(tid, limit=2)
             if reports:
                 color = self._get_terminal_color(tid)

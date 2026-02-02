@@ -158,7 +158,7 @@ async def get_task(task_id: str):
 async def get_messages():
     """Get messages from all inboxes."""
     messages = {}
-    for tid in ["t1", "t2", "t3", "t4"]:
+    for tid in ["t1", "t2", "t3", "t4", "t5"]:
         inbox_path = config.messages_dir / f"{tid}_inbox.md"
         if inbox_path.exists():
             messages[tid] = inbox_path.read_text()
@@ -195,7 +195,7 @@ async def get_terminal_output_endpoint(terminal_id: str, max_lines: int = 100):
     Returns:
         Terminal output text and metadata
     """
-    valid_terminals = ["t1", "t2", "t3", "t4"]
+    valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
             status_code=400,
@@ -313,7 +313,7 @@ async def post_terminal_output(terminal_id: str, output: dict):
     Returns:
         Confirmation of save
     """
-    valid_terminals = ["t1", "t2", "t3", "t4"]
+    valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
             status_code=400,
@@ -379,7 +379,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Get terminal outputs for all terminals
             terminal_outputs = {}
-            for tid in ["t1", "t2", "t3", "t4"]:
+            for tid in ["t1", "t2", "t3", "t4", "t5"]:
                 terminal_outputs[tid] = get_terminal_output(tid, max_lines=50)
 
             # Get subagent data

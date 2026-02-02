@@ -14,6 +14,7 @@ This is the central controller that:
 """
 
 import asyncio
+import fcntl
 import json
 import signal
 import sys
@@ -262,14 +263,17 @@ class Orchestrator:
         self._write_to_log_file(message, log_type)
 
     def _write_to_log_file(self, message: str, log_type: str = "info"):
-        """Write to orchestrator.log for dashboard consumption."""
+        """Write to orchestrator.log for dashboard consumption (thread-safe)."""
         log_file = self.config.orchestra_dir / "orchestrator.log"
         timestamp = datetime.now().strftime("%H:%M:%S")
         entry = f"[{timestamp}] [{log_type.upper()}] {message}\n"
         try:
             with open(log_file, "a") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Acquire exclusive lock
                 f.write(entry)
-        except IOError:
+                f.flush()
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
+        except (IOError, OSError):
             pass  # Ignore write errors
 
     def _log_success(self, message: str):
@@ -526,7 +530,7 @@ class Orchestrator:
         """Create all 4 terminal workers."""
         self._log_info("Creating terminal workers...")
 
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             terminal_id: TerminalID = tid  # type: ignore
             await self._spawn_terminal(terminal_id)
 
@@ -862,9 +866,9 @@ This helps the orchestrator coordinate with other terminals.
         for provides in report.provides_to_others:
             target = provides.get("to", "all")
             if target == "all":
-                recipients = {"t1", "t2", "t3", "t4"}
+                recipients = {"t1", "t2", "t3", "t4", "t5"}
                 break
-            elif target in ["t1", "t2", "t3", "t4"]:
+            elif target in ["t1", "t2", "t3", "t4", "t5"]:
                 recipients.add(target)  # type: ignore
 
         # If nothing explicit, notify based on task type
@@ -908,7 +912,7 @@ This helps the orchestrator coordinate with other terminals.
 
         context_parts = ["## Current Project State", ""]
 
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             terminal_config = self.config.get_terminal_config(tid)  # type: ignore
             components = all_components.get(tid, [])  # type: ignore
 

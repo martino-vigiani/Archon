@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal, TypedDict
 
 
-TerminalID = Literal["t1", "t2", "t3", "t4"]
+TerminalID = Literal["t1", "t2", "t3", "t4", "t5"]
 
 
 class ProjectMetadata(TypedDict):
@@ -45,6 +45,7 @@ class TerminalConfig:
             "t2": "t2_features.md",
             "t3": "t3_docs.md",
             "t4": "t4_ideas.md",
+            "t5": "t5_qa.md",
         }
         return role_map[self.id]
 
@@ -103,6 +104,19 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
             "subscription", "freemium", "revenue", "business model", "market",
             "competitor", "analysis", "validation", "hypothesis", "experiment",
             "metric", "kpi", "growth", "retention", "acquisition"
+        ],
+    ),
+    "t5": TerminalConfig(
+        id="t5",
+        role="QA/Testing",
+        description="Runs tests, validates outputs, verifies code quality and compilation",
+        subagents=["swift-architect", "node-architect", "python-architect"],
+        keywords=[
+            "test", "testing", "verify", "validate", "check", "quality", "qa",
+            "build", "compile", "run tests", "pytest", "swift test", "npm test",
+            "coverage", "lint", "format", "audit", "security", "scan",
+            "unit test", "integration test", "e2e", "assertion", "mock",
+            "fixture", "snapshot", "regression", "benchmark", "performance"
         ],
     ),
 }

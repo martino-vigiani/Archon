@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="#features"><img src="https://img.shields.io/badge/Terminals-4-blue?style=flat-square" alt="4 Terminals"></a>
+  <a href="#features"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-14-green?style=flat-square" alt="14 Subagents"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
@@ -21,10 +21,10 @@
 
 ## What is Archon?
 
-Archon is an AI manager that coordinates **4 parallel Claude Code terminals** to build software autonomously. Instead of you switching between terminals and copying information manually, Archon does it for you.
+Archon is an AI manager that coordinates **5 parallel Claude Code terminals** to build software autonomously. Instead of you switching between terminals and copying information manually, Archon does it for you.
 
 ```
-You (CEO) → Archon (Manager) → 4 Terminals (Engineers) → Working Software
+You (CEO) → Archon (Manager) → 5 Terminals (Engineers) → Working Software
 ```
 
 Give Archon a task like *"Create an iOS speed test app"* and it will:
@@ -63,7 +63,7 @@ python -m orchestrator --dashboard --continuous "Create a habit tracking iOS app
 
 | Feature | Description |
 |---------|-------------|
-| **True Parallel Execution** | All 4 terminals start immediately - no blocking dependencies |
+| **True Parallel Execution** | All 5 terminals start immediately - no blocking dependencies |
 | **3-Phase Workflow** | Build → Integrate → Test for reliable results |
 | **Autonomous Terminals** | Each terminal makes decisions, uses mock data, self-verifies |
 | **Interface Contracts** | T1 defines what it needs, T2 implements it |
@@ -175,6 +175,22 @@ Terminals don't wait for each other. Instead:
 | `product-thinker` | MVP scope, roadmaps, PRDs |
 | `monetization-expert` | Pricing, business models |
 
+### T5 - QA/Testing (Validation)
+
+**Principle:** *"Trust but verify"*
+
+| Subagent | Specialty |
+|----------|-----------|
+| `swift-architect` | iOS build validation, Swift tests |
+| `node-architect` | Node.js tests, npm build verification |
+| `python-architect` | pytest, Python validation |
+
+T5 runs in Phase 3 to:
+- Verify all code compiles (`swift build`, `npm run build`)
+- Run all tests (`swift test`, `npm test`, `pytest`)
+- Check code quality (linting, formatting)
+- Report issues back to responsible terminals
+
 ---
 
 ## Usage
@@ -258,6 +274,33 @@ Interactive REPL that lets you communicate with Archon during execution:
 - Results display with Download, Upload, Ping, Jitter
 - Test history with SwiftData persistence
 - Verified: `swift build && swift test` passed
+
+---
+
+## Screenshots
+
+### Dashboard UI
+
+<!-- T1/T2: Add dashboard screenshots showing the orchestrator web UI at localhost:8420 -->
+<p align="center">
+  <em>Dashboard screenshots placeholder - capture from localhost:8420</em>
+</p>
+
+### Light Mode & Dark Mode
+
+Generated projects support both color schemes using the LiquidGlass design system:
+
+<!-- T1: Add side-by-side light/dark mode screenshots of generated apps -->
+| Light Mode | Dark Mode |
+|------------|-----------|
+| *Placeholder: Light mode screenshot* | *Placeholder: Dark mode screenshot* |
+
+### LiquidGlass Components
+
+<!-- T1: Add component showcase screenshots showing glass effects, buttons, cards -->
+<p align="center">
+  <em>Component showcase placeholder - glass cards, buttons, inputs</em>
+</p>
 
 ---
 

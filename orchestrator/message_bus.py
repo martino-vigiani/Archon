@@ -78,7 +78,7 @@ class MessageBus:
         self.config.ensure_dirs()
 
         # Create inbox files for each terminal
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             inbox = self.config.get_terminal_inbox(tid)  # type: ignore
             if not inbox.exists():
                 inbox.write_text("# Inbox\n\nNo messages yet.\n")
@@ -115,7 +115,7 @@ class MessageBus:
         if recipient == "all":
             self._append_to_broadcast(msg)
             # Also append to each terminal's inbox
-            for tid in ["t1", "t2", "t3", "t4"]:
+            for tid in ["t1", "t2", "t3", "t4", "t5"]:
                 self._append_to_inbox(tid, msg)  # type: ignore
         else:
             self._append_to_inbox(recipient, msg)  # type: ignore
@@ -160,7 +160,7 @@ class MessageBus:
 
     def clear_all(self) -> None:
         """Clear all message files."""
-        for tid in ["t1", "t2", "t3", "t4"]:
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
             self.clear_inbox(tid)  # type: ignore
 
         broadcast = self.config.get_broadcast_file()

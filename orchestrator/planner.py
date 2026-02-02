@@ -36,21 +36,22 @@ class TaskPlan:
 
 
 # New parallel-first planner prompt
-PLANNER_PROMPT = '''You are a PARALLEL task planner. All 4 terminals work SIMULTANEOUSLY.
+PLANNER_PROMPT = '''You are a PARALLEL task planner. All 5 terminals work SIMULTANEOUSLY.
 
 ## Terminals (All Start Immediately)
 
 T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
-T2 - Features: Builds architecture, exposes APIs, writes tests
+T2 - Features: Builds architecture, exposes APIs, writes unit tests
 T3 - Docs: Creates documentation progressively
 T4 - Strategy: Provides direction fast (2 min), then detailed docs
+T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
 
 ## CRITICAL: Parallel Execution Rules
 
 1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
 2. Terminals work with assumptions and mock data
 3. Phase 2 tasks refine/integrate after initial work
-4. Phase 3 is final testing and polish
+4. Phase 3 is final testing, validation, and polish
 
 ## Task to Plan
 
@@ -67,7 +68,7 @@ Return ONLY JSON (no markdown):
     {{
       "title": "Task title",
       "description": "Detailed description with specific deliverables",
-      "terminal": "t1|t2|t3|t4",
+      "terminal": "t1|t2|t3|t4|t5",
       "priority": "critical|high|medium|low",
       "phase": 1,
       "dependencies": []
@@ -88,12 +89,13 @@ PHASE 2 (Integration - after Phase 1):
 - T2: "Integrate with T1's interface contracts" (phase: 2)
 - T1: "Connect UI to T2's real APIs" (phase: 2)
 
-PHASE 3 (Final - testing and polish):
-- T2: "Run all tests and fix issues" (phase: 3)
+PHASE 3 (Final - testing, validation, polish):
+- T5: "Run all tests and verify build" (priority: critical, phase: 3)
+- T5: "Validate output quality and completeness" (priority: high, phase: 3)
 - T1: "Verify UI compilation and previews" (phase: 3)
 - T3: "Finalize documentation" (phase: 3)
 
-Return 6-10 tasks covering all phases. JSON only.'''
+Return 7-12 tasks covering all phases. JSON only.'''
 
 
 PLANNER_PROMPT_WITH_PROJECT = '''You are a PARALLEL task planner for an EXISTING PROJECT.
@@ -101,16 +103,17 @@ PLANNER_PROMPT_WITH_PROJECT = '''You are a PARALLEL task planner for an EXISTING
 ## Terminals (All Start Immediately)
 
 T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
-T2 - Features: Builds architecture, exposes APIs, writes tests
+T2 - Features: Builds architecture, exposes APIs, writes unit tests
 T3 - Docs: Updates documentation progressively
 T4 - Strategy: Provides direction fast, refines based on codebase
+T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
 
 ## CRITICAL: Parallel Execution Rules
 
 1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
 2. Terminals read existing code and work with it
 3. Phase 2 tasks integrate new code with existing
-4. Phase 3 is final testing
+4. Phase 3 is final testing and validation by T5
 
 ## Existing Project
 
@@ -126,6 +129,7 @@ T4 - Strategy: Provides direction fast, refines based on codebase
 2. Read existing files before modifying
 3. Follow existing patterns and naming conventions
 4. Update existing tests, don't just add new ones
+5. T5 MUST validate all changes compile and tests pass
 
 ## Output Format
 
@@ -137,7 +141,7 @@ Return ONLY JSON (no markdown):
     {{
       "title": "Task title",
       "description": "Specific changes to make, files to modify",
-      "terminal": "t1|t2|t3|t4",
+      "terminal": "t1|t2|t3|t4|t5",
       "priority": "critical|high|medium|low",
       "phase": 1,
       "dependencies": []
@@ -146,7 +150,9 @@ Return ONLY JSON (no markdown):
   "execution_order": ["task1", "task2"]
 }}
 
-Return 4-8 tasks. JSON only.'''
+IMPORTANT: Always include at least one T5 task in Phase 3 to validate the build.
+
+Return 5-10 tasks. JSON only.'''
 
 
 class Planner:
@@ -207,7 +213,7 @@ class Planner:
         planned_tasks = []
         for task_data in plan_data.get("tasks", []):
             terminal = task_data.get("terminal", "t2").lower()
-            if terminal not in ["t1", "t2", "t3", "t4"]:
+            if terminal not in ["t1", "t2", "t3", "t4", "t5"]:
                 terminal = "t2"
 
             planned_tasks.append(PlannedTask(

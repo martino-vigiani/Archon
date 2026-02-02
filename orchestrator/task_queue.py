@@ -250,8 +250,8 @@ class TaskQueue:
 
         Phase transitions:
         - Phase 1: Initial state, all terminals start
-        - Phase 2: When ALL Phase 1 tasks for a terminal complete
-        - Phase 3: When ALL Phase 2 tasks complete
+        - Phase 2: When ALL Phase 1 tasks complete (if Phase 2 tasks exist)
+        - Phase 3: When ALL Phase 2 tasks complete (or if no Phase 2 tasks exist)
         """
         completed = self.completed
         pending = self.pending
@@ -267,12 +267,21 @@ class TaskQueue:
         phase_2_total = len([t for t in all_tasks if t.phase == 2])
         phase_2_done = len([t for t in completed if t.phase == 2])
 
-        # Phase 3 if all Phase 2 done
+        phase_3_total = len([t for t in all_tasks if t.phase == 3])
+
+        # Check if Phase 1 is complete
+        phase_1_complete = phase_1_total > 0 and phase_1_done >= phase_1_total
+
+        # Phase 3 if:
+        # - All Phase 2 done, OR
+        # - Phase 1 complete AND no Phase 2 tasks exist
         if phase_2_total > 0 and phase_2_done >= phase_2_total:
             return 3
+        if phase_1_complete and phase_2_total == 0 and phase_3_total > 0:
+            return 3
 
-        # Phase 2 if all Phase 1 done
-        if phase_1_total > 0 and phase_1_done >= phase_1_total:
+        # Phase 2 if Phase 1 complete AND Phase 2 tasks exist
+        if phase_1_complete and phase_2_total > 0:
             return 2
 
         return 1
@@ -359,6 +368,7 @@ class TaskQueue:
             "in_progress_count": len(in_progress),
             "completed_count": len(successful),
             "failed_count": len(failed),
+            "done_count": len(completed),  # Total finished (success + failed)
             "total_count": len(pending) + len(in_progress) + len(completed),
             "in_progress_tasks": [
                 {"id": t.id, "title": t.title, "assigned_to": t.assigned_to}
