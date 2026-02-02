@@ -47,10 +47,10 @@ class Heartbeat:
     def from_dict(cls, data: dict) -> "Heartbeat":
         """Create heartbeat from dictionary."""
         return cls(
-            terminal=data["terminal"],
-            status=data["status"],
-            current_task=data["current_task"],
-            progress=data["progress"],
+            terminal=data.get("terminal", "unknown"),
+            status=data.get("status", "idle"),
+            current_task=data.get("current_task", ""),
+            progress=data.get("progress", "0%"),
             files_touched=data.get("files_touched", []),
             ready_artifacts=data.get("ready_artifacts", []),
             waiting_for=data.get("waiting_for"),
