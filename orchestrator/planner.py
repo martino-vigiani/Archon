@@ -1,8 +1,18 @@
 """
 Task Planner using Claude Code CLI to split high-level tasks into subtasks.
 
+## Planning Models
+
+### Legacy Model (deprecated but supported):
 PARALLEL-FIRST PLANNING: All terminals start immediately.
 Dependencies are soft (informational), not blocking.
+Uses phase (0-3) to gate execution.
+
+### Organic Flow Model (v2.0):
+INTENT-BASED PLANNING: Broadcast high-level intent, let terminals interpret.
+- Instead of rigid task assignments, broadcast goals and let terminals self-organize
+- Quality is a gradient (0.0-1.0) not binary completion
+- Flow state tracks health of work, not phase progression
 """
 
 import json
@@ -15,25 +25,59 @@ from .config import Config, TerminalID
 
 @dataclass
 class PlannedTask:
-    """A task planned for a specific terminal."""
+    """
+    A task planned for a specific terminal.
+
+    Supports both legacy phase model and organic flow model.
+    """
 
     title: str
     description: str
     terminal: TerminalID
     priority: str
     dependencies: list[str]  # Soft dependencies - informational only
+
+    # Legacy field (kept for backward compatibility)
     phase: int  # 0 = planning, 1 = build, 2 = integration, 3 = testing
+
+    # Organic Flow fields (v2.0)
+    intent: str | None = None  # High-level intent/goal for organic planning
+    quality_target: float = 1.0  # Target quality level (0.0-1.0)
+
     required_subagents: list[str] = field(default_factory=list)  # Suggested subagents
 
 
 @dataclass
+class Intent:
+    """
+    High-level intent for organic flow planning (v2.0).
+
+    Instead of assigning rigid tasks, we broadcast intents that
+    terminals interpret and execute autonomously.
+    """
+    goal: str  # What we want to achieve
+    context: str  # Background information
+    suggested_terminals: list[TerminalID]  # Which terminals might handle this
+    priority: str = "medium"
+    quality_threshold: float = 0.8  # Minimum quality to consider complete
+
+
+@dataclass
 class TaskPlan:
-    """Complete plan for executing a high-level task."""
+    """
+    Complete plan for executing a high-level task.
+
+    Supports both legacy task-based planning and organic intent-based planning.
+    """
 
     original_task: str
     summary: str
     tasks: list[PlannedTask]
     execution_order: list[str]
+
+    # Organic Flow additions (v2.0)
+    intents: list[Intent] = field(default_factory=list)  # High-level intents
+    planning_mode: str = "legacy"  # "legacy" or "organic"
 
 
 # New parallel-first planner prompt
@@ -164,23 +208,41 @@ Return 6-12 tasks. JSON only.'''
 
 class Planner:
     """
-    Parallel-first task planner.
+    Task planner supporting both legacy and organic flow models.
 
-    Key principle: All terminals start immediately.
-    Dependencies are soft (informational), not blocking.
+    LEGACY MODEL:
+    - Parallel-first: All terminals start immediately
+    - Dependencies are soft (informational), not blocking
+    - Phase-gated execution (0-3)
+
+    ORGANIC FLOW MODEL (v2.0):
+    - Intent-based: Broadcast goals, let terminals interpret
+    - Quality is a gradient (0.0-1.0)
+    - Flow state tracks health, not phase progression
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, use_organic_model: bool = False):
         self.config = config
+        self.use_organic_model = use_organic_model
 
     def plan(self, task: str, project_context: str = "") -> TaskPlan:
         """
-        Create a parallel execution plan.
+        Create an execution plan.
 
+        LEGACY MODEL:
         All Phase 1 tasks start immediately.
         Phase 2 starts when any Phase 1 task completes.
         Phase 3 starts when all Phase 2 tasks complete.
+
+        ORGANIC FLOW MODEL (v2.0):
+        Broadcasts intents and lets terminals self-organize.
+        Quality gradients replace binary completion.
         """
+        # If organic model enabled, use intent-based planning
+        if self.use_organic_model:
+            return self._plan_organic(task, project_context)
+
+        # Legacy planning
         if project_context:
             prompt = PLANNER_PROMPT_WITH_PROJECT.format(
                 task=task,
@@ -249,7 +311,106 @@ class Planner:
             summary=plan_data.get("summary", "Parallel execution plan created"),
             tasks=planned_tasks,
             execution_order=[t.title for t in planned_tasks],
+            planning_mode="legacy",
         )
+
+    def _plan_organic(self, task: str, project_context: str = "") -> TaskPlan:
+        """
+        Create an organic flow execution plan (v2.0).
+
+        Instead of rigid task assignments with phases, this:
+        1. Broadcasts high-level intents
+        2. Lets terminals interpret and self-organize
+        3. Uses quality gradients instead of binary completion
+        4. Tracks flow state instead of phase progression
+        """
+        task_lower = task.lower()
+        is_mobile = any(w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"])
+
+        # Create high-level intents instead of rigid tasks
+        intents = [
+            Intent(
+                goal="Establish project direction and scope",
+                context=f"Task: {task}",
+                suggested_terminals=["t4"],
+                priority="critical",
+                quality_threshold=0.9,
+            ),
+            Intent(
+                goal="Create user interface with clear data contracts",
+                context=f"Build UI for: {task}. Define what data you need from backend.",
+                suggested_terminals=["t1"],
+                priority="critical",
+                quality_threshold=0.8,
+            ),
+            Intent(
+                goal="Build core architecture and data services",
+                context=f"Implement backend for: {task}. Check T1's contracts.",
+                suggested_terminals=["t2"],
+                priority="critical",
+                quality_threshold=0.8,
+            ),
+            Intent(
+                goal="Document the project progressively",
+                context=f"Create docs for: {task}. Update as work progresses.",
+                suggested_terminals=["t3"],
+                priority="medium",
+                quality_threshold=0.7,
+            ),
+        ]
+
+        if not self.config.disable_testing:
+            intents.append(Intent(
+                goal="Validate quality and ensure tests pass",
+                context=f"QA for: {task}. Monitor builds and test results.",
+                suggested_terminals=["t5"],
+                priority="high",
+                quality_threshold=0.9,
+            ))
+
+        # Convert intents to tasks for backward compatibility
+        # In organic model, these are more like "suggested work" than rigid assignments
+        planned_tasks = []
+
+        for i, intent in enumerate(intents):
+            terminal = intent.suggested_terminals[0] if intent.suggested_terminals else "t2"
+            planned_tasks.append(PlannedTask(
+                title=intent.goal,
+                description=intent.context,
+                terminal=terminal,
+                priority=intent.priority,
+                dependencies=[],  # No rigid dependencies in organic model
+                phase=1,  # All work starts in "flow" state
+                intent=intent.goal,
+                quality_target=intent.quality_threshold,
+                required_subagents=self._suggest_subagents(intent.goal, is_mobile),
+            ))
+
+        return TaskPlan(
+            original_task=task,
+            summary=f"Organic flow plan: {len(intents)} intents broadcast",
+            tasks=planned_tasks,
+            execution_order=[t.title for t in planned_tasks],
+            intents=intents,
+            planning_mode="organic",
+        )
+
+    def _suggest_subagents(self, goal: str, is_mobile: bool) -> list[str]:
+        """Suggest subagents based on the intent goal."""
+        goal_lower = goal.lower()
+
+        if "ui" in goal_lower or "interface" in goal_lower:
+            return ["swiftui-crafter"] if is_mobile else ["react-crafter"]
+        if "architecture" in goal_lower or "backend" in goal_lower:
+            return ["swift-architect"] if is_mobile else ["node-architect"]
+        if "document" in goal_lower:
+            return ["tech-writer"]
+        if "direction" in goal_lower or "scope" in goal_lower:
+            return ["product-thinker"]
+        if "quality" in goal_lower or "test" in goal_lower:
+            return ["testing-genius"]
+
+        return []
 
     def _extract_json(self, text: str) -> dict | None:
         """Extract JSON object from text."""

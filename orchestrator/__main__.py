@@ -9,6 +9,7 @@ Usage:
     python -m orchestrator --dashboard "Create app"  # Also start the web dashboard
     python -m orchestrator --project Apps/SpeedTest "Add history feature"  # Work on existing project
     python -m orchestrator --resume  # Resume last interrupted task
+    python -m orchestrator --organic "Build app"  # Organic flow model (default)
 """
 
 import argparse
@@ -24,54 +25,18 @@ from .config import Config
 from .orchestrator import Orchestrator
 from .planner import Planner
 from .manager_chat import ManagerChat, chat_repl
-
-
-# ============================================================================
-# ANSI Color Codes
-# ============================================================================
-class Colors:
-    """ANSI color codes for terminal output."""
-
-    # Reset
-    RESET = "\033[0m"
-
-    # Regular colors
-    BLACK = "\033[30m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-
-    # Bright colors
-    BRIGHT_BLACK = "\033[90m"
-    BRIGHT_RED = "\033[91m"
-    BRIGHT_GREEN = "\033[92m"
-    BRIGHT_YELLOW = "\033[93m"
-    BRIGHT_BLUE = "\033[94m"
-    BRIGHT_MAGENTA = "\033[95m"
-    BRIGHT_CYAN = "\033[96m"
-    BRIGHT_WHITE = "\033[97m"
-
-    # Styles
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    UNDERLINE = "\033[4m"
-
-    # Background colors
-    BG_RED = "\033[41m"
-    BG_GREEN = "\033[42m"
-    BG_YELLOW = "\033[43m"
-    BG_BLUE = "\033[44m"
-    BG_MAGENTA = "\033[45m"
-    BG_CYAN = "\033[46m"
-
-
-def c(text: str, *colors: str) -> str:
-    """Apply colors to text."""
-    return "".join(colors) + text + Colors.RESET
+from .cli_display import (
+    Colors,
+    c,
+    print_organic_banner,
+    print_terminals_ready,
+    print_organic_status,
+    quality_bar,
+    quality_label,
+    get_terminal_badge,
+    TerminalStatus,
+    TERMINAL_PERSONALITIES,
+)
 
 
 # ============================================================================
@@ -80,17 +45,24 @@ def c(text: str, *colors: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
-        description="Archon Orchestrator - Multi-terminal Claude Code coordination",
+        description="Archon - Organic Multi-Agent Orchestrator. Work flows. Quality emerges.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python -m orchestrator "Create an iOS habit tracking app"
   python -m orchestrator --dry-run "Build a REST API"
-  python -m orchestrator --verbose "Refactor the authentication system"
-  python -m orchestrator --continuous "Start working"
-  python -m orchestrator --dashboard --parallel 6 "Build full stack app"
-  python -m orchestrator --project Apps/SpeedTest "Add history feature"
-  python -m orchestrator --resume
+  python -m orchestrator --dashboard "Build full stack app"
+  python -m orchestrator --chat "Create app"          # Interactive manager chat
+  python -m orchestrator --quality-threshold 0.9 "Build MVP"
+  python -m orchestrator --project Apps/MyApp "Add dark mode"
+  python -m orchestrator --resume                     # Resume last session
+
+Terminal Personalities:
+  T1 Craftsman   - UI/UX, every pixel matters
+  T2 Architect   - Backend, foundation that endures
+  T3 Narrator    - Documentation, clarity illuminates
+  T4 Strategist  - Product, vision guides direction
+  T5 Skeptic     - QA/Testing, trust but verify
         """,
     )
 
@@ -189,6 +161,28 @@ Examples:
         help="Disable T5 QA/Testing terminal (saves API limits)",
     )
 
+    # Organic flow model flags
+    parser.add_argument(
+        "--organic",
+        action="store_true",
+        default=True,
+        help="Use organic flow model (default: True)",
+    )
+
+    parser.add_argument(
+        "--quality-threshold",
+        type=float,
+        default=0.8,
+        metavar="LEVEL",
+        help="Minimum quality level before considering done (0.0-1.0, default: 0.8)",
+    )
+
+    parser.add_argument(
+        "--verbose-flow",
+        action="store_true",
+        help="Show detailed flow state changes during execution",
+    )
+
     return parser.parse_args()
 
 
@@ -196,42 +190,35 @@ Examples:
 # Banner
 # ============================================================================
 def print_banner():
-    """Print the Archon banner with colors."""
-    # Gradient effect using different colors for each line
-    lines = [
-        (Colors.BRIGHT_CYAN, ""),
-        (Colors.BRIGHT_CYAN, "    ╔═══════════════════════════════════════════════════════════════╗"),
-        (Colors.BRIGHT_CYAN, "    ║                                                               ║"),
-        (Colors.BRIGHT_MAGENTA, "    ║     █████╗ ██████╗  ██████╗██╗  ██╗ ██████╗ ███╗   ██╗       ║"),
-        (Colors.BRIGHT_MAGENTA, "    ║    ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔═══██╗████╗  ██║       ║"),
-        (Colors.BRIGHT_BLUE, "    ║    ███████║██████╔╝██║     ███████║██║   ██║██╔██╗ ██║       ║"),
-        (Colors.BRIGHT_BLUE, "    ║    ██╔══██║██╔══██╗██║     ██╔══██║██║   ██║██║╚██╗██║       ║"),
-        (Colors.CYAN, "    ║    ██║  ██║██║  ██║╚██████╗██║  ██║╚██████╔╝██║ ╚████║       ║"),
-        (Colors.CYAN, "    ║    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝       ║"),
-        (Colors.BRIGHT_CYAN, "    ║                                                               ║"),
-        (Colors.BRIGHT_WHITE, "    ║          Multi-Agent Development Orchestrator                 ║"),
-        (Colors.DIM + Colors.WHITE, "    ║              Powered by Claude Code                          ║"),
-        (Colors.BRIGHT_CYAN, "    ║                                                               ║"),
-        (Colors.BRIGHT_CYAN, "    ╚═══════════════════════════════════════════════════════════════╝"),
-        (Colors.RESET, ""),
-    ]
-
-    for color, line in lines:
-        print(f"{color}{line}{Colors.RESET}")
+    """Print the Archon banner with colors - uses organic banner from cli_display."""
+    print_organic_banner()
 
 
 def print_config_summary(args: argparse.Namespace, project_path: Path | None = None):
-    """Print current configuration."""
+    """Print current configuration with organic model info."""
     print(c("    Configuration:", Colors.BOLD, Colors.WHITE))
-    terminal_count = args.parallel if not args.no_testing else args.parallel
-    t5_status = " (T5 disabled)" if args.no_testing else " + T5"
-    print(f"    {c('Terminals:', Colors.DIM)} {c(str(terminal_count) + t5_status, Colors.BRIGHT_YELLOW)}")
+
+    # Terminals with personalities
+    terminal_list = ["t1", "t2", "t3", "t4"]
+    if not args.no_testing:
+        terminal_list.append("t5")
+
+    print(f"    {c('Terminals:', Colors.DIM)} {len(terminal_list)}")
+
+    # Show terminal personalities compactly
+    print()
+    print_terminals_ready(terminal_list)
+
+    # Other config
+    print(f"    {c('Flow Model:', Colors.DIM)} {c('Organic', Colors.BRIGHT_GREEN)}")
+    print(f"    {c('Quality Threshold:', Colors.DIM)} {c(f'{args.quality_threshold:.1f}', Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Max Retries:', Colors.DIM)} {c(str(args.max_retries), Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Timeout:', Colors.DIM)} {c(f'{args.timeout}s', Colors.BRIGHT_YELLOW)}")
-    print(f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.BRIGHT_RED)}")
-    print(f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.BRIGHT_RED)}")
-    print(f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.BRIGHT_RED)}")
-    print(f"    {c('Testing (T5):', Colors.DIM)} {c('Disabled' if args.no_testing else 'Enabled', Colors.BRIGHT_RED if args.no_testing else Colors.BRIGHT_GREEN)}")
+    print(f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.DIM)}")
+    print(f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.DIM)}")
+    print(f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.DIM)}")
+    print(f"    {c('Verbose Flow:', Colors.DIM)} {c('Yes' if args.verbose_flow else 'No', Colors.BRIGHT_GREEN if args.verbose_flow else Colors.DIM)}")
+
     if project_path:
         print(f"    {c('Project:', Colors.DIM)} {c(str(project_path), Colors.BRIGHT_CYAN)}")
     print()

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import Config
 
-app = FastAPI(title="Archon Dashboard", version="0.2.0")
+app = FastAPI(title="Archon Dashboard", version="0.3.0")
 config = Config()
 
 # Serve static files
@@ -31,8 +31,8 @@ def read_json_file(path: Path) -> Any:
     try:
         if path.exists():
             return json.loads(path.read_text())
-    except (json.JSONDecodeError, FileNotFoundError):
-        pass
+    except (json.JSONDecodeError, FileNotFoundError, PermissionError) as e:
+        print(f"[Dashboard] Error reading {path}: {e}")
     return None
 
 
@@ -45,8 +45,8 @@ def read_text_file(path: Path, max_lines: Optional[int] = None) -> str:
                 lines = content.strip().split("\n")
                 return "\n".join(lines[-max_lines:])
             return content
-    except FileNotFoundError:
-        pass
+    except (FileNotFoundError, PermissionError) as e:
+        print(f"[Dashboard] Error reading {path}: {e}")
     return ""
 
 
@@ -91,15 +91,85 @@ def get_subagents_invoked() -> list[dict]:
     return subagent_events[::-1]
 
 
-def get_orchestrator_thoughts(max_entries: int = 50) -> list[str]:
-    """Get orchestrator decision log entries."""
+def parse_orchestrator_log_entry(line: str) -> dict:
+    """Parse a single orchestrator log line into structured data."""
+    entry = {
+        "timestamp": None,
+        "type": "state",
+        "message": line,
+        "raw": line
+    }
+
+    # Try to extract timestamp and categorize
+    # Common log formats:
+    # [2024-01-15 10:30:45] INFO: message
+    # [10:30:45] message
+    # Phase 1 starting...
+    # Routing task to T1...
+
+    line_lower = line.lower()
+
+    # Detect type based on keywords
+    if any(kw in line_lower for kw in ["error", "failed", "exception", "crash"]):
+        entry["type"] = "error"
+    elif any(kw in line_lower for kw in ["routing", "assign", "dispatch", "-> t"]):
+        entry["type"] = "routing"
+    elif any(kw in line_lower for kw in ["decision", "chose", "selected", "strategy"]):
+        entry["type"] = "decision"
+    elif any(kw in line_lower for kw in ["phase", "state", "status", "complete", "start"]):
+        entry["type"] = "state"
+
+    # Try to extract timestamp
+    import re
+    # Match [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
+    time_match = re.search(r'\[(\d{2}:\d{2}(?::\d{2})?)\]', line)
+    if time_match:
+        entry["timestamp"] = time_match.group(1)
+        # Remove timestamp from message
+        entry["message"] = line[time_match.end():].strip()
+        if entry["message"].startswith(":"):
+            entry["message"] = entry["message"][1:].strip()
+
+    return entry
+
+
+def get_orchestrator_thoughts(max_entries: int = 50) -> list[dict]:
+    """Get orchestrator decision log entries as structured data."""
     log_file = config.orchestra_dir / "orchestrator.log"
     content = read_text_file(log_file)
     if not content:
         return []
 
     lines = content.strip().split("\n")
-    return lines[-max_entries:][::-1]  # Newest first
+    entries = []
+
+    for line in lines[-max_entries:]:
+        if line.strip():
+            entry = parse_orchestrator_log_entry(line.strip())
+            entries.append(entry)
+
+    return entries[::-1]  # Newest first
+
+
+def get_project_info() -> dict:
+    """Get current project information."""
+    project_file = config.orchestra_dir / "last_project.json"
+    project_data = read_json_file(project_file)
+
+    if project_data:
+        return {
+            "name": project_data.get("name", "Unknown"),
+            "path": project_data.get("path", str(config.base_dir)),
+            "type": project_data.get("type", "other"),
+            "status": project_data.get("status", "active"),
+        }
+
+    return {
+        "name": "Archon",
+        "path": str(config.base_dir),
+        "type": "orchestrator",
+        "status": "active",
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -114,87 +184,109 @@ async def dashboard():
 @app.get("/api/status")
 async def get_status():
     """Get current orchestrator status."""
-    status = read_json_file(config.status_file) or {
-        "state": "idle",
-        "terminals": {},
-        "tasks": {
-            "pending_count": 0,
-            "in_progress_count": 0,
-            "completed_count": 0,
-            "failed_count": 0,
-            "total_count": 0,
+    try:
+        status = read_json_file(config.status_file) or {
+            "state": "idle",
+            "terminals": {},
+            "tasks": {
+                "pending_count": 0,
+                "in_progress_count": 0,
+                "completed_count": 0,
+                "failed_count": 0,
+                "total_count": 0,
+            }
         }
-    }
-    status["timestamp"] = datetime.now().isoformat()
-    return status
+        status["timestamp"] = datetime.now().isoformat()
+        status["project"] = get_project_info()
+        return status
+    except Exception as e:
+        return {
+            "state": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }
 
 
 @app.get("/api/tasks")
 async def get_tasks():
     """Get all tasks from all queues."""
-    pending = read_json_file(config.tasks_dir / "pending.json") or []
-    in_progress = read_json_file(config.tasks_dir / "in_progress.json") or []
-    completed = read_json_file(config.tasks_dir / "completed.json") or []
+    try:
+        pending = read_json_file(config.tasks_dir / "pending.json") or []
+        in_progress = read_json_file(config.tasks_dir / "in_progress.json") or []
+        completed = read_json_file(config.tasks_dir / "completed.json") or []
+        failed = read_json_file(config.tasks_dir / "failed.json") or []
 
-    return {
-        "pending": pending,
-        "in_progress": in_progress,
-        "completed": completed,
-    }
+        return {
+            "pending": pending,
+            "in_progress": in_progress,
+            "completed": completed,
+            "failed": failed,
+        }
+    except Exception as e:
+        return {
+            "pending": [],
+            "in_progress": [],
+            "completed": [],
+            "failed": [],
+            "error": str(e),
+        }
 
 
 @app.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
     """Get a specific task by ID."""
-    for queue in ["pending", "in_progress", "completed"]:
-        tasks = read_json_file(config.tasks_dir / f"{queue}.json") or []
-        for task in tasks:
-            if task.get("id") == task_id:
-                return task
-    return {"error": "Task not found"}
+    try:
+        for queue in ["pending", "in_progress", "completed", "failed"]:
+            tasks = read_json_file(config.tasks_dir / f"{queue}.json") or []
+            for task in tasks:
+                if task.get("id") == task_id:
+                    return task
+        raise HTTPException(status_code=404, detail="Task not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/messages")
 async def get_messages():
     """Get messages from all inboxes."""
-    messages = {}
-    for tid in ["t1", "t2", "t3", "t4", "t5"]:
-        inbox_path = config.messages_dir / f"{tid}_inbox.md"
-        if inbox_path.exists():
-            messages[tid] = inbox_path.read_text()
+    try:
+        messages = {}
+        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+            inbox_path = config.messages_dir / f"{tid}_inbox.md"
+            if inbox_path.exists():
+                messages[tid] = inbox_path.read_text()
 
-    broadcast_path = config.get_broadcast_file()
-    if broadcast_path.exists():
-        messages["broadcast"] = broadcast_path.read_text()
+        broadcast_path = config.get_broadcast_file()
+        if broadcast_path.exists():
+            messages["broadcast"] = broadcast_path.read_text()
 
-    return messages
+        return messages
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/terminals")
 async def get_terminals():
     """Get terminal configurations."""
-    return {
-        tid: {
-            "id": tid,
-            "role": cfg.role,
-            "description": cfg.description,
-            "subagents": cfg.subagents,
+    try:
+        return {
+            tid: {
+                "id": tid,
+                "role": cfg.role,
+                "description": cfg.description,
+                "subagents": cfg.subagents,
+            }
+            for tid, cfg in config.terminals.items()
         }
-        for tid, cfg in config.terminals.items()
-    }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/terminal-output/{terminal_id}")
 async def get_terminal_output_endpoint(terminal_id: str, max_lines: int = 100):
-    """Get the last output from a specific terminal.
-
-    Args:
-        terminal_id: Terminal ID (t1, t2, t3, t4)
-        max_lines: Maximum number of lines to return (default 100)
-
-    Returns:
-        Terminal output text and metadata
-    """
+    """Get the last output from a specific terminal."""
     valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
@@ -202,117 +294,141 @@ async def get_terminal_output_endpoint(terminal_id: str, max_lines: int = 100):
             detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
         )
 
-    output = get_terminal_output(terminal_id, max_lines)
-    terminal_config = config.terminals.get(terminal_id)
+    try:
+        output = get_terminal_output(terminal_id, max_lines)
+        terminal_config = config.terminals.get(terminal_id)
 
-    return {
-        "terminal_id": terminal_id,
-        "role": terminal_config.role if terminal_config else "Unknown",
-        "output": output,
-        "timestamp": datetime.now().isoformat(),
-        "has_output": bool(output.strip()),
-    }
+        return {
+            "terminal_id": terminal_id,
+            "role": terminal_config.role if terminal_config else "Unknown",
+            "output": output,
+            "timestamp": datetime.now().isoformat(),
+            "has_output": bool(output.strip()),
+        }
+    except Exception as e:
+        return {
+            "terminal_id": terminal_id,
+            "role": "Unknown",
+            "output": "",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+            "has_output": False,
+        }
 
 
 @app.get("/api/subagents")
 async def get_subagents():
     """Get list of subagents that have been invoked.
 
-    Returns subagent invocation events from events.json, filtered by type.
+    Returns a consistent data structure with:
+    - invoked: list of subagent invocation events
+    - available: list of all available subagent names
+    - total_invocations: total count
     """
-    subagents = get_subagents_invoked()
+    try:
+        subagents = get_subagents_invoked()
 
-    # Also include available subagents from terminal configs
-    available_subagents = set()
-    for terminal_config in config.terminals.values():
-        available_subagents.update(terminal_config.subagents)
+        # Get available subagents from terminal configs
+        available_subagents = set()
+        for terminal_config in config.terminals.values():
+            available_subagents.update(terminal_config.subagents)
 
-    return {
-        "invoked": subagents,
-        "available": sorted(list(available_subagents)),
-        "total_invocations": len(subagents),
-    }
+        # Transform subagent events to a consistent format
+        formatted_subagents = []
+        for event in subagents[:20]:  # Last 20
+            formatted_subagents.append({
+                "name": event.get("subagent", event.get("name", "unknown")),
+                "terminal": event.get("terminal_id", event.get("terminal", "unknown")),
+                "task": event.get("task", event.get("description", "No task info")),
+                "timestamp": event.get("timestamp", datetime.now().isoformat()),
+                "active": event.get("active", True),
+                "id": event.get("id", f"sa-{len(formatted_subagents)}"),
+            })
+
+        return {
+            "invoked": formatted_subagents,
+            "available": sorted(list(available_subagents)),
+            "total_invocations": len(subagents),
+        }
+    except Exception as e:
+        return {
+            "invoked": [],
+            "available": [],
+            "total_invocations": 0,
+            "error": str(e),
+        }
 
 
 @app.get("/api/orchestrator-log")
 async def get_orchestrator_log(max_entries: int = 50):
-    """Get orchestrator decision log.
+    """Get orchestrator decision log as structured entries."""
+    try:
+        entries = get_orchestrator_thoughts(max_entries)
+        log_file = config.orchestra_dir / "orchestrator.log"
 
-    Args:
-        max_entries: Maximum number of log entries to return (default 50)
-
-    Returns:
-        List of orchestrator decision log entries, newest first.
-    """
-    thoughts = get_orchestrator_thoughts(max_entries)
-    log_file = config.orchestra_dir / "orchestrator.log"
-
-    return {
-        "entries": thoughts,
-        "count": len(thoughts),
-        "log_file": str(log_file),
-        "timestamp": datetime.now().isoformat(),
-    }
+        return {
+            "entries": entries,
+            "count": len(entries),
+            "log_file": str(log_file),
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        return {
+            "entries": [],
+            "count": 0,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }
 
 
 @app.get("/api/project")
 async def get_project():
-    """Get current project information.
-
-    Reads from .orchestra/last_project.json if available.
-    """
-    project_file = config.orchestra_dir / "last_project.json"
-    project_data = read_json_file(project_file)
-
-    if project_data:
+    """Get current project information."""
+    try:
+        project_data = get_project_info()
         project_data["loaded_at"] = datetime.now().isoformat()
         return project_data
-
-    # Return default project info if no file exists
-    return {
-        "name": "Archon",
-        "path": str(config.base_dir),
-        "orchestra_dir": str(config.orchestra_dir),
-        "status": "no_project_file",
-        "loaded_at": datetime.now().isoformat(),
-    }
+    except Exception as e:
+        return {
+            "name": "Unknown",
+            "path": str(config.base_dir),
+            "error": str(e),
+            "loaded_at": datetime.now().isoformat(),
+        }
 
 
 @app.get("/api/artifacts")
 async def get_artifacts():
     """List artifacts in the artifacts directory."""
-    artifacts = []
-    if config.artifacts_dir.exists():
-        for f in config.artifacts_dir.iterdir():
-            artifacts.append({
-                "name": f.name,
-                "path": str(f),
-                "size": f.stat().st_size if f.is_file() else 0,
-                "is_dir": f.is_dir(),
-            })
-    return artifacts
+    try:
+        artifacts = []
+        if config.artifacts_dir.exists():
+            for f in config.artifacts_dir.iterdir():
+                artifacts.append({
+                    "name": f.name,
+                    "path": str(f),
+                    "size": f.stat().st_size if f.is_file() else 0,
+                    "is_dir": f.is_dir(),
+                })
+        return artifacts
+    except Exception as e:
+        return []
 
 
 @app.get("/api/events")
 async def get_events():
     """Get recent events from the event log."""
-    events_file = config.orchestra_dir / "events.json"
-    events = read_json_file(events_file) or []
-    return events[-50:][::-1]  # Last 50, newest first
+    try:
+        events_file = config.orchestra_dir / "events.json"
+        events = read_json_file(events_file) or []
+        return events[-50:][::-1]  # Last 50, newest first
+    except Exception as e:
+        return []
 
 
-# API endpoint to log terminal output (called by orchestrator)
 @app.post("/api/terminal-output/{terminal_id}")
 async def post_terminal_output(terminal_id: str, output: dict):
-    """Save terminal output.
-
-    Args:
-        terminal_id: Terminal ID (t1, t2, t3, t4)
-        output: Dict with 'content' key containing the output text
-
-    Returns:
-        Confirmation of save
-    """
+    """Save terminal output."""
     valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
@@ -320,15 +436,18 @@ async def post_terminal_output(terminal_id: str, output: dict):
             detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
         )
 
-    content = output.get("content", "")
-    if content:
-        save_terminal_output(terminal_id, content)
+    try:
+        content = output.get("content", "")
+        if content:
+            save_terminal_output(terminal_id, content)
 
-    return {
-        "status": "saved",
-        "terminal_id": terminal_id,
-        "timestamp": datetime.now().isoformat(),
-    }
+        return {
+            "status": "saved",
+            "terminal_id": terminal_id,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # WebSocket for real-time updates
@@ -351,7 +470,6 @@ class ConnectionManager:
                 await connection.send_json(message)
             except Exception:
                 dead_connections.append(connection)
-        # Remove dead connections
         for conn in dead_connections:
             self.disconnect(conn)
 
@@ -359,90 +477,62 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def gather_full_state() -> dict:
+    """Gather all dashboard state into a single consolidated update."""
+    # Get status
+    status = await get_status()
+
+    # Get tasks
+    tasks = await get_tasks()
+
+    # Get terminal outputs
+    terminal_outputs = {}
+    for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        terminal_outputs[tid] = get_terminal_output(tid, max_lines=50)
+
+    # Get subagents
+    subagents_data = await get_subagents()
+
+    # Get orchestrator log
+    orchestrator_log = get_orchestrator_thoughts(max_entries=20)
+
+    # Get events
+    events = await get_events()
+
+    return {
+        "type": "update",
+        "timestamp": datetime.now().isoformat(),
+        "status": status,
+        "tasks": tasks,
+        "terminal_outputs": terminal_outputs,
+        "subagents": subagents_data.get("invoked", []),
+        "orchestrator_log": orchestrator_log,
+        "events": events[:20],
+    }
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates.
 
-    Sends multiple message types:
-    - status_update: Current orchestrator status
-    - tasks_update: All tasks by queue
-    - terminal_output: Output from all terminals
-    - subagents_update: Subagent invocation data
-    - orchestrator_thoughts: Decision log entries
+    Sends a single consolidated 'update' message containing all state.
     """
     await manager.connect(websocket)
     try:
         while True:
-            # Gather all data
-            status = await get_status()
-            tasks = await get_tasks()
-
-            # Get terminal outputs for all terminals
-            terminal_outputs = {}
-            for tid in ["t1", "t2", "t3", "t4", "t5"]:
-                terminal_outputs[tid] = get_terminal_output(tid, max_lines=50)
-
-            # Get subagent data
-            subagents_data = get_subagents_invoked()
-
-            # Get orchestrator thoughts
-            thoughts = get_orchestrator_thoughts(max_entries=20)
-
-            # Send combined update with typed messages
-            await websocket.send_json({
-                "type": "full_update",
-                "timestamp": datetime.now().isoformat(),
-                "data": {
-                    "status": status,
-                    "tasks": tasks,
-                }
-            })
-
-            # Send terminal output update
-            await websocket.send_json({
-                "type": "terminal_output",
-                "timestamp": datetime.now().isoformat(),
-                "data": terminal_outputs,
-            })
-
-            # Send subagents update
-            await websocket.send_json({
-                "type": "subagents_update",
-                "timestamp": datetime.now().isoformat(),
-                "data": {
-                    "invoked": subagents_data[:20],  # Last 20 invocations
-                    "total_count": len(subagents_data),
-                }
-            })
-
-            # Send orchestrator thoughts
-            await websocket.send_json({
-                "type": "orchestrator_thoughts",
-                "timestamp": datetime.now().isoformat(),
-                "data": {
-                    "entries": thoughts,
-                    "count": len(thoughts),
-                }
-            })
-
+            # Send single consolidated update
+            full_state = await gather_full_state()
+            await websocket.send_json(full_state)
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:
-        # Handle any other connection errors (broken pipe, reset, etc.)
         manager.disconnect(websocket)
 
 
-# Utility function to be used by orchestrator to save terminal output
+# Utility function to be used by orchestrator
 def log_terminal_output(terminal_id: str, output: str) -> None:
-    """Utility function for orchestrator to log terminal output.
-
-    This can be imported and called directly by the orchestrator.
-
-    Args:
-        terminal_id: Terminal ID (t1, t2, t3, t4)
-        output: The output text to save
-    """
+    """Utility function for orchestrator to log terminal output."""
     save_terminal_output(terminal_id, output)
 
 

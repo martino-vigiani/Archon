@@ -35,6 +35,24 @@
             --accent-cyan-dim: rgba(6, 182, 212, 0.15);
             --accent-pink: #ec4899;
             --accent-pink-dim: rgba(236, 72, 153, 0.15);
+            --accent-amber: #f59e0b;
+            --accent-amber-dim: rgba(245, 158, 11, 0.15);
+            --accent-indigo: #6366f1;
+            --accent-indigo-dim: rgba(99, 102, 241, 0.15);
+            --accent-rose: #f43f5e;
+            --accent-rose-dim: rgba(244, 63, 94, 0.15);
+
+            /* Terminal personality colors */
+            --t1-color: #f97316; /* Orange - Craftsman */
+            --t1-color-dim: rgba(249, 115, 22, 0.15);
+            --t2-color: #3b82f6; /* Blue - Architect */
+            --t2-color-dim: rgba(59, 130, 246, 0.15);
+            --t3-color: #a855f7; /* Purple - Narrator */
+            --t3-color-dim: rgba(168, 85, 247, 0.15);
+            --t4-color: #22c55e; /* Green - Strategist */
+            --t4-color-dim: rgba(34, 197, 94, 0.15);
+            --t5-color: #ef4444; /* Red - Skeptic */
+            --t5-color-dim: rgba(239, 68, 68, 0.15);
         }
 
         body {
@@ -333,6 +351,7 @@
         .to-entry-message {
             color: var(--text-secondary);
             flex: 1;
+            word-break: break-word;
         }
 
         /* Progress Bar */
@@ -353,10 +372,24 @@
             color: var(--text-secondary);
         }
 
+        .progress-stats {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
         .progress-value {
             font-size: 14px;
             font-weight: 600;
             color: var(--text-primary);
+        }
+
+        .progress-phase {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: var(--accent-blue-dim);
+            color: var(--accent-blue);
         }
 
         .progress-bar-container {
@@ -364,13 +397,21 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
             overflow: hidden;
+            position: relative;
         }
 
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, var(--accent-green) 0%, #4ade80 100%);
             border-radius: 4px;
             transition: width 0.5s ease;
+            position: relative;
+        }
+
+        .progress-bar.quality-gradient {
+            background: linear-gradient(90deg,
+                var(--accent-blue) 0%,
+                var(--accent-green) 50%,
+                var(--accent-yellow) 100%);
         }
 
         /* Terminals Grid */
@@ -414,10 +455,39 @@
             transition: all 0.3s ease;
             display: flex;
             flex-direction: column;
+            position: relative;
+            overflow: hidden;
         }
 
         .terminal-card:hover {
             background: var(--bg-card-hover);
+        }
+
+        /* Terminal personality accents */
+        .terminal-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            opacity: 0.6;
+        }
+
+        .terminal-card[data-terminal="t1"]::before {
+            background: var(--t1-color);
+        }
+        .terminal-card[data-terminal="t2"]::before {
+            background: var(--t2-color);
+        }
+        .terminal-card[data-terminal="t3"]::before {
+            background: var(--t3-color);
+        }
+        .terminal-card[data-terminal="t4"]::before {
+            background: var(--t4-color);
+        }
+        .terminal-card[data-terminal="t5"]::before {
+            background: var(--t5-color);
         }
 
         .terminal-header {
@@ -433,10 +503,46 @@
             gap: 4px;
         }
 
+        .terminal-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .terminal-name {
             font-size: 16px;
             font-weight: 600;
             color: var(--text-primary);
+        }
+
+        .terminal-personality {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .terminal-card[data-terminal="t1"] .terminal-personality {
+            background: var(--t1-color-dim);
+            color: var(--t1-color);
+        }
+        .terminal-card[data-terminal="t2"] .terminal-personality {
+            background: var(--t2-color-dim);
+            color: var(--t2-color);
+        }
+        .terminal-card[data-terminal="t3"] .terminal-personality {
+            background: var(--t3-color-dim);
+            color: var(--t3-color);
+        }
+        .terminal-card[data-terminal="t4"] .terminal-personality {
+            background: var(--t4-color-dim);
+            color: var(--t4-color);
+        }
+        .terminal-card[data-terminal="t5"] .terminal-personality {
+            background: var(--t5-color-dim);
+            color: var(--t5-color);
         }
 
         .terminal-role {
@@ -541,9 +647,14 @@
         }
 
         .terminal-card.busy .activity-bar {
-            background: var(--accent-green);
             animation: wave 1s ease-in-out infinite;
         }
+
+        .terminal-card[data-terminal="t1"].busy .activity-bar { background: var(--t1-color); }
+        .terminal-card[data-terminal="t2"].busy .activity-bar { background: var(--t2-color); }
+        .terminal-card[data-terminal="t3"].busy .activity-bar { background: var(--t3-color); }
+        .terminal-card[data-terminal="t4"].busy .activity-bar { background: var(--t4-color); }
+        .terminal-card[data-terminal="t5"].busy .activity-bar { background: var(--t5-color); }
 
         .terminal-card.busy .activity-bar:nth-child(1) { animation-delay: 0s; }
         .terminal-card.busy .activity-bar:nth-child(2) { animation-delay: 0.1s; }
@@ -613,13 +724,13 @@
         }
 
         .subagent-icon.arch {
-            background: var(--accent-red-dim);
-            color: var(--accent-red);
+            background: var(--accent-blue-dim);
+            color: var(--accent-blue);
         }
 
         .subagent-icon.docs {
-            background: var(--accent-blue-dim);
-            color: var(--accent-blue);
+            background: var(--accent-purple-dim);
+            color: var(--accent-purple);
         }
 
         .subagent-icon.data {
@@ -628,8 +739,8 @@
         }
 
         .subagent-icon.strategy {
-            background: var(--accent-purple-dim);
-            color: var(--accent-purple);
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
         }
 
         .subagent-icon.ml {
@@ -640,6 +751,26 @@
         .subagent-icon.design {
             background: var(--accent-yellow-dim);
             color: var(--accent-yellow);
+        }
+
+        .subagent-icon.testing {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .subagent-icon.tools {
+            background: var(--accent-indigo-dim);
+            color: var(--accent-indigo);
+        }
+
+        .subagent-icon.prompt {
+            background: var(--accent-rose-dim);
+            color: var(--accent-rose);
+        }
+
+        .subagent-icon.dashboard {
+            background: var(--accent-amber-dim);
+            color: var(--accent-amber);
         }
 
         .subagent-content {
@@ -857,18 +988,24 @@
             font-weight: 600;
         }
 
-        .events-clear {
-            font-size: 12px;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px 12px;
+        .events-filter {
+            display: flex;
+            gap: 8px;
+        }
+
+        .events-filter-btn {
+            font-size: 11px;
+            padding: 4px 10px;
             border-radius: 6px;
             background: rgba(255, 255, 255, 0.05);
             border: none;
+            color: var(--text-muted);
+            cursor: pointer;
             transition: all 0.2s ease;
         }
 
-        .events-clear:hover {
+        .events-filter-btn:hover,
+        .events-filter-btn.active {
             background: rgba(255, 255, 255, 0.1);
             color: var(--text-secondary);
         }
@@ -940,6 +1077,7 @@
         .event-message {
             color: var(--text-secondary);
             flex: 1;
+            word-break: break-word;
         }
 
         .empty-state {
@@ -1005,10 +1143,13 @@
         <div class="progress-section glass-card">
             <div class="progress-header">
                 <span class="progress-title">Overall Progress</span>
-                <span id="progress-value" class="progress-value">0%</span>
+                <div class="progress-stats">
+                    <span id="progress-phase" class="progress-phase">Phase 1</span>
+                    <span id="progress-value" class="progress-value">0%</span>
+                </div>
             </div>
             <div class="progress-bar-container">
-                <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+                <div id="progress-bar" class="progress-bar quality-gradient" style="width: 0%;"></div>
             </div>
         </div>
 
@@ -1016,11 +1157,14 @@
         <div class="terminals-section">
             <h2 class="section-title">Terminals</h2>
             <div class="terminals-grid" id="terminals-grid">
-                <!-- T1 -->
+                <!-- T1 - Craftsman -->
                 <div class="terminal-card glass-card" id="terminal-t1" data-terminal="t1">
                     <div class="terminal-header">
                         <div class="terminal-info">
-                            <span class="terminal-name">T1</span>
+                            <div class="terminal-name-row">
+                                <span class="terminal-name">T1</span>
+                                <span class="terminal-personality">Craftsman</span>
+                            </div>
                             <span class="terminal-role">UI/UX Specialist</span>
                         </div>
                         <span class="terminal-status idle">
@@ -1038,11 +1182,14 @@
                     </div>
                 </div>
 
-                <!-- T2 -->
+                <!-- T2 - Architect -->
                 <div class="terminal-card glass-card" id="terminal-t2" data-terminal="t2">
                     <div class="terminal-header">
                         <div class="terminal-info">
-                            <span class="terminal-name">T2</span>
+                            <div class="terminal-name-row">
+                                <span class="terminal-name">T2</span>
+                                <span class="terminal-personality">Architect</span>
+                            </div>
                             <span class="terminal-role">Features Dev</span>
                         </div>
                         <span class="terminal-status idle">
@@ -1060,11 +1207,14 @@
                     </div>
                 </div>
 
-                <!-- T3 -->
+                <!-- T3 - Narrator -->
                 <div class="terminal-card glass-card" id="terminal-t3" data-terminal="t3">
                     <div class="terminal-header">
                         <div class="terminal-info">
-                            <span class="terminal-name">T3</span>
+                            <div class="terminal-name-row">
+                                <span class="terminal-name">T3</span>
+                                <span class="terminal-personality">Narrator</span>
+                            </div>
                             <span class="terminal-role">Documentation</span>
                         </div>
                         <span class="terminal-status idle">
@@ -1082,11 +1232,14 @@
                     </div>
                 </div>
 
-                <!-- T4 -->
+                <!-- T4 - Strategist -->
                 <div class="terminal-card glass-card" id="terminal-t4" data-terminal="t4">
                     <div class="terminal-header">
                         <div class="terminal-info">
-                            <span class="terminal-name">T4</span>
+                            <div class="terminal-name-row">
+                                <span class="terminal-name">T4</span>
+                                <span class="terminal-personality">Strategist</span>
+                            </div>
                             <span class="terminal-role">Strategy</span>
                         </div>
                         <span class="terminal-status idle">
@@ -1104,11 +1257,14 @@
                     </div>
                 </div>
 
-                <!-- T5 -->
+                <!-- T5 - Skeptic -->
                 <div class="terminal-card glass-card" id="terminal-t5" data-terminal="t5">
                     <div class="terminal-header">
                         <div class="terminal-info">
-                            <span class="terminal-name">T5</span>
+                            <div class="terminal-name-row">
+                                <span class="terminal-name">T5</span>
+                                <span class="terminal-personality">Skeptic</span>
+                            </div>
                             <span class="terminal-role">QA/Testing</span>
                         </div>
                         <span class="terminal-status idle">
@@ -1178,7 +1334,12 @@
             <div class="events-section glass-card">
                 <div class="events-header">
                     <h2 class="events-title">Recent Events</h2>
-                    <button class="events-clear" onclick="clearEvents()">Clear</button>
+                    <div class="events-filter">
+                        <button class="events-filter-btn active" onclick="filterEvents('all')">All</button>
+                        <button class="events-filter-btn" onclick="filterEvents('success')">Success</button>
+                        <button class="events-filter-btn" onclick="filterEvents('error')">Errors</button>
+                        <button class="events-filter-btn" onclick="clearEvents()">Clear</button>
+                    </div>
                 </div>
                 <div class="events-list" id="events-list">
                     <div class="empty-state">
@@ -1191,10 +1352,11 @@
     </div>
 
     <script>
-        // State management
+        // State management - single source of truth
         const state = {
             connected: false,
             orchestratorStatus: 'idle',
+            currentPhase: 1,
             project: {
                 name: null,
                 path: null
@@ -1213,6 +1375,7 @@
                 failed: []
             },
             events: [],
+            eventFilter: 'all',
             stats: {
                 pending: 0,
                 in_progress: 0,
@@ -1221,26 +1384,55 @@
             },
             subagents: [],
             orchestratorLog: [],
-            toPanelCollapsed: false
+            toPanelCollapsed: false,
+            lastUpdate: null
         };
 
-        // Subagent type mapping for icons and colors
+        // Complete subagent type mapping for all 20 subagents
         const subagentTypes = {
-            'swiftui-crafter': { icon: '&#9881;', type: 'ui' },
-            'react-crafter': { icon: '&#9881;', type: 'ui' },
-            'html-stylist': { icon: '&#9881;', type: 'ui' },
-            'design-system': { icon: '&#9733;', type: 'design' },
-            'swift-architect': { icon: '&#9632;', type: 'arch' },
-            'node-architect': { icon: '&#9632;', type: 'arch' },
-            'python-architect': { icon: '&#9632;', type: 'arch' },
-            'swiftdata-expert': { icon: '&#9736;', type: 'data' },
-            'database-expert': { icon: '&#9736;', type: 'data' },
-            'ml-engineer': { icon: '&#10047;', type: 'ml' },
-            'tech-writer': { icon: '&#9998;', type: 'docs' },
-            'marketing-strategist': { icon: '&#9733;', type: 'strategy' },
-            'product-thinker': { icon: '&#9679;', type: 'strategy' },
-            'monetization-expert': { icon: '&#36;', type: 'strategy' },
-            'testing-genius': { icon: '&#10003;', type: 'arch' }
+            // UI/UX (T1) - Orange
+            'swiftui-crafter': { icon: '&#9881;', type: 'ui', category: 'UI/UX' },
+            'react-crafter': { icon: '&#9881;', type: 'ui', category: 'UI/UX' },
+            'html-stylist': { icon: '&#9881;', type: 'ui', category: 'UI/UX' },
+            'web-ui-designer': { icon: '&#9734;', type: 'ui', category: 'UI/UX' },
+
+            // Design - Yellow
+            'design-system': { icon: '&#9733;', type: 'design', category: 'Design' },
+
+            // Architecture - Blue
+            'swift-architect': { icon: '&#9632;', type: 'arch', category: 'Architecture' },
+            'node-architect': { icon: '&#9632;', type: 'arch', category: 'Architecture' },
+            'python-architect': { icon: '&#9632;', type: 'arch', category: 'Architecture' },
+
+            // Data - Cyan
+            'swiftdata-expert': { icon: '&#9736;', type: 'data', category: 'Data' },
+            'database-expert': { icon: '&#9736;', type: 'data', category: 'Data' },
+
+            // ML - Pink
+            'ml-engineer': { icon: '&#10047;', type: 'ml', category: 'ML/AI' },
+
+            // Docs - Purple
+            'tech-writer': { icon: '&#9998;', type: 'docs', category: 'Documentation' },
+
+            // Strategy - Green
+            'marketing-strategist': { icon: '&#9733;', type: 'strategy', category: 'Strategy' },
+            'product-thinker': { icon: '&#9679;', type: 'strategy', category: 'Strategy' },
+            'monetization-expert': { icon: '&#36;', type: 'strategy', category: 'Strategy' },
+
+            // Testing - Red
+            'testing-genius': { icon: '&#10003;', type: 'testing', category: 'Testing' },
+
+            // Dashboard - Amber
+            'dashboard-architect': { icon: '&#9638;', type: 'dashboard', category: 'Dashboard' },
+
+            // CLI - Indigo
+            'cli-ux-master': { icon: '&#62;', type: 'tools', category: 'CLI' },
+
+            // Tools - Indigo
+            'claude-code-toolsmith': { icon: '&#9881;', type: 'tools', category: 'Tools' },
+
+            // Prompt - Rose
+            'prompt-craftsman': { icon: '&#10084;', type: 'prompt', category: 'Prompts' }
         };
 
         // WebSocket connection
@@ -1306,8 +1498,11 @@
             }
         }
 
+        // Main message handler - handles consolidated updates from backend
         function handleMessage(data) {
             if (data.type === 'update') {
+                state.lastUpdate = data.timestamp;
+
                 // Update orchestrator status
                 if (data.status) {
                     updateOrchestratorStatus(data.status.state || 'idle');
@@ -1317,7 +1512,7 @@
                         updateProjectInfo(data.status.project.name, data.status.project.path);
                     }
 
-                    // Update stats
+                    // Update stats from status
                     if (data.status.tasks) {
                         state.stats.pending = data.status.tasks.pending_count || 0;
                         state.stats.in_progress = data.status.tasks.in_progress_count || 0;
@@ -1327,19 +1522,37 @@
                         updateProgress();
                     }
 
-                    // Update terminals
+                    // Update terminals from status
                     if (data.status.terminals) {
                         Object.keys(data.status.terminals).forEach(tid => {
                             const terminal = data.status.terminals[tid];
-                            updateTerminal(tid, terminal.state, terminal.current_task, terminal.output);
+                            updateTerminal(tid, terminal.state, terminal.current_task);
                         });
+                    }
+
+                    // Detect current phase from status
+                    if (data.status.current_phase) {
+                        state.currentPhase = data.status.current_phase;
+                        updatePhaseDisplay();
                     }
                 }
 
                 // Update tasks
                 if (data.tasks) {
-                    state.tasks = data.tasks;
+                    state.tasks = {
+                        pending: data.tasks.pending || [],
+                        in_progress: data.tasks.in_progress || [],
+                        completed: data.tasks.completed || [],
+                        failed: data.tasks.failed || []
+                    };
                     renderTasks();
+                }
+
+                // Update terminal outputs
+                if (data.terminal_outputs) {
+                    Object.keys(data.terminal_outputs).forEach(tid => {
+                        updateTerminalOutput(tid, data.terminal_outputs[tid]);
+                    });
                 }
 
                 // Update subagents
@@ -1353,16 +1566,18 @@
                     state.orchestratorLog = data.orchestrator_log;
                     renderOrchestratorLog();
                 }
-            } else if (data.type === 'event') {
-                addEvent(data.message, data.level || 'info');
-            } else if (data.type === 'terminal_output') {
-                updateTerminalOutput(data.terminal_id, data.output);
-            } else if (data.type === 'subagent_update') {
-                updateSubagent(data.subagent);
-            } else if (data.type === 'orchestrator_log') {
-                addOrchestratorEntry(data.entry);
-            } else if (data.type === 'project_info') {
-                updateProjectInfo(data.name, data.path);
+
+                // Process events (add new ones)
+                if (data.events && Array.isArray(data.events)) {
+                    data.events.forEach(evt => {
+                        const exists = state.events.some(e =>
+                            e.timestamp === evt.timestamp && e.message === evt.message
+                        );
+                        if (!exists) {
+                            addEventFromServer(evt);
+                        }
+                    });
+                }
             }
         }
 
@@ -1395,7 +1610,14 @@
             }
         }
 
-        function updateTerminal(tid, terminalState, currentTask, output) {
+        function updatePhaseDisplay() {
+            const phaseEl = document.getElementById('progress-phase');
+            if (phaseEl) {
+                phaseEl.textContent = `Phase ${state.currentPhase}`;
+            }
+        }
+
+        function updateTerminal(tid, terminalState, currentTask) {
             const card = document.getElementById(`terminal-${tid}`);
             if (!card) return;
 
@@ -1405,9 +1627,6 @@
             // Update state
             state.terminals[tid].state = terminalState;
             state.terminals[tid].task = currentTask;
-            if (output !== undefined) {
-                state.terminals[tid].output = output;
-            }
 
             // Update card class
             card.classList.remove('idle', 'busy', 'error');
@@ -1431,11 +1650,6 @@
                 taskEl.textContent = 'No active task';
                 taskEl.classList.add('empty');
             }
-
-            // Update output
-            if (output !== undefined) {
-                updateTerminalOutput(tid, output);
-            }
         }
 
         function updateTerminalOutput(tid, output) {
@@ -1445,7 +1659,7 @@
             state.terminals[tid].output = output;
 
             if (output && output.trim()) {
-                // Keep last 500 characters
+                // Keep last 500 characters for display
                 const truncated = output.length > 500 ? output.slice(-500) : output;
                 outputEl.textContent = truncated;
                 outputEl.classList.remove('empty');
@@ -1467,8 +1681,21 @@
         function updateProgress() {
             const total = state.stats.pending + state.stats.in_progress +
                           state.stats.completed + state.stats.failed;
-            const done = state.stats.completed + state.stats.failed;
-            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            if (total === 0) {
+                document.getElementById('progress-bar').style.width = '0%';
+                document.getElementById('progress-value').textContent = '0%';
+                return;
+            }
+
+            // Quality-based progress calculation
+            // - Completed tasks are worth 100%
+            // - In-progress tasks are worth 50%
+            // - Pending tasks are worth 0%
+            // - Failed tasks count but reduce quality
+            const qualityScore = state.stats.completed + (state.stats.in_progress * 0.5);
+            const maxScore = total;
+            const percent = Math.round((qualityScore / maxScore) * 100);
 
             document.getElementById('progress-bar').style.width = percent + '%';
             document.getElementById('progress-value').textContent = percent + '%';
@@ -1478,7 +1705,7 @@
             const list = document.getElementById('task-list');
             const allTasks = [];
 
-            // Collect all tasks with their status
+            // Collect all tasks with their status (priority order: in-progress, pending, completed, failed)
             (state.tasks.in_progress || []).forEach(t => allTasks.push({ ...t, status: 'in-progress' }));
             (state.tasks.pending || []).forEach(t => allTasks.push({ ...t, status: 'pending' }));
             (state.tasks.completed || []).slice(-5).forEach(t => allTasks.push({ ...t, status: 'completed' }));
@@ -1506,7 +1733,7 @@
                     <div class="task-item">
                         <div class="task-icon ${task.status}">${icons[task.status]}</div>
                         <div class="task-content">
-                            <div class="task-title">${escapeHtml(task.title || 'Untitled Task')}</div>
+                            <div class="task-title">${escapeHtml(task.title || task.description || 'Untitled Task')}</div>
                             <div class="task-meta">
                                 ${task.assigned_to ? `<span class="task-terminal">${task.assigned_to.toUpperCase()}</span>` : ''}
                                 <span>${task.priority || 'medium'}</span>
@@ -1530,7 +1757,7 @@
             }
 
             grid.innerHTML = state.subagents.map(subagent => {
-                const typeInfo = subagentTypes[subagent.name] || { icon: '&#9679;', type: 'strategy' };
+                const typeInfo = subagentTypes[subagent.name] || { icon: '&#9679;', type: 'strategy', category: 'Unknown' };
                 const time = subagent.timestamp ? formatTime(new Date(subagent.timestamp)) : '--:--';
 
                 return `
@@ -1549,20 +1776,6 @@
             }).join('');
         }
 
-        function updateSubagent(subagent) {
-            const existingIndex = state.subagents.findIndex(s => s.id === subagent.id);
-            if (existingIndex >= 0) {
-                state.subagents[existingIndex] = subagent;
-            } else {
-                state.subagents.unshift(subagent);
-            }
-            // Keep only last 20 subagents
-            if (state.subagents.length > 20) {
-                state.subagents = state.subagents.slice(0, 20);
-            }
-            renderSubagents();
-        }
-
         function renderOrchestratorLog() {
             const log = document.getElementById('to-log');
 
@@ -1578,29 +1791,18 @@
             }
 
             log.innerHTML = state.orchestratorLog.map(entry => {
-                const time = entry.timestamp ? formatTime(new Date(entry.timestamp)) : '--:--';
+                const time = entry.timestamp || '--:--';
                 const type = entry.type || 'state';
+                const message = entry.message || entry.raw || 'No message';
 
                 return `
                     <div class="to-entry">
-                        <span class="to-entry-time">${time}</span>
+                        <span class="to-entry-time">${escapeHtml(time)}</span>
                         <span class="to-entry-type ${type}">${type.toUpperCase()}</span>
-                        <span class="to-entry-message">${escapeHtml(entry.message)}</span>
+                        <span class="to-entry-message">${escapeHtml(message)}</span>
                     </div>
                 `;
             }).join('');
-
-            // Auto-scroll to bottom
-            log.scrollTop = log.scrollHeight;
-        }
-
-        function addOrchestratorEntry(entry) {
-            state.orchestratorLog.unshift(entry);
-            // Keep only last 50 entries
-            if (state.orchestratorLog.length > 50) {
-                state.orchestratorLog = state.orchestratorLog.slice(0, 50);
-            }
-            renderOrchestratorLog();
         }
 
         function toggleTOPanel() {
@@ -1613,7 +1815,7 @@
             const now = new Date();
             const time = formatTime(now);
 
-            state.events.unshift({ time, message, level });
+            state.events.unshift({ time, message, level, timestamp: now.toISOString() });
 
             // Keep only last 50 events
             if (state.events.length > 50) {
@@ -1623,10 +1825,43 @@
             renderEvents();
         }
 
+        function addEventFromServer(evt) {
+            const time = evt.timestamp ? formatTime(new Date(evt.timestamp)) : formatTime(new Date());
+            const level = evt.type || evt.level || 'info';
+            const message = evt.message || evt.description || 'Event';
+
+            state.events.unshift({ time, message, level, timestamp: evt.timestamp });
+
+            if (state.events.length > 50) {
+                state.events.pop();
+            }
+
+            renderEvents();
+        }
+
+        function filterEvents(filter) {
+            state.eventFilter = filter;
+
+            // Update button states
+            document.querySelectorAll('.events-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            renderEvents();
+        }
+
         function renderEvents() {
             const list = document.getElementById('events-list');
 
-            if (state.events.length === 0) {
+            let filteredEvents = state.events;
+            if (state.eventFilter === 'success') {
+                filteredEvents = state.events.filter(e => e.level === 'success');
+            } else if (state.eventFilter === 'error') {
+                filteredEvents = state.events.filter(e => e.level === 'error' || e.level === 'warning');
+            }
+
+            if (filteredEvents.length === 0) {
                 list.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">&#128196;</div>
@@ -1636,7 +1871,7 @@
                 return;
             }
 
-            list.innerHTML = state.events.map(event => `
+            list.innerHTML = filteredEvents.slice(0, 30).map(event => `
                 <div class="event-item">
                     <span class="event-time">${event.time}</span>
                     <span class="event-dot ${event.level}"></span>
@@ -1655,63 +1890,16 @@
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        // Fetch terminal output
-        async function fetchTerminalOutputs() {
-            const terminals = ['t1', 't2', 't3', 't4', 't5'];
-            for (const tid of terminals) {
-                try {
-                    const res = await fetch(`/api/terminal-output/${tid}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.output !== undefined) {
-                            updateTerminalOutput(tid, data.output);
-                        }
-                    }
-                } catch (e) {
-                    // Ignore errors for individual terminal fetches
-                }
-            }
-        }
-
-        // Fetch subagents
-        async function fetchSubagents() {
-            try {
-                const res = await fetch('/api/subagents');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.subagents) {
-                        state.subagents = data.subagents;
-                        renderSubagents();
-                    }
-                }
-            } catch (e) {
-                // Ignore
-            }
-        }
-
-        // Fetch orchestrator log
-        async function fetchOrchestratorLog() {
-            try {
-                const res = await fetch('/api/orchestrator-log');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.log) {
-                        state.orchestratorLog = data.log;
-                        renderOrchestratorLog();
-                    }
-                }
-            } catch (e) {
-                // Ignore
-            }
-        }
-
-        // Fallback polling
+        // Fallback polling (in case WebSocket fails)
         async function poll() {
+            if (state.connected) return; // Skip if WebSocket is working
+
             try {
                 const [statusRes, tasksRes] = await Promise.all([
                     fetch('/api/status'),
@@ -1721,15 +1909,50 @@
                 if (statusRes.ok && tasksRes.ok) {
                     const status = await statusRes.json();
                     const tasks = await tasksRes.json();
-                    handleMessage({ type: 'update', status, tasks });
-                }
 
-                // Also fetch additional data
-                await Promise.all([
-                    fetchTerminalOutputs(),
-                    fetchSubagents(),
-                    fetchOrchestratorLog()
-                ]);
+                    // Manually fetch terminal outputs
+                    const terminal_outputs = {};
+                    for (const tid of ['t1', 't2', 't3', 't4', 't5']) {
+                        try {
+                            const res = await fetch(`/api/terminal-output/${tid}`);
+                            if (res.ok) {
+                                const data = await res.json();
+                                terminal_outputs[tid] = data.output || '';
+                            }
+                        } catch (e) {
+                            terminal_outputs[tid] = '';
+                        }
+                    }
+
+                    // Fetch subagents
+                    let subagents = [];
+                    try {
+                        const res = await fetch('/api/subagents');
+                        if (res.ok) {
+                            const data = await res.json();
+                            subagents = data.invoked || [];
+                        }
+                    } catch (e) {}
+
+                    // Fetch orchestrator log
+                    let orchestrator_log = [];
+                    try {
+                        const res = await fetch('/api/orchestrator-log');
+                        if (res.ok) {
+                            const data = await res.json();
+                            orchestrator_log = data.entries || [];
+                        }
+                    } catch (e) {}
+
+                    handleMessage({
+                        type: 'update',
+                        status,
+                        tasks,
+                        terminal_outputs,
+                        subagents,
+                        orchestrator_log
+                    });
+                }
             } catch (e) {
                 console.log('Polling failed:', e);
             }
@@ -1739,9 +1962,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             connect();
 
-            // Fallback polling every 5 seconds
+            // Fallback polling every 5 seconds (only if WebSocket disconnected)
             setInterval(poll, 5000);
-            poll();
 
             addEvent('Dashboard initialized', 'info');
         });
