@@ -2,7 +2,7 @@
 Main Orchestrator - Coordinates all terminals and manages the workflow.
 
 This is the central controller that:
-- Manages 4 Claude Code terminal workers
+- Manages 5 Claude Code terminal workers (T1-T5)
 - Distributes tasks via the TaskQueue
 - Handles inter-terminal communication via MessageBus
 - Monitors progress and handles failures
@@ -20,8 +20,7 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
-
+from .cli_display import Colors
 from .config import Config, TerminalID
 from .logger import EventLogger
 from .message_bus import MessageBus
@@ -31,56 +30,8 @@ from .task_queue import TaskQueue, TaskPriority, Task, TaskStatus, FlowState
 from .terminal import Terminal, TerminalState
 from .sync_manager import SyncManager, Heartbeat
 from .contract_manager import ContractManager
-from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType
+from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType, TerminalHeartbeat
 from .validator import Validator
-
-
-# =============================================================================
-# Terminal Colors
-# =============================================================================
-
-class Colors:
-    """ANSI color codes for terminal output."""
-
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-
-    # Standard colors
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    BLUE = "\033[94m"
-    MAGENTA = "\033[95m"
-    CYAN = "\033[96m"
-    WHITE = "\033[97m"
-
-    # Background colors
-    BG_RED = "\033[41m"
-    BG_GREEN = "\033[42m"
-    BG_YELLOW = "\033[43m"
-
-    @classmethod
-    def disable(cls):
-        """Disable colors (for non-TTY output)."""
-        cls.RESET = ""
-        cls.BOLD = ""
-        cls.DIM = ""
-        cls.RED = ""
-        cls.GREEN = ""
-        cls.YELLOW = ""
-        cls.BLUE = ""
-        cls.MAGENTA = ""
-        cls.CYAN = ""
-        cls.WHITE = ""
-        cls.BG_RED = ""
-        cls.BG_GREEN = ""
-        cls.BG_YELLOW = ""
-
-
-# Check if we're outputting to a TTY
-if not sys.stdout.isatty():
-    Colors.disable()
 
 
 # =============================================================================
@@ -170,7 +121,7 @@ class Orchestrator:
     Main orchestrator that coordinates all components.
 
     Features:
-    - Task distribution across 4 terminals
+    - Task distribution across 5 terminals (T1-T5)
     - Retry logic for failed tasks
     - Continuous mode for persistent operation
     - Quality checks after completion
@@ -315,6 +266,7 @@ class Orchestrator:
             "t2": Colors.MAGENTA,
             "t3": Colors.YELLOW,
             "t4": Colors.BLUE,
+            "t5": Colors.RED,
         }.get(terminal_id, Colors.WHITE)
 
         if self.verbose:
@@ -999,7 +951,6 @@ This helps the orchestrator coordinate with other terminals.
                 heartbeats_dict = self.sync_manager.read_all_heartbeats()
 
                 # Convert dict to TerminalHeartbeat objects for manager_intelligence
-                from .manager_intelligence import TerminalHeartbeat
                 heartbeats = {}
                 for tid, hb_data in heartbeats_dict.items():
                     heartbeats[tid] = TerminalHeartbeat(

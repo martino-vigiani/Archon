@@ -227,6 +227,7 @@ class SyncManager:
         terminals_to_check = active_terminals or ["t1", "t2", "t3", "t4", "t5"]  # type: ignore
 
         status = SyncPointStatus(all_ready=True)
+        missing_heartbeat_count = 0
 
         for terminal_id in terminals_to_check:
             heartbeat = self.read_heartbeat(terminal_id)  # type: ignore
@@ -234,24 +235,21 @@ class SyncManager:
             if not heartbeat:
                 # No heartbeat = terminal not started or crashed
                 status.idle_terminals.append(terminal_id)  # type: ignore
-                status.all_ready = False
+                missing_heartbeat_count += 1
                 continue
 
             if heartbeat.is_stale():
                 status.stale_terminals.append(terminal_id)  # type: ignore
-                status.all_ready = False
                 continue
 
             # Categorize by status
             if heartbeat.status == "working":
                 status.working_terminals.append(terminal_id)  # type: ignore
-                status.all_ready = False
             elif heartbeat.status == "waiting":
                 status.waiting_terminals.append(terminal_id)  # type: ignore
                 # Waiting is considered "ready" for sync
             elif heartbeat.status == "blocked":
                 status.blocked_terminals.append(terminal_id)  # type: ignore
-                status.all_ready = False
             elif heartbeat.status == "idle":
                 status.idle_terminals.append(terminal_id)  # type: ignore
                 # Idle is considered "ready"
@@ -260,11 +258,12 @@ class SyncManager:
             if heartbeat.ready_artifacts:
                 status.ready_artifacts[terminal_id] = heartbeat.ready_artifacts  # type: ignore
 
-        # All ready if no terminals are still working and no terminals are blocked
+        # All ready if no terminals are working, blocked, stale, or missing
         status.all_ready = (
             len(status.working_terminals) == 0
             and len(status.blocked_terminals) == 0
             and len(status.stale_terminals) == 0
+            and missing_heartbeat_count == 0
         )
 
         return status

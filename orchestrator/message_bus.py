@@ -13,7 +13,7 @@ from typing import Literal
 from .config import Config, TerminalID
 
 
-MessageType = Literal["request", "response", "broadcast", "status", "artifact"]
+MessageType = Literal["request", "response", "broadcast", "status", "artifact", "intervention"]
 
 
 @dataclass

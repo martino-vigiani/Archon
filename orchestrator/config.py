@@ -110,7 +110,7 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         id="t5",
         role="QA/Testing",
         description="Runs tests, validates outputs, verifies code quality and compilation",
-        subagents=["testing-genius", "swift-architect", "node-architect", "python-architect"],
+        subagents=["test-genius", "swift-architect", "node-architect", "python-architect"],
         keywords=[
             "test", "testing", "verify", "validate", "check", "quality", "qa",
             "build", "compile", "run tests", "pytest", "swift test", "npm test",
@@ -246,7 +246,7 @@ class Config:
 
     # Terminal settings
     terminals: dict[TerminalID, TerminalConfig] = field(default_factory=lambda: TERMINALS)
-    max_terminals: int = 4
+    max_terminals: int = 5
 
     # Timing
     poll_interval: float = 2.0  # Seconds between status checks
@@ -296,7 +296,7 @@ class Config:
     def route_task_to_terminal(self, task_description: str) -> TerminalID:
         """Route a task to the most appropriate terminal based on keywords."""
         task_lower = task_description.lower()
-        scores: dict[TerminalID, int] = {"t1": 0, "t2": 0, "t3": 0, "t4": 0}
+        scores: dict[TerminalID, int] = {"t1": 0, "t2": 0, "t3": 0, "t4": 0, "t5": 0}
 
         for tid, config in self.terminals.items():
             for keyword in config.keywords:

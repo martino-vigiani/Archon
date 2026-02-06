@@ -1,0 +1,200 @@
+# Archon - Organic Multi-Agent Orchestrator
+# Project configuration and tool settings
+
+[project]
+name = "archon"
+version = "2.0.0"
+description = "Organic multi-agent orchestration system for autonomous software development"
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["orchestration", "multi-agent", "claude", "automation"]
+
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "websockets>=12.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-xdist>=3.5.0",
+    "black>=24.0.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+archon = "orchestrator.__main__:main"
+
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Output configuration
+addopts = [
+    "-v",                          # Verbose output
+    "--tb=short",                  # Short traceback
+    "--strict-markers",            # Unknown markers raise errors
+    "-ra",                         # Show extra test summary
+    "--color=yes",                 # Colored output
+]
+
+# Markers for test categorization
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "smoke: marks tests as smoke tests for quick validation",
+    "critical: marks tests that must pass for deployment",
+]
+
+# Warnings
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Coverage minimum threshold
+# minversion = "8.0"
+
+# =============================================================================
+# Coverage Configuration
+# =============================================================================
+
+[tool.coverage.run]
+source = ["orchestrator"]
+branch = true
+parallel = true
+omit = [
+    "orchestrator/__main__.py",
+    "orchestrator/dashboard.py",  # UI code
+    "**/test_*.py",
+    "**/__pycache__/*",
+]
+
+[tool.coverage.report]
+# Quality gates: minimum coverage thresholds
+fail_under = 75
+show_missing = true
+skip_covered = false
+precision = 2
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class.*Protocol.*:",
+    "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = ".orchestra/qa/coverage_html"
+
+[tool.coverage.xml]
+output = ".orchestra/qa/coverage.xml"
+
+[tool.coverage.json]
+output = ".orchestra/qa/coverage.json"
+pretty_print = true
+
+# =============================================================================
+# Black Configuration
+# =============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.nox
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+# =============================================================================
+# Ruff Configuration
+# =============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".venv",
+    "__pycache__",
+    ".git",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by black)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise without from inside except
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["orchestrator"]
+
+# =============================================================================
+# Mypy Configuration
+# =============================================================================
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "websockets.*",
+    "tqdm.*",
+]
+ignore_missing_imports = true
+disallow_untyped_defs = false

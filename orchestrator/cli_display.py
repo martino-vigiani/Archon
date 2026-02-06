@@ -1,11 +1,14 @@
 """
 CLI Display Components for Archon.
 
-Beautiful terminal output with:
-- Organic flow status display
-- Quality gradients visualization
-- Terminal personality badges
-- Contract negotiation views
+Single source of truth for all terminal output:
+- ANSI color system with TTY detection
+- Terminal personality badges and status indicators
+- Quality gradient visualization
+- Organic flow state display
+- Contract and intervention display
+- Box drawing and table utilities
+- Progress spinners
 """
 
 import sys
@@ -15,12 +18,16 @@ from typing import Literal
 
 
 # =============================================================================
-# Color System
+# Color System - Single Source of Truth
 # =============================================================================
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
+    """ANSI color codes for terminal output.
+
+    This is the ONLY place colors should be defined. All other modules
+    must import from here.
+    """
 
     RESET = "\033[0m"
 
@@ -29,6 +36,7 @@ class Colors:
     DIM = "\033[2m"
     ITALIC = "\033[3m"
     UNDERLINE = "\033[4m"
+    STRIKETHROUGH = "\033[9m"
 
     # Standard colors
     BLACK = "\033[30m"
@@ -51,16 +59,18 @@ class Colors:
     BRIGHT_WHITE = "\033[97m"
 
     # Background colors
+    BG_BLACK = "\033[40m"
     BG_RED = "\033[41m"
     BG_GREEN = "\033[42m"
     BG_YELLOW = "\033[43m"
     BG_BLUE = "\033[44m"
     BG_MAGENTA = "\033[45m"
     BG_CYAN = "\033[46m"
+    BG_WHITE = "\033[47m"
 
     @classmethod
     def disable(cls) -> None:
-        """Disable colors for non-TTY output."""
+        """Disable colors for non-TTY output (piped, CI environments)."""
         for attr in dir(cls):
             if attr.isupper() and not attr.startswith("_"):
                 setattr(cls, attr, "")
@@ -153,7 +163,7 @@ def get_terminal_badge(terminal_id: str, include_name: bool = True) -> str:
 
 def quality_bar(quality: float, width: int = 10) -> str:
     """
-    Create a visual quality bar.
+    Create a visual quality bar using block characters.
 
     Args:
         quality: Quality level 0.0 to 1.0
@@ -176,25 +186,22 @@ def quality_bar(quality: float, width: int = 10) -> str:
     else:
         bar_color = Colors.BRIGHT_RED
 
-    filled_char = "#"
-    empty_char = "-"
-
-    bar = c(filled_char * filled, bar_color) + c(empty_char * empty, Colors.DIM)
+    bar = c("=" * filled, bar_color) + c("-" * empty, Colors.DIM)
     return f"[{bar}]"
 
 
 def quality_label(quality: float) -> str:
     """Get a descriptive label for a quality level."""
     if quality >= 0.95:
-        return c("Production Ready", Colors.BRIGHT_GREEN, Colors.BOLD)
+        return c("Excellent", Colors.BRIGHT_GREEN, Colors.BOLD)
     elif quality >= 0.8:
         return c("Polished", Colors.BRIGHT_GREEN)
     elif quality >= 0.6:
-        return c("Functional", Colors.BRIGHT_CYAN)
+        return c("Solid", Colors.BRIGHT_CYAN)
     elif quality >= 0.4:
-        return c("Rough", Colors.BRIGHT_YELLOW)
+        return c("Working", Colors.BRIGHT_YELLOW)
     elif quality >= 0.2:
-        return c("Sketch", Colors.YELLOW)
+        return c("Draft", Colors.YELLOW)
     else:
         return c("Starting", Colors.DIM)
 
@@ -517,7 +524,7 @@ def print_flow_state(
 
 
 class Spinner:
-    """Simple spinner for showing activity."""
+    """Spinner for showing activity in the terminal."""
 
     FRAMES = ["|", "/", "-", "\\"]
 
@@ -554,3 +561,98 @@ def hide_cursor() -> None:
 def show_cursor() -> None:
     """Show the cursor."""
     print("\033[?25h", end="")
+
+
+def strip_ansi(text: str) -> str:
+    """Strip ANSI escape codes from text for length calculation."""
+    import re
+    return re.sub(r"\033\[[0-9;]*m", "", text)
+
+
+# =============================================================================
+# Box Drawing Utilities
+# =============================================================================
+
+
+def print_box(
+    lines: list[str],
+    width: int = 55,
+    title: str = "",
+    border_color: str = Colors.BRIGHT_CYAN,
+    indent: int = 4,
+) -> None:
+    """Print content inside a box with Unicode borders.
+
+    Args:
+        lines: Content lines to display inside the box.
+        width: Total width of the box including borders.
+        title: Optional title to display in the top border.
+        border_color: ANSI color for the border.
+        indent: Left indentation in spaces.
+    """
+    pad = " " * indent
+    inner = width - 2  # space inside borders
+
+    # Top border
+    if title:
+        title_stripped = strip_ansi(title)
+        remaining = inner - len(title_stripped) - 2  # 2 for spaces around title
+        left_border = "─" * 1
+        right_border = "─" * max(0, remaining - 1)
+        print(c(f"{pad}╭{left_border}", border_color) + f" {title} " + c(f"{right_border}╮", border_color))
+    else:
+        print(c(f"{pad}╭{'─' * inner}╮", border_color))
+
+    # Content lines
+    for line in lines:
+        visible_len = len(strip_ansi(line))
+        line_padding = " " * max(0, inner - visible_len - 1)
+        print(c(f"{pad}│", border_color) + f" {line}{line_padding}" + c("│", border_color))
+
+    # Bottom border
+    print(c(f"{pad}╰{'─' * inner}╯", border_color))
+
+
+def print_separator(
+    char: str = "─",
+    width: int = 60,
+    color: str = Colors.DIM,
+    indent: int = 4,
+) -> None:
+    """Print a horizontal separator line."""
+    print(c(f"{' ' * indent}{char * width}", color))
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds into a human-readable duration string."""
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s"
+    hours = int(minutes // 60)
+    mins = minutes % 60
+    return f"{hours}h {mins}m"
+
+
+def get_terminal_name(terminal_id: str) -> str:
+    """Get the display name for a terminal from TERMINAL_PERSONALITIES.
+
+    This is the single source of truth -- never hardcode terminal names elsewhere.
+    """
+    personality = TERMINAL_PERSONALITIES.get(terminal_id)
+    if personality:
+        return personality.name
+    return terminal_id.upper()
+
+
+def get_terminal_color(terminal_id: str) -> str:
+    """Get the ANSI color for a terminal from TERMINAL_PERSONALITIES.
+
+    This is the single source of truth -- never hardcode terminal colors elsewhere.
+    """
+    personality = TERMINAL_PERSONALITIES.get(terminal_id)
+    if personality:
+        return personality.color
+    return Colors.WHITE

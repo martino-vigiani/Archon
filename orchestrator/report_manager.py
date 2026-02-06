@@ -562,7 +562,7 @@ class ReportManager:
     def get_dependencies_graph(self) -> dict[TerminalID, list[dict]]:
         """Get dependency graph showing what each terminal needs from others."""
         dependencies: dict[TerminalID, list[dict]] = {
-            "t1": [], "t2": [], "t3": [], "t4": []
+            "t1": [], "t2": [], "t3": [], "t4": [], "t5": []
         }
 
         for tid in ["t1", "t2", "t3", "t4", "t5"]:

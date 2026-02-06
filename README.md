@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#terminals"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
-  <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-15-green?style=flat-square" alt="15 Subagents"></a>
+  <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-20-green?style=flat-square" alt="20 Subagents"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -156,7 +156,7 @@ The Skeptic is the team's immune system. They don't wait until the end - they pr
 
 | Focus | Subagents |
 |-------|-----------|
-| Quality | `testing-genius` |
+| Quality | `test-genius` |
 | Validation | `swift-architect`, `node-architect`, `python-architect` |
 
 ---
@@ -313,7 +313,7 @@ Interactive REPL to guide the organic growth:
 
 ## Subagents
 
-15 specialist subagents that terminals can invoke for deep expertise:
+20 specialist subagents that terminals can invoke for deep expertise:
 
 | Domain | Subagent | Specialty |
 |--------|----------|-----------|
@@ -321,17 +321,35 @@ Interactive REPL to guide the organic growth:
 | Web UI | `react-crafter` | React/Next.js components |
 | Styling | `html-stylist` | HTML/CSS/Tailwind |
 | Design | `design-system` | Tokens, colors, typography |
+| Web Design | `web-ui-designer` | Visual design, UX, responsive |
+| Dashboards | `dashboard-architect` | Real-time dashboards, API sync |
 | iOS | `swift-architect` | MVVM, Clean Architecture |
 | Node.js | `node-architect` | TypeScript backends |
 | Python | `python-architect` | FastAPI, async patterns |
 | iOS Data | `swiftdata-expert` | SwiftData/CoreData |
 | Database | `database-expert` | SQL, PostgreSQL, Prisma |
 | ML/AI | `ml-engineer` | Machine learning features |
+| Testing | `test-genius` | Edge cases, orchestrator tests |
 | Docs | `tech-writer` | README, API docs |
 | Marketing | `marketing-strategist` | App Store, positioning |
 | Product | `product-thinker` | MVP, roadmaps |
 | Business | `monetization-expert` | Pricing, business models |
-| Testing | `testing-genius` | Property testing, fuzzing |
+| CLI | `cli-ux-master` | Terminal UX, argument design |
+| Tooling | `claude-code-toolsmith` | MCP servers, Claude Code integration |
+| Prompts | `prompt-craftsman` | System prompts, prompt engineering |
+
+---
+
+## Documentation
+
+| Guide | Purpose |
+|-------|---------|
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System architecture and organic model |
+| **[API_REFERENCE.md](docs/API_REFERENCE.md)** | Dashboard API endpoints |
+| **[DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)** | Key architectural decisions and rationale |
+| **[SETUP.md](docs/SETUP.md)** | Detailed setup and configuration guide |
+| **[PRD.md](docs/PRD.md)** | Product requirements document |
+| **[diagrams.md](docs/diagrams.md)** | Visual diagrams for the architecture |
 
 ---
 
@@ -365,7 +383,7 @@ Archon/
 │       └── t5_qa.md             # The Skeptic
 │
 ├── .claude/
-│   └── agents/                  # 15 subagent definitions
+│   └── agents/                  # 20 subagent definitions
 │
 ├── .orchestra/                  # Runtime state (gitignored)
 │   ├── state/                   # Terminal heartbeats

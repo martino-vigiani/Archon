@@ -27,6 +27,8 @@ from .cli_display import (
     quality_bar,
     quality_label,
     get_terminal_badge,
+    get_terminal_name,
+    get_terminal_color,
     print_organic_status,
     print_contracts_summary,
     print_intervention_help,
@@ -37,33 +39,6 @@ from .cli_display import (
     InterventionType,
     TERMINAL_PERSONALITIES,
 )
-
-
-# =============================================================================
-# ANSI Colors for Chat Output (using cli_display Colors)
-# =============================================================================
-
-class ChatColors:
-    """Colors for chat interface - wraps cli_display.Colors."""
-
-    RESET = Colors.RESET
-    BOLD = Colors.BOLD
-    DIM = Colors.DIM
-
-    # Manager colors
-    MANAGER = Colors.BRIGHT_CYAN
-    USER = Colors.BRIGHT_WHITE
-    SUCCESS = Colors.BRIGHT_GREEN
-    WARNING = Colors.BRIGHT_YELLOW
-    ERROR = Colors.BRIGHT_RED
-    INFO = Colors.BRIGHT_BLUE
-
-    # Terminal colors (use personality colors)
-    T1 = Colors.BRIGHT_CYAN
-    T2 = Colors.BRIGHT_MAGENTA
-    T3 = Colors.BRIGHT_YELLOW
-    T4 = Colors.BRIGHT_BLUE
-    T5 = Colors.BRIGHT_RED
 
 
 # =============================================================================
@@ -161,24 +136,21 @@ class ManagerChat:
         self.history = ChatHistory(config)
         self._running = True
 
-    def _print_manager(self, message: str, color: str = ChatColors.MANAGER) -> None:
+    def _print_manager(self, message: str, color: str = Colors.BRIGHT_CYAN) -> None:
         """Print a message from the manager."""
-        print(f"{color}[Manager]{ChatColors.RESET} {message}")
+        print(f"{color}[Manager]{Colors.RESET} {message}")
 
     def _print_error(self, message: str) -> None:
         """Print an error message."""
-        print(f"{ChatColors.ERROR}[Error]{ChatColors.RESET} {message}")
+        print(f"{Colors.BRIGHT_RED}[Error]{Colors.RESET} {message}")
 
     def _print_success(self, message: str) -> None:
         """Print a success message."""
-        print(f"{ChatColors.SUCCESS}[OK]{ChatColors.RESET} {message}")
+        print(f"{Colors.BRIGHT_GREEN}[OK]{Colors.RESET} {message}")
 
     def _get_terminal_color(self, terminal_id: str) -> str:
         """Get color for a terminal."""
-        personality = TERMINAL_PERSONALITIES.get(terminal_id)
-        if personality:
-            return personality.color
-        return ChatColors.INFO
+        return get_terminal_color(terminal_id)
 
     # =========================================================================
     # Command Parsing
@@ -253,7 +225,7 @@ class ManagerChat:
         # State
         state = status.get("state", "unknown")
         paused = status.get("paused", False)
-        state_str = f"{ChatColors.WARNING}PAUSED{ChatColors.RESET}" if paused else f"{ChatColors.SUCCESS}{state.upper()}{ChatColors.RESET}"
+        state_str = f"{Colors.BRIGHT_YELLOW}PAUSED{Colors.RESET}" if paused else f"{Colors.BRIGHT_GREEN}{state.upper()}{Colors.RESET}"
         lines.append(f"State: {state_str}")
 
         # Phase
@@ -270,40 +242,40 @@ class ManagerChat:
         total = tasks.get("total_count", 0)
 
         lines.append("")
-        lines.append(f"Tasks: {ChatColors.SUCCESS}{completed}{ChatColors.RESET}/{total} completed")
+        lines.append(f"Tasks: {Colors.BRIGHT_GREEN}{completed}{Colors.RESET}/{total} completed")
         if pending > 0:
-            lines.append(f"  Pending: {ChatColors.WARNING}{pending}{ChatColors.RESET}")
+            lines.append(f"  Pending: {Colors.BRIGHT_YELLOW}{pending}{Colors.RESET}")
         if in_progress > 0:
-            lines.append(f"  In Progress: {ChatColors.INFO}{in_progress}{ChatColors.RESET}")
+            lines.append(f"  In Progress: {Colors.BRIGHT_BLUE}{in_progress}{Colors.RESET}")
         if failed > 0:
-            lines.append(f"  Failed: {ChatColors.ERROR}{failed}{ChatColors.RESET}")
+            lines.append(f"  Failed: {Colors.BRIGHT_RED}{failed}{Colors.RESET}")
 
         # Terminals
         lines.append("")
         lines.append("Terminals:")
         terminals = status.get("terminals", {})
-        terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
 
         for tid in ["t1", "t2", "t3", "t4", "t5"]:
             t_info = terminals.get(tid, {})
             t_state = t_info.get("state", "unknown")
             t_task = t_info.get("current_task", None)
-            color = self._get_terminal_color(tid)
+            color = get_terminal_color(tid)
+            name = get_terminal_name(tid)
 
-            status_str = f"{ChatColors.SUCCESS}idle{ChatColors.RESET}" if t_state == "idle" else f"{ChatColors.INFO}working{ChatColors.RESET}"
+            status_str = f"{Colors.BRIGHT_GREEN}idle{Colors.RESET}" if t_state == "idle" else f"{Colors.BRIGHT_BLUE}working{Colors.RESET}"
             task_str = f" - {t_task[:40]}..." if t_task else ""
 
-            lines.append(f"  {color}[{tid.upper()}]{ChatColors.RESET} {terminal_names[tid]}: {status_str}{task_str}")
+            lines.append(f"  {color}[{tid.upper()}]{Colors.RESET} {name}: {status_str}{task_str}")
 
         return "\n".join(lines)
 
     def _format_terminal_status(self, terminal_id: str, status: dict) -> str:
         """Format status for a specific terminal."""
         lines = []
-        color = self._get_terminal_color(terminal_id)
-        terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
+        color = get_terminal_color(terminal_id)
+        name = get_terminal_name(terminal_id)
 
-        lines.append(f"{color}[{terminal_id.upper()}]{ChatColors.RESET} {terminal_names.get(terminal_id, 'Unknown')}")
+        lines.append(f"{color}[{terminal_id.upper()}]{Colors.RESET} {name}")
         lines.append("")
 
         # Terminal state
@@ -363,8 +335,8 @@ class ManagerChat:
             terminal_id=terminal_id,
         )
 
-        terminal_names = {"t1": "UI/UX", "t2": "Features", "t3": "Docs", "t4": "Strategy"}
-        return f"Task injected: \"{task.title}\"\nAssigned to: {terminal_id.upper()} ({terminal_names.get(terminal_id, 'Unknown')})\nTask ID: {task.id}"
+        name = get_terminal_name(terminal_id)
+        return f"Task injected: \"{task.title}\"\nAssigned to: {terminal_id.upper()} ({name})\nTask ID: {task.id}"
 
     async def cmd_cancel(self, task_id: str) -> str:
         """Handle cancel command."""
@@ -387,16 +359,16 @@ class ManagerChat:
         # In Progress
         in_progress = tasks_info.get("in_progress_tasks", [])
         if in_progress:
-            lines.append(f"{ChatColors.INFO}In Progress:{ChatColors.RESET}")
+            lines.append(f"{Colors.BRIGHT_BLUE}In Progress:{Colors.RESET}")
             for t in in_progress:
                 color = self._get_terminal_color(t.get("assigned_to", ""))
-                lines.append(f"  {color}[{t.get('assigned_to', '?').upper()}]{ChatColors.RESET} {t.get('title', 'Unknown')}")
+                lines.append(f"  {color}[{t.get('assigned_to', '?').upper()}]{Colors.RESET} {t.get('title', 'Unknown')}")
             lines.append("")
 
         # Pending
         pending = tasks_info.get("pending_tasks", [])
         if pending:
-            lines.append(f"{ChatColors.WARNING}Pending:{ChatColors.RESET}")
+            lines.append(f"{Colors.BRIGHT_YELLOW}Pending:{Colors.RESET}")
             for t in pending:
                 lines.append(f"  - {t.get('title', 'Unknown')} (ID: {t.get('id', '?')})")
             total_pending = tasks_info.get("pending_count", 0)
@@ -409,7 +381,7 @@ class ManagerChat:
         failed = tasks_info.get("failed_count", 0)
         total = tasks_info.get("total_count", 0)
 
-        lines.append(f"Summary: {ChatColors.SUCCESS}{completed}{ChatColors.RESET} completed, {ChatColors.ERROR}{failed}{ChatColors.RESET} failed, {total} total")
+        lines.append(f"Summary: {Colors.BRIGHT_GREEN}{completed}{Colors.RESET} completed, {Colors.BRIGHT_RED}{failed}{Colors.RESET} failed, {total} total")
 
         return "\n".join(lines)
 
@@ -495,38 +467,51 @@ class ManagerChat:
             lines.append(c("  Contracts are created when T1/T2 define interface expectations.", Colors.DIM))
             return "\n".join(lines)
 
-        # Group by status
-        status_groups = {"proposed": [], "implemented": [], "verified": []}
+        # Group by status using ContractStatus enum values
+        from .contract_manager import ContractStatus
+
+        status_groups: dict[str, list] = {
+            "negotiating": [], "agreed": [], "implemented": [], "verified": [],
+            "disputed": [], "deprecated": [],
+        }
         for contract in contracts:
-            status_groups[contract.status].append(contract)
+            status_key = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+            if status_key in status_groups:
+                status_groups[status_key].append(contract)
 
         status_colors = {
-            "proposed": Colors.BRIGHT_YELLOW,
+            "negotiating": Colors.BRIGHT_YELLOW,
+            "agreed": Colors.BRIGHT_BLUE,
             "implemented": Colors.BRIGHT_CYAN,
             "verified": Colors.BRIGHT_GREEN,
+            "disputed": Colors.BRIGHT_RED,
+            "deprecated": Colors.DIM,
         }
 
         status_icons = {
-            "proposed": "[?]",
+            "negotiating": "[?]",
+            "agreed": "[~]",
             "implemented": "[>]",
             "verified": "[+]",
+            "disputed": "[!]",
+            "deprecated": "[-]",
         }
 
         for status_name, status_contracts in status_groups.items():
             if status_contracts:
-                color = status_colors[status_name]
+                color = status_colors.get(status_name, Colors.WHITE)
                 lines.append(c(f"  {status_name.upper()} ({len(status_contracts)}):", color, Colors.BOLD))
 
                 for contract in status_contracts:
-                    icon = c(status_icons[status_name], color)
-                    defined_by = get_terminal_badge(contract.defined_by, include_name=False)
+                    icon = c(status_icons.get(status_name, "[?]"), color)
+                    proposed_by = get_terminal_badge(contract.proposer, include_name=False)
 
                     impl_str = ""
-                    if contract.implemented_by:
-                        impl_by = get_terminal_badge(contract.implemented_by, include_name=False)
+                    if contract.implementer:
+                        impl_by = get_terminal_badge(contract.implementer, include_name=False)
                         impl_str = f" -> {impl_by}"
 
-                    lines.append(f"    {icon} {c(contract.name, Colors.WHITE)} {defined_by}{impl_str}")
+                    lines.append(f"    {icon} {c(contract.name, Colors.WHITE)} {proposed_by}{impl_str}")
 
                 lines.append("")
 
@@ -933,7 +918,7 @@ async def chat_repl(manager: ManagerChat) -> None:
             # Get user input
             user_input = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: input(f"{ChatColors.USER}> {ChatColors.RESET}")
+                lambda: input(f"{Colors.BRIGHT_WHITE}> {Colors.RESET}")
             )
 
             if not user_input.strip():

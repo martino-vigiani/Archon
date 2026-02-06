@@ -1,11 +1,11 @@
 """
-Archon Orchestrator - Multi-terminal Claude Code coordination system.
+Archon Orchestrator - Organic multi-agent coordination system.
 
-This package provides orchestration for 4 parallel Claude Code terminals,
-each specialized for different aspects of software development.
+This package provides orchestration for 5 parallel Claude Code terminals,
+each with a distinct personality, working through organic flow.
 """
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"
 __author__ = "Archon"
 
 from .orchestrator import Orchestrator

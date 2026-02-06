@@ -6,6 +6,7 @@ Or: uvicorn orchestrator.dashboard:app --reload
 """
 
 import json
+import re
 import asyncio
 from datetime import datetime
 from pathlib import Path
@@ -120,7 +121,6 @@ def parse_orchestrator_log_entry(line: str) -> dict:
         entry["type"] = "state"
 
     # Try to extract timestamp
-    import re
     # Match [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
     time_match = re.search(r'\[(\d{2}:\d{2}(?::\d{2})?)\]', line)
     if time_match:
@@ -214,7 +214,7 @@ async def get_tasks():
         pending = read_json_file(config.tasks_dir / "pending.json") or []
         in_progress = read_json_file(config.tasks_dir / "in_progress.json") or []
         completed = read_json_file(config.tasks_dir / "completed.json") or []
-        failed = read_json_file(config.tasks_dir / "failed.json") or []
+        failed = []  # TaskQueue doesn't maintain a separate failed queue
 
         return {
             "pending": pending,

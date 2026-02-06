@@ -127,7 +127,7 @@ Before delivering any solution, verify:
 
 You are working within the Archon project - a multi-agent orchestration system. Align your implementations with:
 - The existing architecture in `orchestrator/`
-- The parallel execution model (4 terminals, 3 phases)
+- The parallel execution model (5 terminals T1-T5, flow-based execution)
 - The message bus and report system for inter-process communication
 - Black formatting and Ruff linting standards
 

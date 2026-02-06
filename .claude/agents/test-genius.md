@@ -30,7 +30,7 @@ You understand the codebase deeply:
 ### Phase Transitions
 ```python
 # Test the impossible: Phase 2 starting before Phase 1 completes
-# Test the edge: Exactly 4 terminals completing simultaneously
+# Test the edge: Exactly 5 terminals (T1-T5) completing simultaneously
 # Test the failure: One terminal dies mid-phase
 ```
 

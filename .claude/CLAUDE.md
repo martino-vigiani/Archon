@@ -172,12 +172,15 @@ Terminals report quality levels. Manager decides when to **AMPLIFY** (push highe
 | `task_queue.py` | Flow-based work management |
 | `report_manager.py` | Quality gradient tracking |
 | `message_bus.py` | Inter-terminal negotiation |
+| `config.py` | Configuration and terminal definitions |
+| `cli_display.py` | Colors, terminal badges, quality bars |
 | `dashboard.py` | FastAPI web UI at localhost:8420 |
 | `manager_chat.py` | Interactive chat REPL |
 | `sync_manager.py` | Heartbeat coordination |
 | `contract_manager.py` | Interface negotiation |
 | `manager_intelligence.py` | Intervention decisions |
 | `validator.py` | Continuous validation |
+| `logger.py` | Event logging system |
 
 ---
 
@@ -228,7 +231,7 @@ This project uses a **maximally agentic** approach:
 
 | Domain | Subagent |
 |--------|----------|
-| Advanced Testing | `testing-genius` |
+| Advanced Testing | `test-genius` |
 
 ### Documentation/Strategy
 

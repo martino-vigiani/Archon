@@ -41,11 +41,14 @@ Apps/
 SpeedTest/
 design-system/
 
-# Test files
-fibonacci.py
-hello_world.py
-test_*.py
-monitor.sh
+# Test files (root only)
+/fibonacci.py
+/hello_world.py
+/test_hello_world.py
+/monitor.sh
+
+# Output
+output/
 
 # Claude settings overrides (personal)
 .claude/settings.local.json

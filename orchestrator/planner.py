@@ -408,7 +408,7 @@ class Planner:
         if "direction" in goal_lower or "scope" in goal_lower:
             return ["product-thinker"]
         if "quality" in goal_lower or "test" in goal_lower:
-            return ["testing-genius"]
+            return ["test-genius"]
 
         return []
 
@@ -512,7 +512,7 @@ See templates/terminal_prompts/t5_qa.md for Phase 0 instructions.""",
                 priority="high",
                 dependencies=[],
                 phase=0,
-                required_subagents=["testing-genius"],
+                required_subagents=["test-genius"],
             ))
 
         # PHASE 1: All start immediately, NO dependencies
@@ -620,7 +620,7 @@ Do NOT mark complete until all tests pass.""",
                 priority="critical",
                 dependencies=["Integrate T1 interfaces with T2 implementations"],
                 phase=3,
-                required_subagents=["testing-genius"],
+                required_subagents=["test-genius"],
             ))
 
             tasks.append(PlannedTask(
@@ -636,7 +636,7 @@ Do NOT mark complete until validation passes.""",
                 priority="high",
                 dependencies=["Run all tests and verify build"],
                 phase=3,
-                required_subagents=["testing-genius"],
+                required_subagents=["test-genius"],
             ))
 
         tasks.append(PlannedTask(

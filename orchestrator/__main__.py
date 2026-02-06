@@ -3,13 +3,11 @@ Entry point for the Archon Orchestrator.
 
 Usage:
     python -m orchestrator "Create an iOS app for habit tracking"
-    python -m orchestrator --verbose "Build a REST API with authentication"
-    python -m orchestrator --dry-run "Build a todo app"  # Plan only, don't execute
-    python -m orchestrator --continuous "Start working"  # Keep asking for new tasks
-    python -m orchestrator --dashboard "Create app"  # Also start the web dashboard
-    python -m orchestrator --project Apps/SpeedTest "Add history feature"  # Work on existing project
-    python -m orchestrator --resume  # Resume last interrupted task
-    python -m orchestrator --organic "Build app"  # Organic flow model (default)
+    python -m orchestrator --dashboard "Build a full-stack app"
+    python -m orchestrator --chat --dashboard "Create a meditation app"
+    python -m orchestrator --dry-run "Build a REST API"
+    python -m orchestrator --project ./Apps/MyApp "Add dark mode"
+    python -m orchestrator --resume
 """
 
 import argparse
@@ -17,6 +15,7 @@ import asyncio
 import json
 import subprocess
 import sys
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +33,10 @@ from .cli_display import (
     quality_bar,
     quality_label,
     get_terminal_badge,
+    get_terminal_name,
+    get_terminal_color,
+    format_duration,
+    print_separator,
     TerminalStatus,
     TERMINAL_PERSONALITIES,
 )
@@ -47,22 +50,21 @@ def parse_args() -> argparse.Namespace:
         prog="orchestrator",
         description="Archon - Organic Multi-Agent Orchestrator. Work flows. Quality emerges.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python -m orchestrator "Create an iOS habit tracking app"
-  python -m orchestrator --dry-run "Build a REST API"
-  python -m orchestrator --dashboard "Build full stack app"
-  python -m orchestrator --chat "Create app"          # Interactive manager chat
-  python -m orchestrator --quality-threshold 0.9 "Build MVP"
-  python -m orchestrator --project Apps/MyApp "Add dark mode"
-  python -m orchestrator --resume                     # Resume last session
+        epilog="""examples:
+  %(prog)s "Create an iOS habit tracking app"
+  %(prog)s --dashboard "Build a full-stack app"
+  %(prog)s --chat --dashboard "Create a meditation app"
+  %(prog)s --dry-run "Build a REST API"
+  %(prog)s --project ./Apps/MyApp "Add dark mode"
+  %(prog)s --no-testing "Quick prototype"
+  %(prog)s --resume
 
-Terminal Personalities:
-  T1 Craftsman   - UI/UX, every pixel matters
-  T2 Architect   - Backend, foundation that endures
-  T3 Narrator    - Documentation, clarity illuminates
-  T4 Strategist  - Product, vision guides direction
-  T5 Skeptic     - QA/Testing, trust but verify
+terminals:
+  T1 Craftsman   UI/UX         "Every pixel matters"
+  T2 Architect   Backend       "Foundation that endures"
+  T3 Narrator    Documentation "Clarity illuminates"
+  T4 Strategist  Product       "Vision guides direction"
+  T5 Skeptic     QA/Testing    "Trust but verify"
         """,
     )
 
@@ -77,14 +79,13 @@ Terminal Personalities:
     parser.add_argument(
         "-v", "--verbose",
         action="store_true",
-        default=True,
-        help="Enable verbose output (default: True)",
+        help="Enable verbose output with detailed flow information",
     )
 
     parser.add_argument(
         "-q", "--quiet",
         action="store_true",
-        help="Disable verbose output",
+        help="Minimal output (errors and final summary only)",
     )
 
     parser.add_argument(
@@ -162,13 +163,6 @@ Terminal Personalities:
     )
 
     # Organic flow model flags
-    parser.add_argument(
-        "--organic",
-        action="store_true",
-        default=True,
-        help="Use organic flow model (default: True)",
-    )
-
     parser.add_argument(
         "--quality-threshold",
         type=float,
@@ -509,25 +503,18 @@ def get_project_context_for_planner(project_path: Path) -> str:
 def print_plan(plan) -> None:
     """Pretty print a task plan with colors."""
     print()
-    print(c("=" * 60, Colors.BRIGHT_CYAN))
+    print_separator("=", 60, Colors.BRIGHT_CYAN, indent=2)
     print(c("  TASK PLAN", Colors.BOLD, Colors.BRIGHT_WHITE))
-    print(c("=" * 60, Colors.BRIGHT_CYAN))
+    print_separator("=", 60, Colors.BRIGHT_CYAN, indent=2)
     print()
     print(f"  {c('Summary:', Colors.BOLD)} {plan.summary}")
     print()
     print(f"  {c(f'Tasks ({len(plan.tasks)}):', Colors.BOLD, Colors.BRIGHT_YELLOW)}")
-    print(c("  " + "-" * 40, Colors.DIM))
-
-    terminal_colors = {
-        "t1": Colors.BRIGHT_CYAN,     # UI/UX
-        "t2": Colors.BRIGHT_GREEN,    # Features
-        "t3": Colors.BRIGHT_MAGENTA,  # Docs
-        "t4": Colors.BRIGHT_YELLOW,   # Strategy
-    }
+    print_separator("-", 40, Colors.DIM, indent=2)
 
     for i, task in enumerate(plan.tasks, 1):
         deps = f" {c(f'(depends on: {', '.join(task.dependencies)})', Colors.DIM)}" if task.dependencies else ""
-        term_color = terminal_colors.get(task.terminal, Colors.WHITE)
+        term_color = get_terminal_color(task.terminal)
 
         print()
         print(f"  {c(str(i) + '.', Colors.BOLD)} [{c(task.terminal.upper(), term_color)}] {c(task.title, Colors.WHITE)}")
@@ -536,7 +523,7 @@ def print_plan(plan) -> None:
         print(f"     {c(desc_preview, Colors.DIM)}")
 
     print()
-    print(c("=" * 60, Colors.BRIGHT_CYAN))
+    print_separator("=", 60, Colors.BRIGHT_CYAN, indent=2)
 
 
 # ============================================================================
@@ -548,9 +535,9 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
     duration = (end_time - start_time).total_seconds()
 
     print()
-    print(c("=" * 60, Colors.BRIGHT_CYAN))
+    print_separator("=", 60, Colors.BRIGHT_CYAN, indent=2)
     print(c("  EXECUTION SUMMARY", Colors.BOLD, Colors.BRIGHT_WHITE))
-    print(c("=" * 60, Colors.BRIGHT_CYAN))
+    print_separator("=", 60, Colors.BRIGHT_CYAN, indent=2)
     print()
 
     # Status
@@ -561,10 +548,8 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
 
     # Time stats
     print(c("  Time", Colors.BOLD, Colors.BRIGHT_CYAN))
-    print(c("  " + "-" * 25, Colors.DIM))
-    minutes = int(duration // 60)
-    seconds = int(duration % 60)
-    time_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+    print_separator("-", 25, Colors.DIM, indent=2)
+    time_str = format_duration(duration)
     print(f"    Total Duration:    {c(time_str, Colors.BRIGHT_WHITE)}")
     print(f"    Started:           {c(start_time.strftime('%H:%M:%S'), Colors.DIM)}")
     print(f"    Finished:          {c(end_time.strftime('%H:%M:%S'), Colors.DIM)}")
@@ -573,7 +558,7 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
     # Task stats
     tasks = result.get("tasks", {})
     print(c("  Tasks", Colors.BOLD, Colors.BRIGHT_CYAN))
-    print(c("  " + "-" * 25, Colors.DIM))
+    print_separator("-", 25, Colors.DIM, indent=2)
     print(f"    Total:             {c(str(tasks.get('total', 0)), Colors.BRIGHT_WHITE)}")
     print(f"    Completed:         {c(str(tasks.get('completed', 0)), Colors.BRIGHT_GREEN)}")
     print(f"    Failed:            {c(str(tasks.get('failed', 0)), Colors.BRIGHT_RED if tasks.get('failed', 0) > 0 else Colors.DIM)}")
@@ -598,26 +583,13 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
 
     if terminal_stats:
         print(c("  Tasks per Terminal", Colors.BOLD, Colors.BRIGHT_CYAN))
-        print(c("  " + "-" * 25, Colors.DIM))
-
-        terminal_names = {
-            "t1": "UI/UX",
-            "t2": "Features",
-            "t3": "Docs",
-            "t4": "Strategy",
-        }
-        terminal_colors = {
-            "t1": Colors.BRIGHT_CYAN,
-            "t2": Colors.BRIGHT_GREEN,
-            "t3": Colors.BRIGHT_MAGENTA,
-            "t4": Colors.BRIGHT_YELLOW,
-        }
+        print_separator("-", 25, Colors.DIM, indent=2)
 
         for term_id in ["t1", "t2", "t3", "t4", "t5"]:
             if term_id in terminal_stats:
                 stats = terminal_stats[term_id]
-                color = terminal_colors.get(term_id, Colors.WHITE)
-                name = terminal_names.get(term_id, term_id)
+                color = get_terminal_color(term_id)
+                name = get_terminal_name(term_id)
                 total = stats["completed"] + stats["failed"]
                 print(f"    {c(f'[{term_id.upper()}]', color)} {name}: {c(str(total), Colors.BRIGHT_WHITE)} tasks ({c(str(stats['completed']), Colors.BRIGHT_GREEN)} ok, {c(str(stats['failed']), Colors.BRIGHT_RED)} failed)")
         print()
@@ -744,7 +716,6 @@ def start_dashboard(config: Config):
         )
 
         # Wait a moment for it to start
-        import time
         time.sleep(1)
 
         # Open in browser
@@ -861,7 +832,9 @@ async def run_orchestrator(
 
     except asyncio.TimeoutError:
         print()
-        print(c(f"  [ERROR] Execution timed out after {timeout} seconds", Colors.BRIGHT_RED, Colors.BOLD))
+        time_str = format_duration(timeout)
+        print(c(f"  Error: Execution timed out after {time_str}.", Colors.BRIGHT_RED, Colors.BOLD))
+        print(c(f"  Increase with --timeout <seconds> (current: {timeout}s).", Colors.DIM))
         if project_path:
             update_project_status(config, "timeout")
         await orchestrator.shutdown()
@@ -1008,8 +981,12 @@ def main() -> int:
     if args.resume:
         state = load_project_state(config)
         if not state:
-            print(c("  [ERROR] No previous project state found.", Colors.BRIGHT_RED))
-            print(c("         Run a task with --project first, or provide a task directly.", Colors.DIM))
+            print(c("  Error: No previous session to resume.", Colors.BRIGHT_RED))
+            print()
+            print(c("  To start a new session:", Colors.DIM))
+            print(c('    python -m orchestrator "Your task here"', Colors.BRIGHT_WHITE))
+            print(c("  To work on an existing project:", Colors.DIM))
+            print(c('    python -m orchestrator --project ./path "Your task"', Colors.BRIGHT_WHITE))
             return 1
 
         # Restore state
@@ -1075,7 +1052,7 @@ def main() -> int:
         except Exception as e:
             print(c(f"  [WARNING] Could not load config: {e}", Colors.BRIGHT_YELLOW))
 
-    verbose = args.verbose and not args.quiet
+    verbose = not args.quiet
 
     # Start dashboard if requested
     dashboard_process = None
@@ -1093,8 +1070,12 @@ def main() -> int:
         task = args.task
 
     if not task:
-        print(c("  [ERROR] No task provided. Use: python -m orchestrator \"Your task\"", Colors.BRIGHT_RED))
-        print(c("         Or use --resume to continue a previous session.", Colors.DIM))
+        print(c("  Error: No task provided.", Colors.BRIGHT_RED))
+        print()
+        print(c("  Usage:", Colors.DIM))
+        print(c('    python -m orchestrator "Create an iOS app for habit tracking"', Colors.BRIGHT_WHITE))
+        print(c('    python -m orchestrator --resume           # resume last session', Colors.BRIGHT_WHITE))
+        print(c('    python -m orchestrator --help             # see all options', Colors.BRIGHT_WHITE))
         return 1
 
     print(f"  {c('Task:', Colors.BOLD)} {task}")

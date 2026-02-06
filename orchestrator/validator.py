@@ -5,6 +5,7 @@ Provides validation logic for the T5 terminal to continuously check
 build status, run tests, validate contracts, and detect file conflicts.
 """
 
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 from .config import Config
-from .contract_manager import Contract
+from .contract_manager import Contract, ContractStatus
 
 
 BuildStatus = Literal["success", "failed", "not_applicable"]
@@ -281,23 +282,17 @@ class Validator:
         for contract in contracts:
             issues = []
 
-            # Check definition is not empty
-            if not contract.definition:
-                issues.append("Contract definition is empty")
+            # Check negotiation history is not empty (replaces old definition check)
+            if not contract.history:
+                issues.append("Contract has no negotiation history")
 
             # Check if implemented status has implementer
-            if contract.status in ["implemented", "verified"] and not contract.implemented_by:
+            if contract.status in (ContractStatus.IMPLEMENTED, ContractStatus.VERIFIED) and not contract.implementer:
                 issues.append("Contract marked as implemented but no implementer specified")
 
-            # Check definition structure
-            if isinstance(contract.definition, dict):
-                # For typical contracts, expect some kind of structure
-                if not any(
-                    key in contract.definition for key in ["fields", "methods", "endpoints", "schema"]
-                ):
-                    issues.append(
-                        "Contract definition should include 'fields', 'methods', 'endpoints', or 'schema'"
-                    )
+            # Check contract has a name
+            if not contract.name:
+                issues.append("Contract name is empty")
 
             validations.append(
                 ContractValidation(
@@ -437,8 +432,6 @@ class Validator:
         # Parse Swift test output
         if "Test Suite" in combined:
             # Swift format: "Executed 5 tests, with 0 failures"
-            import re
-
             match = re.search(r"Executed (\d+) tests?, with (\d+) failures?", combined)
             if match:
                 result.tests_run = int(match.group(1))
@@ -447,8 +440,6 @@ class Validator:
 
         # Parse pytest output
         elif "passed" in combined or "failed" in combined:
-            import re
-
             # pytest format: "5 passed, 2 failed in 1.23s"
             match = re.search(r"(\d+) passed", combined)
             if match:
@@ -466,8 +457,6 @@ class Validator:
 
         # Parse npm test output (often uses Jest)
         elif "Tests:" in combined:
-            import re
-
             match = re.search(r"Tests:\s+(\d+) passed", combined)
             if match:
                 result.tests_passed = int(match.group(1))
@@ -489,8 +478,6 @@ class Validator:
         failed_tests = []
 
         # Common patterns for failed test names
-        import re
-
         patterns = [
             r"FAIL:\s+(.+)",  # pytest, unittest
             r"✗\s+(.+)",  # Swift

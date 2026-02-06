@@ -1,711 +1,483 @@
-# Archon Architecture
+# Archon 2.0 Architecture Overview
 
-> Technical deep-dive into the Archon multi-agent orchestration system.
+> The Organic Multi-Agent Development System
 
 ---
 
-## System Overview
+## Philosophy: The Garden Model
 
-Archon is built on a **hub-and-spoke architecture** with **3-phase parallel execution**. A central Python orchestrator coordinates 4 specialized Claude Code terminals that work **simultaneously** from the start, communicating via interface contracts.
+Archon 2.0 reimagines multi-agent orchestration through the lens of **organic growth** rather than mechanical coordination. Instead of treating AI terminals as machines executing instructions, we model them as **craftspeople in a collaborative workshop**, with Archon serving as the **Gardener** who cultivates their work.
 
-### Key Innovation: Phase-Based Parallel Execution
+### The Gardener Mindset
 
-Unlike sequential systems, Archon runs all terminals immediately:
+Traditional orchestrators work like factory managers: assign tasks, wait for completion, check results. Archon works like a gardener:
 
-```
-PHASE 1: BUILD (All terminals start immediately - NO blocking)
-  T1 ──→ UI with mock data + interface contracts
-  T2 ──→ Architecture, models, services + tests
-  T3 ──→ Documentation structure
-  T4 ──→ MVP scope (broadcasts in 2 min)
-              ↓
-PHASE 2: INTEGRATE (When Phase 1 completes)
-  T1 ──→ Connects UI to T2's real APIs
-  T2 ──→ Matches T1's interface contracts
-              ↓
-PHASE 3: TEST & VERIFY (Final)
-  T1 ──→ swift build verification
-  T2 ──→ swift test, fix failures
-  T3 ──→ Finalize docs
-              ↓
-        ✅ Working Software
-```
-
-Each terminal operates as an independent subprocess with its own context and specialization.
+- **Observe** the garden constantly (heartbeats, reports, quality levels)
+- **Nurture** what's growing well (AMPLIFY)
+- **Guide** what's drifting (REDIRECT)
+- **Mediate** conflicts between plants competing for resources (MEDIATE)
+- **Plant** new seeds where gaps appear (INJECT)
+- **Prune** overgrowth that would tangle the garden (PRUNE)
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │           ORCHESTRATOR (Hub)            │
-                    │                                         │
-                    │  ┌─────────┐  ┌──────────┐  ┌────────┐  │
-                    │  │ Planner │  │TaskQueue │  │ Logger │  │
-                    │  └────┬────┘  └────┬─────┘  └────┬───┘  │
-                    │       │            │             │      │
-                    │  ┌────┴────────────┴─────────────┴───┐  │
-                    │  │           Message Bus             │  │
-                    │  └───────────────┬───────────────────┘  │
-                    └──────────────────┼──────────────────────┘
-                                       │
-           ┌───────────────┬───────────┴───────────┬───────────────┐
-           │               │                       │               │
-           ▼               ▼                       ▼               ▼
-    ┌─────────────┐ ┌─────────────┐       ┌─────────────┐ ┌─────────────┐
-    │ Terminal T1 │ │ Terminal T2 │       │ Terminal T3 │ │ Terminal T4 │
-    │   UI/UX     │ │  Features   │       │    Docs     │ │  Strategy   │
-    │             │ │             │       │             │ │             │
-    │ 4 subagents │ │ 6 subagents │       │ 2 subagents │ │ 2 subagents │
-    └──────┬──────┘ └──────┬──────┘       └──────┬──────┘ └──────┬──────┘
-           │               │                     │               │
-           └───────────────┴──────────┬──────────┴───────────────┘
-                                      │
-                                      ▼
-                           ┌─────────────────────┐
-                           │    .orchestra/      │
-                           │   (File System)     │
-                           │                     │
-                           │ messages/ tasks/    │
-                           │ artifacts/ events/  │
-                           └─────────────────────┘
+                    ┌─────────────────────────────┐
+                    │   ARCHON                    │
+                    │   The Gardener              │
+                    └──────────────┬──────────────┘
+                                   │
+          ┌────────────────────────┼────────────────────────┐
+          │                        │                        │
+          ▼                        ▼                        ▼
+    ┌───────────┐            ┌───────────┐            ┌───────────┐
+    │ Contracts │            │  Quality  │            │ Messages  │
+    └─────┬─────┘            └─────┬─────┘            └─────┬─────┘
+          │                        │                        │
+    ══════╧════════════════════════╧════════════════════════╧══════
+                     COLLABORATION LAYER
+    ═══════════════════════════════════════════════════════════════
+          │              │         │         │              │
+     ╭────▼────╮    ╭────▼────╮ ╭──▼──╮ ╭────▼────╮    ╭────▼────╮
+     │ [✧] T1 │◄──►│ [▣] T2 │◄►│[♟]T4│◄►│ [✎] T3 │◄──►│ [?] T5 │
+     │Craftsman│    │Architect│ │Strat│ │Narrator │    │ Skeptic │
+     ╰─────────╯    ╰─────────╯ ╰─────╯ ╰─────────╯    ╰─────────╯
 ```
 
 ---
 
-## Core Components
+## The Five Craftspeople
 
-### 1. Orchestrator (`orchestrator.py`)
+Each terminal embodies a distinct persona with its own philosophy and expertise.
 
-The central coordinator managing the entire execution lifecycle.
+### [✧] T1 - The Craftsman (UI/UX)
 
-**Responsibilities:**
-- Initialize and configure terminals
-- Receive high-level tasks from user
-- Invoke Planner for task decomposition
-- Distribute tasks via TaskQueue
-- Monitor terminal progress
-- Handle retries and failures
-- Maintain execution state
+**Philosophy:** *"Beauty with purpose. Build first, integrate later."*
 
-**Key Class: `Orchestrator`**
+The Craftsman focuses on what users see and touch. They don't wait for backend systems to be ready - they create interfaces with mock data and define clear contracts for what they need from other terminals.
 
-```python
-class Orchestrator:
-    def __init__(self, config: Config):
-        self.config = config
-        self.planner = Planner(config)
-        self.task_queue = TaskQueue(config)
-        self.message_bus = MessageBus(config)
-        self.terminals: dict[TerminalID, Terminal] = {}
-        self.logger = EventLogger(config)
+**Expertise:**
+- SwiftUI, React, HTML/CSS
+- Design systems and tokens
+- User experience patterns
+- Visual polish and animations
 
-    async def run(self, task: str) -> ExecutionResult:
-        """Main execution loop."""
-        # 1. Plan the task
-        plan = await self.planner.create_plan(task)
+**Working Style:**
+- Creates UI components independently
+- Documents interface expectations as contracts
+- Iterates rapidly on visual feedback
+- Quality gate: Users can interact with every feature
 
-        # 2. Add tasks to queue
-        for subtask in plan.tasks:
-            self.task_queue.add(subtask)
+### [▣] T2 - The Architect (Backend/Features)
 
-        # 3. Execute until complete
-        while not self.task_queue.is_complete():
-            await self._execute_ready_tasks()
-            await self._check_terminal_status()
-            await asyncio.sleep(POLL_INTERVAL)
+**Philosophy:** *"Strong foundations support tall buildings."*
 
-        return self._compile_results()
-```
+The Architect builds the systems that power the application. They create robust, tested foundations that other terminals can rely on. Every piece of infrastructure comes with tests.
 
-**State Machine:**
+**Expertise:**
+- System architecture (MVVM, Clean Architecture)
+- Data models and persistence
+- API design and implementation
+- Testing strategies and TDD
 
-```
-IDLE ──start()──▶ PLANNING ──plan_ready──▶ EXECUTING
-                                               │
-                        ┌──────────────────────┤
-                        │                      │
-                        ▼                      ▼
-                   RETRYING              COMPLETED
-                        │                      │
-                        └──────▶ FAILED ◀──────┘
-```
+**Working Style:**
+- Builds with tests from the start
+- Creates interfaces that match T1's contracts
+- Documents technical decisions
+- Quality gate: All tests pass, APIs are documented
 
----
+### [✎] T3 - The Narrator (Documentation)
 
-### 2. Planner (`planner.py`)
+**Philosophy:** *"Every great system has a story. Tell it well."*
 
-Decomposes high-level tasks into executable subtasks.
+The Narrator captures the evolving understanding of the system. They don't write documentation after the fact - they document as the system grows, creating a living record.
 
-**Strategy:**
-1. Send task to Claude with planning prompt
-2. Receive JSON plan with subtasks
-3. Assign terminals based on keywords
-4. Define dependencies between tasks
-5. Return structured plan
+**Expertise:**
+- Technical writing
+- API documentation
+- User guides and tutorials
+- Architecture decision records
 
-**Plan Output Format:**
+**Working Style:**
+- Observes other terminals' work
+- Documents patterns as they emerge
+- Keeps README and guides current
+- Quality gate: New users can understand the system
 
-```python
-@dataclass
-class Plan:
-    summary: str
-    tasks: list[PlannedTask]
-    execution_order: list[str]
+### [♟] T4 - The Strategist (Product Vision)
 
-@dataclass
-class PlannedTask:
-    id: str
-    title: str
-    description: str
-    terminal: TerminalID
-    priority: Priority
-    dependencies: list[str]
-```
+**Philosophy:** *"See the whole board. Guide, don't block."*
 
-**Keyword Routing Algorithm:**
+The Strategist holds the product vision and keeps everyone aligned. They broadcast direction early and often but never become a bottleneck. Their job is to illuminate the path, not to walk it for others.
 
-```python
-TERMINAL_KEYWORDS = {
-    "t1": ["ui", "view", "component", "style", "design", "layout", "button"],
-    "t2": ["api", "database", "model", "service", "auth", "logic", "backend"],
-    "t3": ["readme", "docs", "documentation", "guide", "tutorial", "changelog"],
-    "t4": ["product", "feature", "mvp", "pricing", "strategy", "roadmap"]
-}
+**Expertise:**
+- MVP definition and scope
+- Feature prioritization
+- Product roadmaps
+- Business model alignment
 
-def route_task(description: str) -> TerminalID:
-    scores = {t: 0 for t in TERMINAL_KEYWORDS}
-    words = description.lower().split()
+**Working Style:**
+- Broadcasts MVP scope within first 2 minutes
+- Answers strategic questions asynchronously
+- Mediates scope disagreements
+- Quality gate: All work aligns with MVP goals
 
-    for terminal, keywords in TERMINAL_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword in words:
-                scores[terminal] += 1
+### [?] T5 - The Skeptic (QA/Testing)
 
-    return max(scores, key=scores.get) or "t2"  # Default to T2
-```
+**Philosophy:** *"Trust but verify. Question everything."*
+
+The Skeptic is the quality guardian. They don't wait until the end to test - they validate continuously throughout development, catching issues early when they're cheap to fix.
+
+**Expertise:**
+- Build validation
+- Integration testing
+- Contract verification
+- Quality gate enforcement
+
+**Working Style:**
+- Runs build checks every 2 minutes during Phase 1
+- Verifies contracts match implementations
+- Reports issues to responsible terminals
+- Quality gate: Build passes, contracts verified, tests green
 
 ---
 
-### 3. Task Queue (`task_queue.py`)
+## The Quality Gradient
 
-Manages task lifecycle and persistence.
-
-**Task States:**
+Work in Archon flows through a **Quality Gradient** - a continuous spectrum from initial sketch to production-ready excellence.
 
 ```
-                    ┌─────────┐
-                    │ PENDING │
-                    └────┬────┘
-                         │
-                    assign_to_terminal()
-                         │
-                         ▼
-                  ┌─────────────┐
-                  │ IN_PROGRESS │
-                  └──────┬──────┘
-                         │
-           ┌─────────────┼─────────────┐
-           │             │             │
-      complete()     fail()       timeout()
-           │             │             │
-           ▼             ▼             ▼
-    ┌───────────┐  ┌─────────┐  ┌─────────────┐
-    │ COMPLETED │  │ FAILED  │  │   RETRYING  │
-    └───────────┘  └─────────┘  └─────────────┘
+Quality Gradient
+0.0 ═══════════════════════════════════════════════════════════════ 1.0
+│ Sketch │  Draft  │ Working │  Solid  │ Polished │ Excellent │
+   0.2       0.4       0.5       0.7        0.85        1.0
 ```
 
-**Phase-Based Execution:**
+### Quality Levels
 
-Tasks now have a `phase` field (1, 2, or 3). Phase 1 tasks have NO blocking dependencies - they all start immediately:
+| Level | Value | Description | Example |
+|-------|-------|-------------|---------|
+| **Sketch** | 0.2 | Initial structure, placeholders | Empty view with TODO comments |
+| **Draft** | 0.4 | Core functionality roughed in | View renders but lacks styling |
+| **Working** | 0.5 | Feature functions correctly | View works with mock data |
+| **Solid** | 0.7 | Well-structured, handles edge cases | View handles loading/error states |
+| **Polished** | 0.85 | Clean code, good UX | View is responsive, accessible |
+| **Excellent** | 1.0 | Production-ready perfection | View is tested, documented, optimized |
 
-```python
-def is_ready(self, completed_task_ids: set[str], current_phase: int = 1) -> bool:
-    """Check if task is ready to execute."""
-    # Phase 1 tasks are ALWAYS ready - parallel execution
-    if self.phase == 1:
-        return True
+### The Ratchet Principle
 
-    # Phase 2+ tasks wait for their phase
-    if self.phase > current_phase:
-        return False
+Quality only moves forward. Once work reaches a quality level, it should never regress. This is enforced through:
 
-    # Once phase is reached, check soft dependencies
-    return all(dep in completed_task_ids for dep in self.dependencies)
-
-def get_current_phase(self) -> int:
-    """Determine execution phase based on completed tasks."""
-    # Phase 2 when ALL Phase 1 tasks complete
-    # Phase 3 when ALL Phase 2 tasks complete
-    ...
-```
-
-**Persistence:**
-
-Tasks are persisted to JSON files for crash recovery:
-- `.orchestra/tasks/pending.json`
-- `.orchestra/tasks/in_progress.json`
-- `.orchestra/tasks/completed.json`
+1. **Continuous validation** - T5 monitors quality constantly
+2. **Contract verification** - Implementations must match contracts
+3. **Build gates** - Code must compile at all times
+4. **Test requirements** - Tests must pass before proceeding
 
 ---
 
-### 4. Message Bus (`message_bus.py`)
+## Manager Interventions
 
-Enables communication between terminals via filesystem.
+The Gardener (Archon) has five intervention types to nurture the development process.
 
-**Why File-Based IPC?**
-- **Inspectable**: Messages are human-readable markdown
-- **Debuggable**: Easy to trace communication flow
-- **Persistent**: Survives crashes and restarts
-- **Simple**: No socket management or serialization
-
-**Message Types:**
-
-| Type | Use Case |
-|------|----------|
-| `request` | Ask another terminal for help |
-| `response` | Reply to a request |
-| `broadcast` | Announce to all terminals |
-| `status` | Progress update |
-| `artifact` | Share generated file |
-
-**Message Format (Markdown):**
-
-```markdown
----
-## Message: msg_20250131180000_0001
-**From:** t2
-**To:** t1
-**Type:** artifact
-**Time:** 2025-01-31T18:00:00.000000
-
-The data models are ready. Please use these for the UI components.
-
-**Artifact:** `/path/to/Models.swift`
-**Description:** SwiftData models for habits, categories, and reminders
----
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  ARCHON INTERVENTION TYPES                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   ◉ AMPLIFY    When work flourishes, give it more resources        │
+│   ○ REDIRECT   When work drifts, guide it back on course           │
+│   ◈ MEDIATE    When terminals conflict, facilitate agreement       │
+│   ◆ INJECT     When gaps appear, plant new seeds of work           │
+│   ✂ PRUNE      When work tangles, cut away the excess              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Polling Mechanism:**
+### ◉ AMPLIFY
 
-Each terminal polls its inbox file every 2 seconds:
+**When:** A terminal's work is flourishing and others could benefit from more of it.
 
-```python
-async def poll_inbox(self, terminal_id: TerminalID):
-    inbox_path = self.config.messages_dir / f"{terminal_id}_inbox.md"
-    while True:
-        messages = self._parse_inbox(inbox_path)
-        for msg in messages:
-            if not msg.read:
-                await self._handle_message(msg)
-                self._mark_read(msg)
-        await asyncio.sleep(2)
-```
+**Example:** T2's architecture is excellent and T1 is waiting for more APIs.
 
----
+**Action:** Extend T2's scope, add related tasks, broadcast availability.
 
-### 5. Terminal (`terminal.py`)
+### ○ REDIRECT
 
-Executes tasks via Claude Code CLI subprocess.
+**When:** A terminal has drifted from the MVP scope or is working on low-priority features.
 
-**Execution Model:**
+**Example:** T1 is building dark mode when the core counter UI isn't done.
 
-```python
-class Terminal:
-    def __init__(self, config: TerminalConfig):
-        self.id = config.id
-        self.role = config.role
-        self.subagents = config.subagents
-        self.state = TerminalState.IDLE
+**Action:** Send clarifying message, reprioritize task queue, reference MVP scope.
 
-    async def execute(self, task: Task) -> TerminalOutput:
-        self.state = TerminalState.BUSY
+### ◈ MEDIATE
 
-        # Build prompt with system instructions and task
-        prompt = self._build_prompt(task)
+**When:** Two terminals disagree on an interface contract or approach.
 
-        # Execute via Claude Code CLI
-        result = await self._run_claude(prompt)
+**Example:** T1 wants required `avatarURL`, T2 says it can't guarantee URLs.
 
-        self.state = TerminalState.IDLE
-        return result
+**Action:** Analyze both perspectives, propose compromise, create amended contract.
 
-    async def _run_claude(self, prompt: str) -> str:
-        proc = await asyncio.create_subprocess_exec(
-            "claude", "--print", "-p", prompt,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await proc.communicate()
-        return stdout.decode()
-```
+### ◆ INJECT
 
-**Subprocess Isolation:**
+**When:** A gap in the work is blocking progress or a critical piece is missing.
 
-Each terminal runs in its own subprocess with:
-- Separate context window
-- Isolated tool access
-- Independent error handling
-- Own retry logic
+**Example:** T5 needs logging infrastructure that no one was assigned to build.
+
+**Action:** Create new task, assign to appropriate terminal, set priority.
+
+### ✂ PRUNE
+
+**When:** Work is becoming over-engineered or scope is expanding beyond MVP.
+
+**Example:** T3 is writing a 50-page architecture guide when a simple README is needed.
+
+**Action:** Cancel excessive tasks, clarify minimal requirements, refocus efforts.
 
 ---
 
-### 6. Dashboard (`dashboard.py`)
+## Contract Negotiation
 
-Real-time web UI built with FastAPI.
-
-**Endpoints:**
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Serve HTML dashboard |
-| `/api/status` | GET | Orchestrator status |
-| `/api/tasks` | GET | All tasks with status |
-| `/api/tasks/{id}` | GET | Single task details |
-| `/api/messages` | GET | Terminal inboxes |
-| `/api/terminals` | GET | Terminal configurations |
-| `/api/artifacts` | GET | Generated files |
-| `/api/events` | GET | Recent events |
-| `/ws` | WS | Real-time updates |
-
-**WebSocket Protocol:**
-
-```javascript
-// Client connects
-ws = new WebSocket("ws://localhost:8420/ws");
-
-// Server pushes updates every 2 seconds
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    updateUI(data);
-};
-
-// Data format
-{
-    "status": "executing",
-    "terminals": {
-        "t1": { "state": "busy", "current_task": "..." },
-        ...
-    },
-    "tasks": { "pending": 2, "in_progress": 1, "completed": 3 },
-    "recent_events": [...]
-}
-```
-
----
-
-## Data Flow
-
-### Task Execution Flow (3-Phase Parallel)
+Terminals communicate expectations through **Interface Contracts** - formal agreements about what one terminal needs from another.
 
 ```
-1. User submits: "Create habit tracker app"
-                    │
-                    ▼
-2. Orchestrator receives task
-                    │
-                    ▼
-3. Planner creates PARALLEL plan:
-   PHASE 1 (no dependencies - all start immediately):
-   ├── T4: Define MVP scope (broadcasts direction in 2 min)
-   ├── T2: Build architecture and models (with tests)
-   ├── T1: Create UI with mock data (+ interface contracts)
-   └── T3: Create documentation structure
-
-   PHASE 2 (integration):
-   ├── T1: Connect UI to T2's real APIs
-   └── T2: Match T1's interface contracts
-
-   PHASE 3 (testing):
-   ├── T1: Verify UI compilation
-   ├── T2: Run all tests, fix failures
-   └── T3: Finalize documentation
-                    │
-                    ▼
-4. TaskQueue adds tasks with PHASES (not blocking dependencies)
-                    │
-                    ▼
-5. PHASE 1: ALL terminals start immediately
-   ├── T4 broadcasts MVP direction (within 2 min)
-   ├── T2 builds foundation with tests
-   ├── T1 creates UI + documents interface contracts
-   └── T3 creates doc structure
-   (All working in parallel, reading each other's reports)
-                    │
-                    ▼
-6. PHASE 2: Integration (when Phase 1 completes)
-   ├── T1 reads T2's APIs from .orchestra/reports/t2/
-   ├── T2 reads T1's contracts from .orchestra/reports/t1/
-   └── Both adapt to match each other
-                    │
-                    ▼
-7. PHASE 3: Testing (when Phase 2 completes)
-   ├── T1 runs: swift build
-   ├── T2 runs: swift build && swift test
-   └── Any failures trigger auto-fix
-                    │
-                    ▼
-8. Orchestrator compiles results
-   └── Returns ExecutionResult (verified & tested)
+T1 Proposes ──► T2 Responds ──► T4 Mediates ──► Agreement ──► Implementation ──► T5 Verifies
 ```
 
----
+### Contract Lifecycle
 
-## Subagent System
+1. **PROPOSED** - T1 (or any terminal) documents what it needs
+2. **NEGOTIATING** - Receiving terminal reviews and responds
+3. **AGREED** - Both parties commit to the interface
+4. **IMPLEMENTED** - Providing terminal builds the agreed interface
+5. **VERIFIED** - T5 confirms implementation matches contract
 
-### Architecture
-
-Each subagent is a specialized prompt configuration:
-
-```yaml
-# .claude/agents/swiftui-crafter.yml
-name: swiftui-crafter
-model: opus           # Uses Claude Opus
-color: orange         # CLI color coding
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-
-description: |
-  Expert SwiftUI developer specializing in iOS/macOS UI.
-
-prompt: |
-  You are a senior SwiftUI specialist with expertise in:
-  - Modern SwiftUI (iOS 17+) views and modifiers
-  - State management (@State, @Binding, @Observable)
-  - Animations and transitions
-  - Accessibility (VoiceOver, Dynamic Type)
-  - Design system integration
-
-  Code Standards:
-  - Use Swift 5.9+ features
-  - Prefer composition over inheritance
-  - Document public APIs with ///
-  ...
-```
-
-### Model Assignment
-
-| Model | Use Case | Subagents |
-|-------|----------|-----------|
-| **Opus** | Complex reasoning, architecture | swift-architect, node-architect, python-architect, ml-engineer, product-thinker, monetization-expert, swiftui-crafter, react-crafter |
-| **Sonnet** | Focused tasks, documentation | html-stylist, design-system, swiftdata-expert, database-expert, tech-writer, marketing-strategist |
-
-### Invocation Pattern
-
-```python
-# Terminal invokes appropriate subagent
-def select_subagent(task: Task) -> str:
-    """Select best subagent based on task content."""
-    keywords = {
-        "swiftui-crafter": ["swiftui", "view", "ios", "component"],
-        "swift-architect": ["architecture", "mvvm", "structure"],
-        ...
-    }
-
-    for agent, words in keywords.items():
-        if any(w in task.description.lower() for w in words):
-            return agent
-
-    return self.default_agent
-```
-
----
-
-## File System Layout
-
-### Runtime State (`.orchestra/`)
-
-```
-.orchestra/
-├── messages/
-│   ├── t1_inbox.md          # T1's incoming messages
-│   ├── t2_inbox.md          # T2's incoming messages
-│   ├── t3_inbox.md          # T3's incoming messages
-│   ├── t4_inbox.md          # T4's incoming messages
-│   └── broadcast.md         # All-terminal broadcasts
-│
-├── tasks/
-│   ├── pending.json         # Tasks waiting to execute
-│   ├── in_progress.json     # Currently executing tasks
-│   └── completed.json       # Finished tasks
-│
-├── artifacts/
-│   ├── habit-tracker-prd.md
-│   ├── architecture.md
-│   └── ...
-│
-├── status.json              # Current orchestrator state
-├── events.json              # Event log (last 100)
-└── last_plan.json           # Most recent plan
-```
-
-### Configuration (`.claude/`)
-
-```
-.claude/
-├── CLAUDE.md                # Project instructions
-├── settings.json            # Permissions, hooks
-├── settings.local.json      # Local overrides (gitignored)
-└── agents/
-    ├── swiftui-crafter.yml
-    ├── react-crafter.yml
-    ├── html-stylist.yml
-    ├── design-system.yml
-    ├── swift-architect.yml
-    ├── node-architect.yml
-    ├── python-architect.yml
-    ├── swiftdata-expert.yml
-    ├── database-expert.yml
-    ├── ml-engineer.yml
-    ├── tech-writer.yml
-    ├── marketing-strategist.yml
-    ├── product-thinker.yml
-    └── monetization-expert.yml
-```
-
----
-
-## Error Handling
-
-### Retry Strategy
-
-```python
-MAX_RETRIES = 2
-RETRY_DELAYS = [5, 15, 30]  # seconds
-
-async def execute_with_retry(self, task: Task) -> TerminalOutput:
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            result = await self.execute(task)
-            if self._is_successful(result):
-                return result
-        except Exception as e:
-            self.logger.log_error(task, e, attempt)
-
-        if attempt < MAX_RETRIES:
-            await asyncio.sleep(RETRY_DELAYS[attempt])
-
-    return TerminalOutput(error=True, message="Max retries exceeded")
-```
-
-### Failure Modes
-
-| Failure | Detection | Recovery |
-|---------|-----------|----------|
-| Timeout | No output after N seconds | Retry with increased timeout |
-| CLI Error | Non-zero exit code | Retry with simplified prompt |
-| Parse Error | Invalid output format | Retry with explicit format instructions |
-| Dependency Failure | Upstream task failed | Skip or retry upstream first |
-
-### Graceful Shutdown
-
-```python
-def setup_signal_handlers(self):
-    signal.signal(signal.SIGINT, self._handle_shutdown)
-    signal.signal(signal.SIGTERM, self._handle_shutdown)
-
-def _handle_shutdown(self, signum, frame):
-    self.logger.log("Graceful shutdown initiated")
-
-    # Stop accepting new tasks
-    self.task_queue.pause()
-
-    # Wait for in-progress tasks
-    for terminal in self.terminals.values():
-        if terminal.state == TerminalState.BUSY:
-            terminal.wait_current_task()
-
-    # Persist state
-    self.task_queue.save()
-    self.message_bus.save()
-
-    sys.exit(0)
-```
-
----
-
-## Performance Considerations
-
-### Parallelism
-
-- Default: 4 terminals (T1-T4)
-- Configurable: 1-10 parallel terminals
-- Subagent parallelism: Up to 10 per terminal
-
-### Bottlenecks
-
-| Component | Bottleneck | Mitigation |
-|-----------|------------|------------|
-| Planner | Claude API latency | Cache plans for similar tasks |
-| File I/O | Message polling | Batched reads, 2s intervals |
-| Terminal | Subprocess overhead | Reuse processes when possible |
-| Dashboard | WebSocket broadcast | Throttle updates to 2s |
-
-### Memory Management
-
-- Event log limited to 100 entries
-- Artifacts referenced by path (not loaded in memory)
-- Task results summarized after completion
-
----
-
-## Security Model
-
-### Sandbox Boundaries
-
-- Terminals run in isolated subprocesses
-- Each terminal has defined tool access
-- No direct network access (except via tools)
-- File access limited to project directory
-
-### Denied Operations
+### Contract Example
 
 ```json
 {
-  "permissions": {
-    "deny": [
-      "Read .env files",
-      "Execute rm -rf",
-      "Access credentials",
-      "Modify system files"
+  "name": "UserDisplayData",
+  "status": "VERIFIED",
+  "defined_by": "t1",
+  "implemented_by": "t2",
+  "verified_by": "t5",
+  "interface": {
+    "type": "struct",
+    "fields": [
+      {"name": "id", "type": "UUID", "required": true},
+      {"name": "name", "type": "String", "required": true},
+      {"name": "avatarURL", "type": "URL?", "required": false}
     ]
-  }
+  },
+  "negotiation_history": [
+    "T1 proposed with required avatarURL",
+    "T2 responded: cannot guarantee URLs",
+    "T4 mediated: make avatarURL optional",
+    "Both agreed"
+  ]
 }
+```
+
+### Why Contracts Matter
+
+1. **No blocking** - Terminals don't wait for each other; they work against contracts
+2. **Clear expectations** - Mismatches are caught early
+3. **Accountability** - Each terminal knows what it committed to
+4. **Verification** - T5 can objectively verify compliance
+
+---
+
+## The Growth Phases
+
+Development flows through four organic phases.
+
+```
+PHASE 0: SEED                         PHASE 1: SPROUT
+┌─────────────────────┐               ┌─────────────────────┐
+│        ·            │               │        |            │
+│       /|\           │               │       /|\           │
+│        |            │               │      / | \          │
+│      -----          │               │     /  |  \         │
+│   [✧][▣][✎][♟][?]   │               │    T1 T2 T3 T4 T5   │
+│                     │               │    ██ ██ ██ ██ ██   │
+│  Contracts planted  │               │  All growing        │
+│  MVP scope defined  │               │  parallel           │
+└─────────────────────┘               └─────────────────────┘
+
+PHASE 2: BLOOM                        PHASE 3: HARVEST
+┌─────────────────────┐               ┌─────────────────────┐
+│       \|/           │               │        🌳           │
+│      --*--          │               │       /||\          │
+│       /|\           │               │      / || \         │
+│      / | \          │               │     /  ||  \        │
+│     T1═══T2         │               │   ████████████      │
+│     Integration     │               │   Working Software  │
+│     Contracts met   │               │   Tested & Verified │
+└─────────────────────┘               └─────────────────────┘
+```
+
+### Phase 0: SEED (Planning & Contracts)
+
+**Duration:** 2-5 minutes
+
+**Activities:**
+- T4 broadcasts MVP scope to all terminals
+- T1 creates interface contracts for T2
+- T5 sets up monitoring infrastructure
+- All terminals read the plan and prepare
+
+**Quality Target:** 0.2 (Sketch level contracts)
+
+**Exit Criteria:** MVP scope broadcast, initial contracts proposed
+
+### Phase 1: SPROUT (Parallel Build)
+
+**Duration:** 10-20 minutes
+
+**Activities:**
+- All terminals build in parallel
+- T1 creates UI with mock data
+- T2 builds architecture, models, tests
+- T3 creates documentation structure
+- T5 validates builds every 2 minutes
+
+**Quality Target:** 0.5 (Working level)
+
+**Exit Criteria:** All terminals have working artifacts, build passes
+
+### Phase 2: BLOOM (Integration)
+
+**Duration:** 5-10 minutes
+
+**Activities:**
+- T1 connects UI to T2's real APIs
+- T2 ensures implementations match contracts
+- T5 verifies contract compliance
+- T3 updates documentation with real examples
+
+**Quality Target:** 0.7 (Solid level)
+
+**Exit Criteria:** UI uses real data, all contracts verified
+
+### Phase 3: HARVEST (Test & Verify)
+
+**Duration:** 2-5 minutes
+
+**Activities:**
+- T5 runs full test suite
+- T1 verifies UI compilation and previews
+- T3 finalizes documentation
+- All quality gates must pass
+
+**Quality Target:** 0.85+ (Polished level)
+
+**Exit Criteria:** All tests pass, documentation complete, build verified
+
+---
+
+## Communication Patterns
+
+### Heartbeats
+
+Every terminal sends a heartbeat every 30 seconds:
+
+```json
+{
+  "terminal": "t1",
+  "status": "working",
+  "current_task": "Create ProfileView",
+  "progress": "60%",
+  "quality": 0.6,
+  "files_touched": ["Views/ProfileView.swift"],
+  "ready_artifacts": ["UserDisplayData interface"],
+  "waiting_for": null
+}
+```
+
+The Gardener reads these heartbeats to understand the garden's health and decide when to intervene.
+
+### Broadcasts
+
+System-wide messages visible to all terminals:
+
+```markdown
+## MVP Scope (from T4)
+
+Counter App v1.0:
+- Single counter display
+- Increment/decrement buttons
+- Reset button
+
+NOT in scope:
+- Multiple counters
+- Persistence
+- Themes
+```
+
+### Direct Messages
+
+Terminal-to-terminal communication:
+
+```markdown
+## From T1 to T2
+
+I need the Counter model to implement `Identifiable`.
+My view uses `ForEach(counters)` which requires it.
+
+Can you add this conformance?
 ```
 
 ---
 
-## Extensibility
+## Putting It All Together
 
-### Adding a New Subagent
+The organic model creates a development environment where:
 
-1. Create YAML definition in `.claude/agents/`
-2. Define model, tools, and system prompt
-3. Register in appropriate terminal configuration
-4. Update routing keywords
+1. **Terminals are autonomous** - They don't wait for permission or detailed instructions
+2. **Contracts enable parallelism** - Clear interfaces let everyone work simultaneously
+3. **Quality is continuous** - Not a final gate but a constant gradient
+4. **The Gardener nurtures** - Interventions help rather than control
+5. **Growth is natural** - From seed to harvest through organic phases
 
-### Custom Terminal Roles
+### Example: Building a Counter App
 
-1. Create new terminal prompt in `templates/terminal_prompts/`
-2. Define role-specific keywords
-3. Assign subagents to terminal
-4. Update config.py with new TerminalConfig
+```
+Phase 0 (2 min):
+  T4 broadcasts: "Counter with +/- buttons, reset, no persistence"
+  T1 proposes: CounterViewModel contract with increment/decrement methods
+  T5 sets up build monitoring
 
-### Plugin System (Roadmap)
+Phase 1 (15 min):
+  T1 builds CounterView with mock viewModel
+  T2 builds CounterViewModel with @Observable, implements contract
+  T3 creates README structure
+  T5 runs build checks (passes at minute 3, 5, 7...)
 
-Future support for:
-- Custom tool providers
-- External API integrations
-- Custom planning strategies
-- Third-party subagent libraries
+Phase 2 (8 min):
+  T1 swaps mock for real CounterViewModel
+  T2 confirms contract compliance
+  T5 verifies: "CounterViewModel matches T1's contract"
+
+Phase 3 (3 min):
+  T5 runs: swift build (pass), swift test (pass)
+  T3 completes documentation
+  Quality: 0.87 (Polished)
+
+Result: Working counter app in ~28 minutes
+```
 
 ---
 
-## References
+## Summary
 
-- [README](../README.md) - Quick start guide
-- [API Reference](./API_REFERENCE.md) - Internal API documentation
-- [Design Decisions](./DESIGN_DECISIONS.md) - Why we built it this way
-- [Setup Guide](./SETUP.md) - Installation instructions
+Archon 2.0's organic architecture transforms multi-agent development from mechanical task execution into collaborative craftsmanship. The Gardener nurtures five specialized craftspeople who work autonomously but in harmony, connected by contracts and quality gradients.
+
+This model produces:
+- **Faster results** through true parallelism
+- **Higher quality** through continuous verification
+- **Better communication** through formal contracts
+- **Adaptability** through intelligent interventions
+- **Reliability** through the quality ratchet
+
+The garden grows naturally toward working software.
+
+---
+
+*See [diagrams.md](./diagrams.md) for copy-paste ready ASCII diagrams.*
