@@ -12,6 +12,7 @@
 <p align="center">
   <a href="#terminals"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-20-green?style=flat-square" alt="20 Subagents"></a>
+  <a href="#test-suite-expansion"><img src="https://img.shields.io/badge/Tests-484_passing-brightgreen?style=flat-square" alt="484 Tests"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -448,6 +449,106 @@ Apps/CounterApp/
     ├── CounterTests.swift
     └── CounterViewModelTests.swift
 ```
+
+---
+
+## Code Review Results (Feb 2026)
+
+A team of 5 specialist agents performed a full codebase review, identifying critical bugs and delivering substantial improvements:
+
+### Critical Bugs Fixed
+
+| Bug | Impact |
+|-----|--------|
+| `validator.py` used non-existent Contract attributes | Runtime crash on every validation |
+| `manager_chat.py` compared ContractStatus with strings instead of enums | Wrong status grouping in chat |
+| `sync_manager.py` `all_ready` flag silently ignored missing terminals | Heartbeat sync unreliable |
+| `dashboard.py` attempted to read non-existent `failed.json` | Dashboard error on load |
+| `index.html` imported two non-existent JS files | All dashboard interactions silently broken |
+| `--verbose` flag defaulted to True | Flag was a no-op |
+| T5 (The Skeptic) missing from 6 hardcoded dicts across 3 files | T5 invisible in CLI/chat output |
+
+### Dashboard Redesign
+
+- Quality gradient bars on every terminal card (0.0-1.0 visual)
+- Manager interventions timeline (AMPLIFY/REDIRECT/MEDIATE/INJECT/PRUNE chips)
+- Full ARIA accessibility (roles, keyboard navigation, `prefers-reduced-motion`)
+- Responsive layout: 3-column (1400px), 2-column (960px), 1-column (600px)
+- Terminology aligned to organic philosophy ("Quality Flow" not "Phase 1")
+- Rewritten `dashboard-interactions.js` with toast notifications and staggered animations
+
+### CLI Improvements
+
+- Centralized display utilities in `cli_display.py` (`strip_ansi()`, `print_box()`, `format_duration()`, `get_terminal_name()`, `get_terminal_color()`)
+- Removed redundant `ChatColors` class from `manager_chat.py`
+- Actionable error messages with example commands
+- Improved `--help` output with terminal personality table
+
+### Test Suite Expansion
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total tests | 213 | 484 |
+| Test files | 6 | 14 |
+| Execution time | 0.19s | 0.90s |
+
+New test coverage for: `message_bus`, `sync_manager`, `terminal`, `validator`, `report_manager`, `logger`, `planner`, `cli_display`.
+
+---
+
+## Roadmap: Revolutionary Ideas
+
+These ideas represent the next evolution of Archon, moving from static orchestration to a living, learning system. Full details in [`docs/REVOLUTIONARY_IDEAS.md`](docs/REVOLUTIONARY_IDEAS.md).
+
+### The Three Transformative Visions
+
+#### 1. Terminal Memory and Reputation
+
+Terminals develop persistent memory across sessions via `~/.archon/memory/{terminal_id}.json`. Each terminal records patterns that worked, quality outcomes, and coordination preferences. A reputation score enables smarter task routing.
+
+> T2 has a 0.91 reputation for database tasks but 0.65 for API design -- route the API to T1.
+
+**Impact:** Terminals evolve from stateless executors into entities with accumulated wisdom.
+
+#### 2. Amplified Contract Negotiation
+
+The `contract_manager.py` is Archon's hidden gem -- visible, persistent, structured negotiation between autonomous agents. The plan is to make it the **primary coordination mechanism**: every significant decision flows through a contract, surfaced on the dashboard as a "negotiation theater" where users watch agents think together in real time.
+
+**Impact:** Makes collaborative thinking visible, learnable, and improvable.
+
+#### 3. Adaptive Tempo and Resonance
+
+Replace the fixed 5-second manager loop with a living rhythm that responds to the project's energy:
+
+| Flow State | Tempo | Behavior |
+|------------|-------|----------|
+| FLOURISHING | 8-12s | Let them work undisturbed |
+| FLOWING | 4-6s | Gentle monitoring |
+| STALLED | 2-3s | Active attention |
+| BLOCKED | 0.5-1s | Crisis response |
+| CONVERGING | 2s | Precise alignment |
+
+Each terminal develops a natural "resonance frequency" that the orchestrator learns and respects.
+
+**Impact:** The system breathes -- organic means alive.
+
+### Additional Ideas
+
+| Idea | Concept |
+|------|---------|
+| **Creative Tension Engine** | Terminals can disagree and propose alternatives; productive conflict surfaces better solutions |
+| **Silence Detector** | Monitor what terminals are NOT producing to reveal documentation debt, missing tests |
+| **Quality Momentum** | Track the slope of quality over time, not just absolute values; positive momentum = leave alone, negative = intervene |
+| **Spontaneous Sub-Teams** | Terminals form temporary pairings for cross-domain tasks |
+| **Project Personality** | Archon develops self-awareness of its tendencies across sessions |
+
+### Cross-Domain Inspirations
+
+- **Music** (adaptive tempo from conductor behavior)
+- **Ecology** (mycorrhizal resource flow toward need)
+- **Neuroscience** (synaptic strengthening of successful coordination pathways)
+- **Game Design** (emergent difficulty adapting to terminal performance)
+- **Theater** (fast rehearsal cycles instead of sequential phases)
 
 ---
 
