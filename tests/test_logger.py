@@ -12,7 +12,6 @@ All file I/O uses tmp_path - no real log files.
 """
 
 import json
-import pytest
 from pathlib import Path
 
 from orchestrator.logger import Event, EventLogger

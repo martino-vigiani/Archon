@@ -10,10 +10,6 @@ The organic task queue differs from the legacy phase-based model:
 This module tests the organic behaviors of the TaskQueue.
 """
 
-import pytest
-from datetime import datetime
-
-from orchestrator.config import Config, TerminalID
 from orchestrator.task_queue import (
     FlowState,
     Task,
@@ -43,7 +39,7 @@ class TestNoPhaseBasedReadiness:
     def test_phase_2_task_checks_dependencies_not_phase(self, task_queue: TaskQueue):
         """Phase 2 tasks should check dependencies, not phase number."""
         # Add phase 2 task with no dependencies
-        task = task_queue.add_task(
+        task_queue.add_task(
             title="Phase 2 No Deps",
             description="Can start early",
             phase=2,
@@ -64,7 +60,7 @@ class TestNoPhaseBasedReadiness:
         )
 
         # Should not be ready at phase 2 (deps not met)
-        next_task = task_queue.get_next_task_for_terminal("t1", current_phase=2)
+        task_queue.get_next_task_for_terminal("t1", current_phase=2)
 
         # May or may not get this task depending on implementation
         # The key is that dependencies matter more than phases
@@ -105,7 +101,7 @@ class TestDependencyBasedReadiness:
             phase=1,
         )
 
-        child = task_queue.add_task(
+        task_queue.add_task(
             title="Extend Foundation",
             description="Built on top",
             dependencies=["Build Foundation"],  # Title dependency
@@ -189,7 +185,7 @@ class TestFlowStateTransitions:
 
     def test_new_task_starts_flowing(self, task_queue: TaskQueue):
         """New tasks should start in FLOWING state."""
-        task = task_queue.add_task(title="New Task", description="Fresh")
+        task_queue.add_task(title="New Task", description="Fresh")
 
         pending = task_queue.pending
         assert pending[0].flow_state == FlowState.FLOWING
@@ -234,7 +230,7 @@ class TestOverallFlowState:
     def test_flow_state_includes_blocked_count(self, task_queue: TaskQueue):
         """Flow state should include count of blocked tasks."""
         task1 = task_queue.add_task(title="T1", description="First")
-        task2 = task_queue.add_task(title="T2", description="Second")
+        task_queue.add_task(title="T2", description="Second")
 
         task_queue.mark_task_blocked(task1.id, "Blocked")
 
@@ -327,7 +323,7 @@ class TestBackwardCompatibility:
 
     def test_phase_field_still_works(self, task_queue: TaskQueue):
         """Phase field should still be supported."""
-        task = task_queue.add_task(
+        task_queue.add_task(
             title="Phase 2 Task",
             description="Legacy phase usage",
             phase=2,
@@ -350,7 +346,7 @@ class TestBackwardCompatibility:
 
     def test_get_current_phase_still_works(self, task_queue: TaskQueue):
         """Current phase calculation should still work."""
-        task = task_queue.add_task(title="Phase 1", description="Initial", phase=1)
+        task_queue.add_task(title="Phase 1", description="Initial", phase=1)
 
         current_phase = task_queue.get_current_phase()
 

@@ -11,15 +11,14 @@ The organic architecture uses five intervention types:
 Interventions are how the Manager Intelligence actively guides the flow.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
 
-from orchestrator.config import Config, TerminalID
+import pytest
+
+from orchestrator.config import TerminalID
 from orchestrator.manager_intelligence import (
     ActionType,
     FileConflict,
-    InterfaceMismatch,
     ManagerAction,
     ManagerIntelligence,
     TerminalHeartbeat,
@@ -81,9 +80,7 @@ class TestAMPLIFYIntervention:
         if actions:
             assert actions.action_type == ActionType.REORDER_TASKS
 
-    def test_broadcast_update_can_amplify_focus(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_broadcast_update_can_amplify_focus(self, manager_intelligence: ManagerIntelligence):
         """AMPLIFY via broadcast to coordinate focus."""
         message = manager_intelligence.generate_coordination_broadcast(
             situation="Critical: Login feature needs attention from all terminals",
@@ -114,9 +111,7 @@ class TestREDIRECTIntervention:
         stalled = manager_intelligence.detect_stalled_terminals(heartbeats)
         assert "t1" in stalled
 
-    def test_generate_unblock_action_for_waiting(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_generate_unblock_action_for_waiting(self, manager_intelligence: ManagerIntelligence):
         """REDIRECT via unblock action when terminal is waiting."""
         action = manager_intelligence._generate_unblock_action(
             terminal_id="t1",
@@ -202,9 +197,7 @@ class TestMEDIATEIntervention:
 class TestINJECTIntervention:
     """Test INJECT intervention - adding new work to address emergent needs."""
 
-    def test_inject_task_for_missing_dependency(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_inject_task_for_missing_dependency(self, manager_intelligence: ManagerIntelligence):
         """INJECT adds task when a terminal reports missing dependency."""
         action = manager_intelligence._generate_unblock_action(
             terminal_id="t1",
@@ -290,9 +283,7 @@ class TestPRUNEIntervention:
 class TestInterventionTriggers:
     """Test conditions that trigger interventions."""
 
-    def test_stalled_terminal_triggers_escalation(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_stalled_terminal_triggers_escalation(self, manager_intelligence: ManagerIntelligence):
         """Stalled terminals should trigger ESCALATE action."""
         old_time = datetime.now() - timedelta(seconds=200)
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
@@ -312,9 +303,7 @@ class TestInterventionTriggers:
         escalation_actions = [a for a in actions if a.action_type == ActionType.ESCALATE]
         assert len(escalation_actions) >= 1
 
-    def test_blocked_terminal_triggers_broadcast(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_blocked_terminal_triggers_broadcast(self, manager_intelligence: ManagerIntelligence):
         """Blocked terminals should trigger coordination broadcast."""
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
             "t1": TerminalHeartbeat(
@@ -335,9 +324,7 @@ class TestInterventionTriggers:
         # Should have a broadcast or inject action
         assert len(actions) >= 1
 
-    def test_file_conflict_triggers_mediation(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_file_conflict_triggers_mediation(self, manager_intelligence: ManagerIntelligence):
         """File conflicts should trigger mediation actions."""
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
             "t1": TerminalHeartbeat(
@@ -358,9 +345,7 @@ class TestInterventionTriggers:
             current_phase=1,
         )
 
-        broadcast_actions = [
-            a for a in actions if a.action_type == ActionType.BROADCAST_UPDATE
-        ]
+        broadcast_actions = [a for a in actions if a.action_type == ActionType.BROADCAST_UPDATE]
         assert len(broadcast_actions) >= 1
 
 
@@ -405,9 +390,7 @@ class TestInterventionDeduplication:
             # If there was a conflict in first, second should have fewer
             assert len(conflict_actions2) <= len(conflict_actions1)
 
-    def test_sync_point_triggered_once_per_phase(
-        self, manager_intelligence: ManagerIntelligence
-    ):
+    def test_sync_point_triggered_once_per_phase(self, manager_intelligence: ManagerIntelligence):
         """Sync points should only be triggered once per phase."""
         # Phase 1 already tracked
         manager_intelligence._triggered_sync_points.add(1)
@@ -427,14 +410,10 @@ class TestInterventionDeduplication:
             current_phase=1,
         )
 
-        sync_actions = [
-            a for a in actions if a.action_type == ActionType.TRIGGER_SYNC_POINT
-        ]
+        sync_actions = [a for a in actions if a.action_type == ActionType.TRIGGER_SYNC_POINT]
 
         # Should not trigger again for phase 1
-        phase_1_syncs = [
-            a for a in sync_actions if "Phase 1" in str(a.reason)
-        ]
+        phase_1_syncs = [a for a in sync_actions if "Phase 1" in str(a.reason)]
         assert len(phase_1_syncs) == 0
 
 

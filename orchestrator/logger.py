@@ -6,10 +6,10 @@ to a JSON file that the dashboard can read.
 """
 
 import json
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
-from dataclasses import dataclass, asdict
 
 EventType = Literal[
     "orchestrator_start",
@@ -109,7 +109,9 @@ class EventLogger:
         self.log("task_complete", f"Completed: {title}", terminal, task_id, title)
 
     def task_failed(self, terminal: str, task_id: str, title: str, error: str):
-        self.log("task_failed", f"Failed: {title} - {error}", terminal, task_id, title, {"error": error})
+        self.log(
+            "task_failed", f"Failed: {title} - {error}", terminal, task_id, title, {"error": error}
+        )
 
     def subagent_invoked(self, terminal: str, subagent: str, task_title: str):
         self.log(
@@ -124,7 +126,11 @@ class EventLogger:
         self.log("plan_created", f"Plan created with {task_count} tasks: {summary[:50]}...")
 
     def terminal_state_changed(self, terminal: str, state: str, task_title: str | None = None):
-        event_type = "terminal_busy" if state == "busy" else "terminal_idle" if state == "idle" else "terminal_error"
+        event_type = (
+            "terminal_busy"
+            if state == "busy"
+            else "terminal_idle" if state == "idle" else "terminal_error"
+        )
         msg = f"Terminal {terminal} is {state}"
         if task_title:
             msg += f" - working on: {task_title}"
@@ -133,12 +139,28 @@ class EventLogger:
     def log_event(self, event_type: str, details: dict | None = None):
         """Generic event logging for custom events."""
         # Use a safe type cast for custom events
-        safe_type = event_type if event_type in [
-            "orchestrator_start", "orchestrator_stop", "task_start", "task_complete",
-            "task_failed", "task_injected", "task_cancelled", "terminal_busy",
-            "terminal_idle", "terminal_error", "subagent_invoked", "message_sent",
-            "plan_created", "execution_paused", "execution_resumed"
-        ] else "message_sent"  # Fallback to a valid type
+        safe_type = (
+            event_type
+            if event_type
+            in [
+                "orchestrator_start",
+                "orchestrator_stop",
+                "task_start",
+                "task_complete",
+                "task_failed",
+                "task_injected",
+                "task_cancelled",
+                "terminal_busy",
+                "terminal_idle",
+                "terminal_error",
+                "subagent_invoked",
+                "message_sent",
+                "plan_created",
+                "execution_paused",
+                "execution_resumed",
+            ]
+            else "message_sent"
+        )  # Fallback to a valid type
 
         message = details.get("title", event_type) if details else event_type
         self.log(safe_type, message, details=details)  # type: ignore

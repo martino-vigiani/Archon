@@ -10,8 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, TypedDict
 
-
 TerminalID = Literal["t1", "t2", "t3", "t4", "t5"]
+LLMProvider = Literal["claude", "codex"]
+ReasoningProfile = Literal["high", "xhigh"]
 
 
 class ProjectMetadata(TypedDict):
@@ -36,6 +37,9 @@ class TerminalConfig:
     description: str
     subagents: list[str]
     keywords: list[str]  # Keywords that route tasks to this terminal
+    specialization: str = ""
+    codex_reasoning: ReasoningProfile = "high"
+    codex_model: str = "gpt-5.3-codex"
 
     @property
     def prompt_file(self) -> str:
@@ -58,28 +62,85 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         description="Handles all user interface and user experience tasks",
         subagents=["swiftui-crafter", "react-crafter", "html-stylist", "design-system"],
         keywords=[
-            "ui", "ux", "interface", "design", "component", "view", "screen",
-            "layout", "style", "color", "font", "animation", "swiftui", "react",
-            "css", "tailwind", "visual", "button", "form", "modal", "navigation",
-            "responsive", "theme", "dark mode", "light mode", "accessibility"
+            "ui",
+            "ux",
+            "interface",
+            "design",
+            "component",
+            "view",
+            "screen",
+            "layout",
+            "style",
+            "color",
+            "font",
+            "animation",
+            "swiftui",
+            "react",
+            "css",
+            "tailwind",
+            "visual",
+            "button",
+            "form",
+            "modal",
+            "navigation",
+            "responsive",
+            "theme",
+            "dark mode",
+            "light mode",
+            "accessibility",
         ],
+        specialization="UI systems and product-facing interaction design",
+        codex_reasoning="high",
     ),
     "t2": TerminalConfig(
         id="t2",
         role="Features",
         description="Implements core features, architecture, and data layer",
         subagents=[
-            "swift-architect", "node-architect", "python-architect",
-            "swiftdata-expert", "database-expert", "ml-engineer"
+            "swift-architect",
+            "node-architect",
+            "python-architect",
+            "swiftdata-expert",
+            "database-expert",
+            "ml-engineer",
         ],
         keywords=[
-            "feature", "implement", "function", "logic", "backend", "api",
-            "database", "model", "schema", "architecture", "pattern", "mvvm",
-            "service", "repository", "controller", "manager", "handler",
-            "storage", "persistence", "sync", "network", "authentication",
-            "authorization", "security", "performance", "cache", "queue",
-            "algorithm", "ml", "ai", "training", "data", "migration"
+            "feature",
+            "implement",
+            "function",
+            "logic",
+            "backend",
+            "api",
+            "database",
+            "model",
+            "schema",
+            "architecture",
+            "pattern",
+            "mvvm",
+            "service",
+            "repository",
+            "controller",
+            "manager",
+            "handler",
+            "storage",
+            "persistence",
+            "sync",
+            "network",
+            "authentication",
+            "authorization",
+            "security",
+            "performance",
+            "cache",
+            "queue",
+            "algorithm",
+            "ml",
+            "ai",
+            "training",
+            "data",
+            "migration",
         ],
+        specialization="Core coding and Python/backend architecture",
+        codex_reasoning="xhigh",
     ),
     "t3": TerminalConfig(
         id="t3",
@@ -87,11 +148,32 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         description="Creates documentation and marketing materials",
         subagents=["tech-writer", "marketing-strategist"],
         keywords=[
-            "documentation", "docs", "readme", "guide", "tutorial", "api docs",
-            "comment", "marketing", "copy", "landing", "app store", "description",
-            "screenshot", "video", "press", "announcement", "blog", "social",
-            "changelog", "release notes", "onboarding", "help", "faq"
+            "documentation",
+            "docs",
+            "readme",
+            "guide",
+            "tutorial",
+            "api docs",
+            "comment",
+            "marketing",
+            "copy",
+            "landing",
+            "app store",
+            "description",
+            "screenshot",
+            "video",
+            "press",
+            "announcement",
+            "blog",
+            "social",
+            "changelog",
+            "release notes",
+            "onboarding",
+            "help",
+            "faq",
         ],
+        specialization="Technical documentation and developer enablement",
+        codex_reasoning="high",
     ),
     "t4": TerminalConfig(
         id="t4",
@@ -99,12 +181,35 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         description="Handles product strategy, ideation, and monetization",
         subagents=["product-thinker", "monetization-expert"],
         keywords=[
-            "idea", "strategy", "product", "roadmap", "mvp", "feature priority",
-            "user story", "requirement", "spec", "monetization", "pricing",
-            "subscription", "freemium", "revenue", "business model", "market",
-            "competitor", "analysis", "validation", "hypothesis", "experiment",
-            "metric", "kpi", "growth", "retention", "acquisition"
+            "idea",
+            "strategy",
+            "product",
+            "roadmap",
+            "mvp",
+            "feature priority",
+            "user story",
+            "requirement",
+            "spec",
+            "monetization",
+            "pricing",
+            "subscription",
+            "freemium",
+            "revenue",
+            "business model",
+            "market",
+            "competitor",
+            "analysis",
+            "validation",
+            "hypothesis",
+            "experiment",
+            "metric",
+            "kpi",
+            "growth",
+            "retention",
+            "acquisition",
         ],
+        specialization="Ideation, research synthesis, and strategy",
+        codex_reasoning="xhigh",
     ),
     "t5": TerminalConfig(
         id="t5",
@@ -112,14 +217,46 @@ TERMINALS: dict[TerminalID, TerminalConfig] = {
         description="Runs tests, validates outputs, verifies code quality and compilation",
         subagents=["test-genius", "swift-architect", "node-architect", "python-architect"],
         keywords=[
-            "test", "testing", "verify", "validate", "check", "quality", "qa",
-            "build", "compile", "run tests", "pytest", "swift test", "npm test",
-            "coverage", "lint", "format", "audit", "security", "scan",
-            "unit test", "integration test", "e2e", "assertion", "mock",
-            "fixture", "snapshot", "regression", "benchmark", "performance",
-            "edge case", "stress test", "chaos", "fuzzing", "property-based",
-            "mutation testing", "test strategy", "test architecture"
+            "test",
+            "testing",
+            "verify",
+            "validate",
+            "check",
+            "quality",
+            "qa",
+            "build",
+            "compile",
+            "run tests",
+            "pytest",
+            "swift test",
+            "npm test",
+            "coverage",
+            "lint",
+            "format",
+            "audit",
+            "security",
+            "scan",
+            "unit test",
+            "integration test",
+            "e2e",
+            "assertion",
+            "mock",
+            "fixture",
+            "snapshot",
+            "regression",
+            "benchmark",
+            "performance",
+            "edge case",
+            "stress test",
+            "chaos",
+            "fuzzing",
+            "property-based",
+            "mutation testing",
+            "test strategy",
+            "test architecture",
         ],
+        specialization="Test engineering, verification, and reliability hardening",
+        codex_reasoning="xhigh",
     ),
 }
 
@@ -135,13 +272,11 @@ STANDARD_GITIGNORE_PATTERNS = [
     "*.swp",
     "*.swo",
     "*~",
-
     # IDE/Editor
     ".idea/",
     ".vscode/",
     "*.xcuserdata/",
     "*.xcworkspace/",
-
     # Python
     "__pycache__/",
     "*.py[cod]",
@@ -162,7 +297,6 @@ STANDARD_GITIGNORE_PATTERNS = [
     "htmlcov/",
     ".mypy_cache/",
     ".ruff_cache/",
-
     # Node.js
     "node_modules/",
     "npm-debug.log*",
@@ -174,7 +308,6 @@ STANDARD_GITIGNORE_PATTERNS = [
     "yarn.lock",
     ".next/",
     "out/",
-
     # iOS/Swift
     "DerivedData/",
     "*.xcuserstate",
@@ -183,7 +316,6 @@ STANDARD_GITIGNORE_PATTERNS = [
     "*.dSYM",
     "Pods/",
     ".build/",
-
     # Temporary files
     "*.tmp",
     "*.temp",
@@ -193,7 +325,6 @@ STANDARD_GITIGNORE_PATTERNS = [
     ".cache/",
     "tmp/",
     "temp/",
-
     # Secrets and credentials
     "*.pem",
     "*.key",
@@ -201,7 +332,6 @@ STANDARD_GITIGNORE_PATTERNS = [
     "credentials.json",
     "secrets.json",
     ".secrets/",
-
     # Archon internal
     ".archon/cache/",
     ".archon/*.log",
@@ -237,12 +367,28 @@ TEMP_FILE_PATTERNS = [
 class Config:
     """Main orchestrator configuration."""
 
+<<<<<<< ours
+    # Paths - relative to project root (portable)
+    base_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent)
+    orchestra_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".orchestra")
+    templates_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "templates" / "terminal_prompts")
+    compact_templates_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "templates" / "terminal_prompts_compact")
+    agents_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".claude" / "agents")
+    apps_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "Apps")
+=======
     # Paths
     base_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon")
-    orchestra_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon" / ".orchestra")
-    templates_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon" / "templates" / "terminal_prompts")
-    agents_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon" / ".claude" / "agents")
+    orchestra_dir: Path = field(
+        default_factory=lambda: Path.home() / "Tech" / "Archon" / ".orchestra"
+    )
+    templates_dir: Path = field(
+        default_factory=lambda: Path.home() / "Tech" / "Archon" / "templates" / "terminal_prompts"
+    )
+    agents_dir: Path = field(
+        default_factory=lambda: Path.home() / "Tech" / "Archon" / ".claude" / "agents"
+    )
     apps_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon" / "Apps")
+>>>>>>> theirs
 
     # Terminal settings
     terminals: dict[TerminalID, TerminalConfig] = field(default_factory=lambda: TERMINALS)
@@ -257,6 +403,22 @@ class Config:
     auto_assign_tasks: bool = True
     verbose: bool = True
     disable_testing: bool = False  # --no-testing flag disables T5 terminal
+    compact_prompts: bool = True
+    max_system_prompt_chars: int = 4200
+
+    # LLM runtime settings
+    llm_provider: LLMProvider = "claude"
+    llm_command: str = "claude"
+    llm_model: str | None = None
+    codex_default_model: str = "gpt-5.3-codex"
+
+    def __post_init__(self) -> None:
+        """Normalize derived paths/settings when custom roots are injected."""
+        default_templates_dir = Path(__file__).parent.parent / "templates" / "terminal_prompts"
+        default_compact_dir = Path(__file__).parent.parent / "templates" / "terminal_prompts_compact"
+
+        if self.templates_dir != default_templates_dir and self.compact_templates_dir == default_compact_dir:
+            self.compact_templates_dir = self.templates_dir.parent / "terminal_prompts_compact"
 
     @property
     def messages_dir(self) -> Path:
@@ -287,11 +449,99 @@ class Config:
         self.tasks_dir.mkdir(exist_ok=True)
         self.artifacts_dir.mkdir(exist_ok=True)
         self.templates_dir.mkdir(parents=True, exist_ok=True)
+        self.compact_templates_dir.mkdir(parents=True, exist_ok=True)
+        self.agents_dir.mkdir(parents=True, exist_ok=True)
         self.apps_dir.mkdir(parents=True, exist_ok=True)
 
     def get_terminal_config(self, terminal_id: TerminalID) -> TerminalConfig:
         """Get configuration for a specific terminal."""
         return self.terminals[terminal_id]
+
+    def get_terminal_system_prompt_path(self, terminal_id: TerminalID) -> Path:
+        """Resolve the prompt path, preferring compact prompts when enabled."""
+        prompt_file = self.get_terminal_config(terminal_id).prompt_file
+        compact_path = self.compact_templates_dir / prompt_file
+        if self.compact_prompts and compact_path.exists():
+            return compact_path
+        return self.templates_dir / prompt_file
+
+    def load_system_prompt(self, terminal_id: TerminalID) -> str | None:
+        """Load and optimize terminal system prompt for token efficiency."""
+        prompt_path = self.get_terminal_system_prompt_path(terminal_id)
+        if not prompt_path.exists():
+            return None
+
+        prompt = prompt_path.read_text()
+        if self.max_system_prompt_chars > 0 and len(prompt) > self.max_system_prompt_chars:
+            truncated = prompt[: self.max_system_prompt_chars].rstrip()
+            prompt = (
+                f"{truncated}\n\n"
+                "[Prompt truncated to reduce token usage. Keep decisions concise and action-driven.]"
+            )
+
+        profile = self.get_terminal_runtime_profile(terminal_id)
+        runtime_header = (
+            "## Runtime Profile\n"
+            f"- Provider target: {profile['provider']}\n"
+            f"- Model target: {profile['model']}\n"
+            f"- Reasoning profile: {profile['reasoning']}\n"
+            f"- Specialization: {profile['specialization']}\n"
+            "- Token policy: avoid repetition, long prose, and unnecessary restatements."
+        )
+        return f"{runtime_header}\n\n{prompt}"
+
+    def get_terminal_runtime_profile(self, terminal_id: TerminalID) -> dict[str, str]:
+        """Return the effective runtime profile for a terminal."""
+        terminal = self.get_terminal_config(terminal_id)
+        model = self.llm_model or (terminal.codex_model if self.llm_provider == "codex" else "default")
+        return {
+            "provider": self.llm_provider,
+            "model": model,
+            "reasoning": terminal.codex_reasoning,
+            "specialization": terminal.specialization or terminal.role,
+        }
+
+    def build_llm_command(self, prompt: str, allow_unsafe: bool = False) -> list[str]:
+        """
+        Build the subprocess command for the active LLM provider.
+
+        `allow_unsafe` enables compatibility flags previously used for autonomous runs.
+        """
+        if self.llm_provider == "codex":
+            model = self.llm_model or self.codex_default_model
+            cmd = [
+                self.llm_command,
+                "exec",
+                "--color",
+                "never",
+                "-a",
+                "never",
+                "-s",
+                "workspace-write",
+            ]
+            if allow_unsafe:
+                cmd.append("--dangerously-bypass-approvals-and-sandbox")
+            if model:
+                cmd.extend(["-m", model])
+            cmd.append(prompt)
+            return cmd
+
+        cmd = [self.llm_command, "--print"]
+        if self.llm_model:
+            cmd.extend(["--model", self.llm_model])
+        if allow_unsafe:
+            cmd.append("--dangerously-skip-permissions")
+        cmd.extend(["-p", prompt])
+        return cmd
+
+    def get_all_subagents(self) -> list[str]:
+        """Collect configured subagent names from terminal config and local definitions."""
+        subagents: set[str] = set()
+        for terminal_cfg in self.terminals.values():
+            subagents.update(terminal_cfg.subagents)
+        if self.agents_dir.exists():
+            subagents.update(path.stem for path in self.agents_dir.glob("*.md"))
+        return sorted(subagents)
 
     def route_task_to_terminal(self, task_description: str) -> TerminalID:
         """Route a task to the most appropriate terminal based on keywords."""
@@ -419,7 +669,7 @@ class Config:
             if not all(field in data for field in required_fields):
                 return None
             return data
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return None
 
     def update_project_info(self, path: str | Path, **updates: str | list[str]) -> bool:
@@ -445,7 +695,7 @@ class Config:
             data["updated_at"] = datetime.now().isoformat()
             metadata_file.write_text(json.dumps(data, indent=2))
             return True
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return False
 
     def list_projects(self, status: str | None = None) -> list[tuple[str, ProjectMetadata]]:
@@ -466,9 +716,8 @@ class Config:
         for item in self.apps_dir.iterdir():
             if item.is_dir():
                 info = self.get_project_info(item)
-                if info:
-                    if status is None or info.get("status") == status:
-                        projects.append((item.name, info))
+                if info and (status is None or info.get("status") == status):
+                    projects.append((item.name, info))
 
         # Sort by updated_at descending (most recent first)
         projects.sort(key=lambda x: x[1].get("updated_at", ""), reverse=True)

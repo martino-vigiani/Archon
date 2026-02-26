@@ -13,6 +13,9 @@ dependencies = [
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
     "websockets>=12.0",
+    "pydantic>=2.5.0",
+    "bcrypt>=4.1.0",
+    "PyJWT>=2.8.0",
     "tqdm>=4.66.0",
 ]
 
@@ -23,6 +26,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-timeout>=2.2.0",
     "pytest-xdist>=3.5.0",
+    "httpx>=0.27.0",
     "black>=24.0.0",
     "ruff>=0.2.0",
     "mypy>=1.8.0",
@@ -51,6 +55,9 @@ addopts = [
     "--color=yes",                 # Colored output
 ]
 
+# Async test mode
+asyncio_mode = "auto"
+
 # Markers for test categorization
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -58,6 +65,9 @@ markers = [
     "unit: marks tests as unit tests",
     "smoke: marks tests as smoke tests for quick validation",
     "critical: marks tests that must pass for deployment",
+    "security: marks tests as security-related checks",
+    "api: marks tests for dashboard API endpoints",
+    "auth: marks tests for authentication and authorization",
 ]
 
 # Warnings
@@ -86,7 +96,7 @@ omit = [
 
 [tool.coverage.report]
 # Quality gates: minimum coverage thresholds
-fail_under = 75
+fail_under = 90
 show_missing = true
 skip_covered = false
 precision = 2

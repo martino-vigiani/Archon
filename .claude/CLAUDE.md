@@ -276,6 +276,29 @@ WHEN NOT TO USE:
 - As first resort
 ```
 
+## MCP - XcodeBuildMCP
+
+**SEMPRE DISPONIBILE. USALO PER TUTTO IL LAVORO iOS/Xcode.**
+
+XcodeBuildMCP permette ai terminali di gestire autonomamente build, test e deploy di progetti iOS/Swift/SwiftUI. Ogni terminale deve usare XcodeBuildMCP invece di comandi xcodebuild manuali.
+
+```
+CAPACITA:
+- Build e compilazione progetti Xcode (con fix automatico errori)
+- Build incrementali per compilazione veloce
+- Test su simulatore iOS con screenshot
+- Deploy su device fisici via USB/Wi-Fi
+- Gestione completa ciclo di sviluppo iOS
+
+QUANDO USARLO:
+- SEMPRE quando si lavora su progetti iOS/Swift/SwiftUI
+- Per buildare, testare, deployare qualsiasi progetto Xcode
+- Per catturare screenshot dal simulatore
+- Per debug errori di compilazione
+
+REGOLA: Se il progetto generato e' iOS, i terminali DEVONO usare XcodeBuildMCP
+```
+
 ---
 
 ## Autonomy

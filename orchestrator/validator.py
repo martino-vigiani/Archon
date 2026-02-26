@@ -15,7 +15,6 @@ from typing import Literal
 from .config import Config
 from .contract_manager import Contract, ContractStatus
 
-
 BuildStatus = Literal["success", "failed", "not_applicable"]
 TestStatus = Literal["passed", "failed", "skipped", "not_applicable"]
 
@@ -52,6 +51,10 @@ class BuildResult:
 @dataclass
 class TestResult:
     """Result of running tests."""
+
+    # Prevent pytest from treating this dataclass as a test container
+    # when imported into test modules.
+    __test__ = False
 
     status: TestStatus
     project_path: str
@@ -246,7 +249,7 @@ class Validator:
                 else:
                     # Just install dependencies
                     return "npm install"
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 return "npm install"
 
         # Check for Python project
@@ -287,7 +290,10 @@ class Validator:
                 issues.append("Contract has no negotiation history")
 
             # Check if implemented status has implementer
-            if contract.status in (ContractStatus.IMPLEMENTED, ContractStatus.VERIFIED) and not contract.implementer:
+            if (
+                contract.status in (ContractStatus.IMPLEMENTED, ContractStatus.VERIFIED)
+                and not contract.implementer
+            ):
                 issues.append("Contract marked as implemented but no implementer specified")
 
             # Check contract has a name
@@ -397,7 +403,7 @@ class Validator:
 
                 if "test" in scripts:
                     return "npm test"
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
 
         # Check for Python project with pytest

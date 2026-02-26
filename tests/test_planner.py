@@ -15,9 +15,15 @@ Critical tests:
 - T5 tasks excluded when testing disabled
 """
 
+import asyncio
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+<<<<<<< ours
+from unittest.mock import patch, MagicMock, AsyncMock
+=======
+>>>>>>> theirs
 
 from orchestrator.config import Config
 from orchestrator.planner import (
@@ -26,6 +32,11 @@ from orchestrator.planner import (
     Planner,
     TaskPlan,
 )
+
+
+def _run(coro):
+    """Helper to run async coroutines in sync tests."""
+    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class TestPlannedTaskDataclass:
@@ -204,7 +215,7 @@ class TestOrganicPlanning:
     def test_organic_creates_intents(self, config: Config) -> None:
         """Organic model should create Intent objects."""
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build a habit tracker")
+        plan = _run(planner.plan("Build a habit tracker"))
 
         assert plan.planning_mode == "organic"
         assert len(plan.intents) >= 4  # t1-t4 at minimum
@@ -212,7 +223,7 @@ class TestOrganicPlanning:
     def test_organic_tasks_have_quality_targets(self, config: Config) -> None:
         """Organic tasks should have quality targets."""
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build an app")
+        plan = _run(planner.plan("Build an app"))
 
         for task in plan.tasks:
             assert 0.0 < task.quality_target <= 1.0
@@ -220,7 +231,7 @@ class TestOrganicPlanning:
     def test_organic_all_phase_1(self, config: Config) -> None:
         """All organic tasks should be phase 1 (flow state)."""
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build app")
+        plan = _run(planner.plan("Build app"))
 
         for task in plan.tasks:
             assert task.phase == 1
@@ -228,7 +239,7 @@ class TestOrganicPlanning:
     def test_organic_no_dependencies(self, config: Config) -> None:
         """Organic tasks should have no rigid dependencies."""
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build app")
+        plan = _run(planner.plan("Build app"))
 
         for task in plan.tasks:
             assert task.dependencies == []
@@ -237,7 +248,7 @@ class TestOrganicPlanning:
         """Disable testing should exclude T5 intent."""
         config.disable_testing = True
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build app")
+        plan = _run(planner.plan("Build app"))
 
         t5_tasks = [t for t in plan.tasks if t.terminal == "t5"]
         assert len(t5_tasks) == 0
@@ -245,7 +256,7 @@ class TestOrganicPlanning:
     def test_organic_suggests_subagents(self, config: Config) -> None:
         """Organic tasks should suggest relevant subagents."""
         planner = Planner(config, use_organic_model=True)
-        plan = planner.plan("Build an iOS app")
+        plan = _run(planner.plan("Build an iOS app"))
 
         t1_tasks = [t for t in plan.tasks if t.terminal == "t1"]
         assert any("swiftui-crafter" in t.required_subagents for t in t1_tasks)
@@ -281,39 +292,59 @@ class TestSubagentSuggestions:
         assert suggestions == []
 
 
+def _mock_async_process(stdout_text: str, stderr_text: str = ""):
+    """Helper to create a mock async subprocess for planner tests."""
+    mock_proc = AsyncMock()
+    mock_proc.communicate.return_value = (
+        stdout_text.encode() if stdout_text else b"",
+        stderr_text.encode() if stderr_text else b"",
+    )
+    mock_proc.returncode = 0
+    mock_proc.kill = MagicMock()
+    return mock_proc
+
+
 class TestLegacyPlanning:
     """Test legacy Claude-based planning with mocked subprocess."""
 
     def test_successful_planning(self, config: Config) -> None:
         """Successfully parsed Claude output should create sorted tasks."""
         planner = Planner(config)
-        plan_json = json.dumps({
-            "summary": "Build app plan",
-            "tasks": [
-                {"title": "Build UI", "terminal": "t1", "priority": "critical", "phase": 1},
-                {"title": "Build API", "terminal": "t2", "priority": "high", "phase": 1},
-                {"title": "Write docs", "terminal": "t3", "priority": "medium", "phase": 1},
-            ],
-            "execution_order": ["Build UI", "Build API", "Write docs"],
-        })
+        plan_json = json.dumps(
+            {
+                "summary": "Build app plan",
+                "tasks": [
+                    {"title": "Build UI", "terminal": "t1", "priority": "critical", "phase": 1},
+                    {"title": "Build API", "terminal": "t2", "priority": "high", "phase": 1},
+                    {"title": "Write docs", "terminal": "t3", "priority": "medium", "phase": 1},
+                ],
+                "execution_order": ["Build UI", "Build API", "Write docs"],
+            }
+        )
 
-        mock_result = MagicMock()
-        mock_result.stdout = plan_json
-        mock_result.stderr = ""
-
-        with patch("subprocess.run", return_value=mock_result):
-            plan = planner.plan("Build an app")
+        mock_proc = _mock_async_process(plan_json)
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build an app"))
 
         assert len(plan.tasks) == 3
         assert plan.summary == "Build app plan"
 
     def test_timeout_falls_back(self, config: Config) -> None:
         """Claude timeout should produce fallback plan."""
+<<<<<<< ours
+=======
         import subprocess as sp
+
+>>>>>>> theirs
         planner = Planner(config)
 
-        with patch("subprocess.run", side_effect=sp.TimeoutExpired("claude", 120)):
-            plan = planner.plan("Build app")
+        mock_proc = AsyncMock()
+        mock_proc.communicate.side_effect = asyncio.TimeoutError()
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build app"))
 
         assert len(plan.tasks) > 0  # Fallback produces tasks
 
@@ -321,8 +352,8 @@ class TestLegacyPlanning:
         """Missing Claude CLI should produce fallback plan."""
         planner = Planner(config)
 
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            plan = planner.plan("Build app")
+        with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
+            plan = _run(planner.plan("Build app"))
 
         assert len(plan.tasks) > 0
 
@@ -330,31 +361,27 @@ class TestLegacyPlanning:
         """Non-JSON output should produce fallback plan."""
         planner = Planner(config)
 
-        mock_result = MagicMock()
-        mock_result.stdout = "This is not JSON at all"
-        mock_result.stderr = ""
-
-        with patch("subprocess.run", return_value=mock_result):
-            plan = planner.plan("Build app")
+        mock_proc = _mock_async_process("This is not JSON at all")
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build app"))
 
         assert len(plan.tasks) > 0
 
     def test_invalid_terminal_defaults_to_t2(self, config: Config) -> None:
         """Unknown terminal in plan data should default to t2."""
         planner = Planner(config)
-        plan_json = json.dumps({
-            "summary": "Plan",
-            "tasks": [
-                {"title": "Task", "terminal": "t99", "priority": "medium", "phase": 1},
-            ],
-        })
+        plan_json = json.dumps(
+            {
+                "summary": "Plan",
+                "tasks": [
+                    {"title": "Task", "terminal": "t99", "priority": "medium", "phase": 1},
+                ],
+            }
+        )
 
-        mock_result = MagicMock()
-        mock_result.stdout = plan_json
-        mock_result.stderr = ""
-
-        with patch("subprocess.run", return_value=mock_result):
-            plan = planner.plan("Build app")
+        mock_proc = _mock_async_process(plan_json)
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build app"))
 
         assert plan.tasks[0].terminal == "t2"
 
@@ -362,41 +389,44 @@ class TestLegacyPlanning:
         """T5 tasks should be excluded when testing disabled."""
         config.disable_testing = True
         planner = Planner(config)
-        plan_json = json.dumps({
-            "summary": "Plan",
-            "tasks": [
-                {"title": "Build", "terminal": "t1", "priority": "high", "phase": 1},
-                {"title": "Test", "terminal": "t5", "priority": "high", "phase": 3},
-            ],
-        })
+        plan_json = json.dumps(
+            {
+                "summary": "Plan",
+                "tasks": [
+                    {"title": "Build", "terminal": "t1", "priority": "high", "phase": 1},
+                    {"title": "Test", "terminal": "t5", "priority": "high", "phase": 3},
+                ],
+            }
+        )
 
-        mock_result = MagicMock()
-        mock_result.stdout = plan_json
-        mock_result.stderr = ""
-
-        with patch("subprocess.run", return_value=mock_result):
-            plan = planner.plan("Build app")
+        mock_proc = _mock_async_process(plan_json)
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build app"))
 
         assert not any(t.terminal == "t5" for t in plan.tasks)
 
     def test_tasks_sorted_by_phase_then_priority(self, config: Config) -> None:
         """Tasks should be sorted by phase first, then priority."""
         planner = Planner(config)
-        plan_json = json.dumps({
-            "summary": "Plan",
-            "tasks": [
-                {"title": "Low Phase 2", "terminal": "t1", "priority": "low", "phase": 2},
-                {"title": "Critical Phase 1", "terminal": "t2", "priority": "critical", "phase": 1},
-                {"title": "High Phase 1", "terminal": "t3", "priority": "high", "phase": 1},
-            ],
-        })
+        plan_json = json.dumps(
+            {
+                "summary": "Plan",
+                "tasks": [
+                    {"title": "Low Phase 2", "terminal": "t1", "priority": "low", "phase": 2},
+                    {
+                        "title": "Critical Phase 1",
+                        "terminal": "t2",
+                        "priority": "critical",
+                        "phase": 1,
+                    },
+                    {"title": "High Phase 1", "terminal": "t3", "priority": "high", "phase": 1},
+                ],
+            }
+        )
 
-        mock_result = MagicMock()
-        mock_result.stdout = plan_json
-        mock_result.stderr = ""
-
-        with patch("subprocess.run", return_value=mock_result):
-            plan = planner.plan("Build app")
+        mock_proc = _mock_async_process(plan_json)
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            plan = _run(planner.plan("Build app"))
 
         assert plan.tasks[0].title == "Critical Phase 1"
         assert plan.tasks[1].title == "High Phase 1"

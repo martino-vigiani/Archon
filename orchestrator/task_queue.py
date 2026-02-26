@@ -23,8 +23,6 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Literal
 
 from .config import Config, TerminalID
 
@@ -51,11 +49,12 @@ class FlowState(str, Enum):
     Unlike the rigid phase model, flow states describe the current
     health of work rather than sequential progression.
     """
-    FLOWING = "flowing"       # Work progressing normally
-    BLOCKED = "blocked"       # Work stopped due to dependency
+
+    FLOWING = "flowing"  # Work progressing normally
+    BLOCKED = "blocked"  # Work stopped due to dependency
     FLOURISHING = "flourishing"  # Work exceeding expectations
-    STALLED = "stalled"       # Work slow/stuck without clear blocker
-    CONVERGING = "converging" # Work approaching completion
+    STALLED = "stalled"  # Work slow/stuck without clear blocker
+    CONVERGING = "converging"  # Work approaching completion
 
 
 @dataclass
@@ -209,6 +208,10 @@ class TaskQueue:
     def __init__(self, config: Config):
         self.config = config
         self._task_counter = 0
+        # In-memory cache: avoids re-reading JSON files on every property access
+        self._pending_cache: list[Task] | None = None
+        self._in_progress_cache: list[Task] | None = None
+        self._completed_cache: list[Task] | None = None
         self._ensure_files()
 
     def _ensure_files(self) -> None:
@@ -230,10 +233,17 @@ class TaskQueue:
             return []
 
     def _save_tasks(self, filename: str, tasks: list[Task]) -> None:
-        """Save tasks to a JSON file."""
+        """Save tasks to a JSON file and update the in-memory cache."""
         filepath = self.config.tasks_dir / filename
         data = [t.to_dict() for t in tasks]
         filepath.write_text(json.dumps(data, indent=2))
+        # Update cache directly instead of invalidating (avoids re-read on next access)
+        if filename == "pending.json":
+            self._pending_cache = tasks
+        elif filename == "in_progress.json":
+            self._in_progress_cache = tasks
+        elif filename == "completed.json":
+            self._completed_cache = tasks
 
     def _generate_task_id(self) -> str:
         """Generate a unique task ID."""
@@ -243,15 +253,21 @@ class TaskQueue:
 
     @property
     def pending(self) -> list[Task]:
-        return self._load_tasks("pending.json")
+        if self._pending_cache is None:
+            self._pending_cache = self._load_tasks("pending.json")
+        return self._pending_cache
 
     @property
     def in_progress(self) -> list[Task]:
-        return self._load_tasks("in_progress.json")
+        if self._in_progress_cache is None:
+            self._in_progress_cache = self._load_tasks("in_progress.json")
+        return self._in_progress_cache
 
     @property
     def completed(self) -> list[Task]:
-        return self._load_tasks("completed.json")
+        if self._completed_cache is None:
+            self._completed_cache = self._load_tasks("completed.json")
+        return self._completed_cache
 
     def add_task(
         self,
@@ -264,7 +280,7 @@ class TaskQueue:
         phase: int = 1,
         # Organic flow model parameters (v2.0)
         intent: str | None = None,
-        quality_target: float = 1.0,
+        _quality_target: float = 1.0,
     ) -> Task:
         """
         Add a new task to the queue.
@@ -317,6 +333,32 @@ class TaskQueue:
             )
             created.append(task)
         return created
+
+    def requeue_task(self, task_id: str) -> bool:
+        """Move a task from in_progress back to pending for retry."""
+        in_progress = self.in_progress
+        task_to_move = None
+
+        for task in in_progress:
+            if task.id == task_id:
+                task_to_move = task
+                break
+
+        if task_to_move is None:
+            return False
+
+        # Remove from in_progress
+        in_progress = [t for t in in_progress if t.id != task_id]
+        self._save_tasks("in_progress.json", in_progress)
+
+        # Reset task state and add to pending
+        task_to_move.status = TaskStatus.PENDING
+        task_to_move.assigned_to = task_to_move.assigned_to  # Keep assignment
+        pending = self.pending
+        pending.append(task_to_move)
+        self._save_tasks("pending.json", pending)
+
+        return True
 
     def get_task(self, task_id: str) -> Task | None:
         """Get a task by ID from any queue."""
@@ -592,32 +634,82 @@ class TaskQueue:
         Get a summary of task queue status.
 
         Includes both legacy phase info and organic flow state.
+        Uses local references to avoid redundant cache lookups.
         """
-        pending = self.pending
-        in_progress = self.in_progress
-        completed = self.completed
+        p = self.pending
+        ip = self.in_progress
+        c = self.completed
 
-        successful = [t for t in completed if t.status == TaskStatus.COMPLETED]
-        failed = [t for t in completed if t.status == TaskStatus.FAILED]
+        successful = [t for t in c if t.status == TaskStatus.COMPLETED]
+        failed = [t for t in c if t.status == TaskStatus.FAILED]
 
-        # Get organic flow state
-        flow_state = self.get_flow_state()
+        # Compute flow state inline using already-loaded task lists
+        all_tasks = p + ip + c
+        if all_tasks:
+            quality_sum = sum(t.quality_level for t in all_tasks)
+            quality_avg = round(quality_sum / len(all_tasks), 2)
+            blocked_count = sum(1 for t in all_tasks if t.flow_state == FlowState.BLOCKED)
+            flourishing_count = sum(1 for t in all_tasks if t.flow_state == FlowState.FLOURISHING)
+            stalled_count = sum(1 for t in all_tasks if t.flow_state == FlowState.STALLED)
+            converging_count = sum(1 for t in all_tasks if t.flow_state == FlowState.CONVERGING)
+            n = len(all_tasks)
+
+            if blocked_count > n * 0.3:
+                overall_flow = FlowState.BLOCKED
+            elif stalled_count > n * 0.3:
+                overall_flow = FlowState.STALLED
+            elif converging_count > n * 0.5:
+                overall_flow = FlowState.CONVERGING
+            elif flourishing_count > n * 0.3:
+                overall_flow = FlowState.FLOURISHING
+            else:
+                overall_flow = FlowState.FLOWING
+
+            flow_state = {
+                "overall_flow": overall_flow.value,
+                "quality_average": quality_avg,
+                "blocked_count": blocked_count,
+                "flourishing_count": flourishing_count,
+                "stalled_count": stalled_count,
+                "converging_count": converging_count,
+                "ready_for_convergence": quality_avg >= 0.7 and blocked_count == 0,
+            }
+        else:
+            quality_avg = 0.0
+            flow_state = {
+                "overall_flow": FlowState.FLOWING.value,
+                "quality_average": 0.0,
+                "blocked_count": 0,
+                "flourishing_count": 0,
+                "stalled_count": 0,
+                "converging_count": 0,
+                "ready_for_convergence": False,
+            }
 
         return {
-            "pending_count": len(pending),
-            "in_progress_count": len(in_progress),
+            "pending_count": len(p),
+            "in_progress_count": len(ip),
             "completed_count": len(successful),
             "failed_count": len(failed),
-            "done_count": len(completed),  # Total finished (success + failed)
-            "total_count": len(pending) + len(in_progress) + len(completed),
+            "done_count": len(c),
+            "total_count": len(p) + len(ip) + len(c),
             "in_progress_tasks": [
+<<<<<<< ours
                 {"id": t.id, "title": t.title, "assigned_to": t.assigned_to, "quality_level": t.quality_level}
+                for t in ip
+=======
+                {
+                    "id": t.id,
+                    "title": t.title,
+                    "assigned_to": t.assigned_to,
+                    "quality_level": t.quality_level,
+                }
                 for t in in_progress
+>>>>>>> theirs
             ],
-            "pending_tasks": [{"id": t.id, "title": t.title} for t in pending[:5]],
-            # Organic flow model additions
+            "pending_tasks": [{"id": t.id, "title": t.title} for t in p[:5]],
             "flow_state": flow_state,
-            "quality_average": flow_state["quality_average"],
+            "quality_average": quality_avg,
         }
 
     def update_task_quality(self, task_id: str, quality_level: float) -> Task | None:
@@ -683,7 +775,7 @@ class TaskQueue:
         return None
 
     def clear_all(self) -> None:
-        """Clear all task queues."""
+        """Clear all task queues and reset caches."""
         self._save_tasks("pending.json", [])
         self._save_tasks("in_progress.json", [])
         self._save_tasks("completed.json", [])

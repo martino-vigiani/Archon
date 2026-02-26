@@ -68,14 +68,18 @@ pip install -r requirements.txt
 
 # Run with dashboard (recommended)
 python -m orchestrator --dashboard "Create a habit tracking iOS app"
+
+# Run with Codex runtime (Codex 5.3 team profile)
+python -m orchestrator --llm-provider codex --llm-model gpt-5.3-codex --dashboard "Create a habit tracking iOS app"
 ```
 
 ### Requirements
 
 - **Python 3.11+**
-- **[Claude Code CLI](https://github.com/anthropics/claude-code)** installed and in PATH
-- **Any paid Claude subscription** (Pro, Max, Team)
-  - Recommended: **Max 5x** for heavy parallel usage without hitting rate limits
+- One supported runtime in PATH:
+  - **[Claude Code CLI](https://github.com/anthropics/claude-code)** (default), or
+  - **Codex CLI** (`codex`, for `--llm-provider codex`)
+- Provider account access for the selected runtime
 
 ---
 
@@ -351,6 +355,25 @@ Interactive REPL to guide the organic growth:
 | **[SETUP.md](docs/SETUP.md)** | Detailed setup and configuration guide |
 | **[PRD.md](docs/PRD.md)** | Product requirements document |
 | **[diagrams.md](docs/diagrams.md)** | Visual diagrams for the architecture |
+| **[CODEX_SPECIALIST_TEAM.md](docs/CODEX_SPECIALIST_TEAM.md)** | Codex 5.3 specialist roles (`high/xhigh`), handoffs, autonomy workflow |
+| **[ZEROBOT_NANOBOT_CLAWDBOT_OPENCLAW_ASSESSMENT.md](docs/ZEROBOT_NANOBOT_CLAWDBOT_OPENCLAW_ASSESSMENT.md)** | Feasibility and rollout plan for Zerobot/Nanobot/Clawdbot/OpenClaw |
+
+## Codex Mode
+
+Archon now supports provider selection via CLI:
+
+```bash
+python -m orchestrator \
+  --llm-provider codex \
+  --llm-model gpt-5.3-codex \
+  --dashboard "Your task"
+```
+
+Useful flags:
+- `--full-prompts` to disable compact prompts
+- `--max-system-prompt-chars N` to control system-prompt token budget
+
+Compact prompts are enabled by default and loaded from `templates/terminal_prompts_compact/` when available.
 
 ---
 

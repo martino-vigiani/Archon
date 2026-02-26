@@ -14,7 +14,7 @@ at partial quality levels (e.g., 0.8), allowing for parallel polish.
 
 import pytest
 
-from orchestrator.task_queue import FlowState, Task, TaskPriority, TaskStatus
+from orchestrator.task_queue import FlowState, Task
 
 
 class TestQualityLevelAssignment:
@@ -147,7 +147,7 @@ class TestQualityBasedCompletion:
         )
 
         # Create a dependent task
-        child = task_queue.add_task(
+        task_queue.add_task(
             title="Integrate Auth in UI",
             description="Connect UI to auth service",
             dependencies=[parent.title],

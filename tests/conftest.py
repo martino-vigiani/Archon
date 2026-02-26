@@ -7,26 +7,46 @@ Provides common setup for:
 - Manager intelligence
 - Contract manager
 - Mock terminals and heartbeats
+- Dashboard API test client
+- Auth module (database, tokens, passwords, RBAC)
+- Live API test client
 """
 
-import json
 import tempfile
+<<<<<<< ours
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
+=======
+from collections.abc import Generator
+from datetime import datetime
+from pathlib import Path
+>>>>>>> theirs
 from unittest.mock import MagicMock, patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
+<<<<<<< ours
+from orchestrator.auth.config import AuthConfig
+from orchestrator.auth.database import UserDatabase
+from orchestrator.auth.models import Role, User
+from orchestrator.auth.passwords import PasswordHasher
+from orchestrator.auth.tokens import TokenService
 from orchestrator.config import Config, TerminalConfig, TerminalID
 from orchestrator.contract_manager import Contract, ContractManager, ContractStatus
+from orchestrator.dashboard import app as dashboard_app
+=======
+from orchestrator.config import Config, TerminalID
+from orchestrator.contract_manager import Contract, ContractManager
+>>>>>>> theirs
 from orchestrator.manager_intelligence import (
     ManagerIntelligence,
     TerminalHeartbeat,
 )
 from orchestrator.report_manager import Report, ReportManager
 from orchestrator.task_queue import FlowState, Task, TaskPriority, TaskQueue, TaskStatus
-
 
 # =============================================================================
 # Base Fixtures
@@ -188,6 +208,7 @@ def blocked_heartbeat() -> TerminalHeartbeat:
 def stale_heartbeat() -> TerminalHeartbeat:
     """Create a stale/old heartbeat (simulating a stalled terminal)."""
     from datetime import timedelta
+
     old_time = datetime.now() - timedelta(seconds=300)
     return TerminalHeartbeat(
         terminal_id="t2",
@@ -411,3 +432,212 @@ def terminal_personalities():
         "t4": {"name": "Strategist", "role": "Strategy", "superpower": "seeing the whole board"},
         "t5": {"name": "Skeptic", "role": "QA/Testing", "superpower": "finding flaws"},
     }
+
+
+# =============================================================================
+# Auth Module Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def auth_config() -> AuthConfig:
+    """Auth config with short expiration for fast tests.
+
+    Uses a fixed secret key and in-memory database so tests are
+    deterministic and isolated.
+    """
+    return AuthConfig(
+        secret_key="test-secret-key-for-conftest-fixtures",
+        access_token_expire_minutes=1,
+        refresh_token_expire_days=1,
+        db_path=":memory:",
+        min_password_length=8,
+    )
+
+
+@pytest.fixture
+def hasher() -> PasswordHasher:
+    """Password hasher instance."""
+    return PasswordHasher()
+
+
+@pytest.fixture
+def token_service(auth_config: AuthConfig) -> TokenService:
+    """Token service backed by the test auth config."""
+    return TokenService(auth_config)
+
+
+@pytest.fixture
+def user_db() -> UserDatabase:
+    """In-memory user database, fresh per test."""
+    return UserDatabase(":memory:")
+
+
+@pytest.fixture
+def sample_user(hasher: PasswordHasher) -> User:
+    """A pre-built user with known credentials.
+
+    Password: ``SecurePass123``
+    """
+    return User(
+        username="testuser",
+        email="test@example.com",
+        hashed_password=hasher.hash("SecurePass123"),
+        role=Role.VIEWER,
+    )
+
+
+@pytest.fixture
+def create_user(
+    user_db: UserDatabase,
+    hasher: PasswordHasher,
+) -> Callable[..., tuple[User, str]]:
+    """Factory fixture: create a user in the test DB and return (user, plaintext_password).
+
+    Usage::
+
+        def test_something(create_user):
+            user, password = create_user("alice", "alice@test.com")
+            assert user.username == "alice"
+    """
+
+    def _create(
+        username: str = "testuser",
+        email: str = "test@example.com",
+        password: str = "SecurePass123",
+        role: Role = Role.VIEWER,
+    ) -> tuple[User, str]:
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=hasher.hash(password),
+            role=role,
+        )
+        user_db.create_user(user)
+        return user, password
+
+    return _create
+
+
+@pytest.fixture
+def get_token(
+    create_user: Callable[..., tuple[User, str]],
+    token_service: TokenService,
+) -> Callable[..., dict[str, Any]]:
+    """Factory fixture: create a user and return their token pair.
+
+    Returns dict with ``access_token``, ``refresh_token``, ``user``,
+    and ``password`` keys.
+
+    Usage::
+
+        def test_protected(get_token):
+            auth = get_token("admin", "a@test.com", role=Role.ADMIN)
+            headers = {"Authorization": f"Bearer {auth['access_token']}"}
+    """
+
+    def _get(
+        username: str = "testuser",
+        email: str = "test@example.com",
+        password: str = "SecurePass123",
+        role: Role = Role.VIEWER,
+    ) -> dict[str, Any]:
+        user, pwd = create_user(username, email, password, role)
+        pair = token_service.create_token_pair(user.id, user.role.value)
+        return {
+            "access_token": pair["access_token"],
+            "refresh_token": pair["refresh_token"],
+            "user": user,
+            "password": pwd,
+        }
+
+    return _get
+
+
+@pytest.fixture
+async def live_api_client():
+    """Async HTTP client for the contract-compliant live API.
+
+    Creates a fresh FastAPI app with in-memory SQLite on each invocation.
+
+    Usage::
+
+        async def test_health(live_api_client):
+            resp = await live_api_client.get("/api/v1/health")
+            assert resp.status_code == 200
+    """
+    from orchestrator.live_api import create_live_api
+
+    auth_cfg = AuthConfig(
+        secret_key="live-api-conftest-secret",
+        access_token_expire_minutes=30,
+        refresh_token_expire_days=7,
+        db_path=":memory:",
+        min_password_length=8,
+    )
+    app = create_live_api(auth_config=auth_cfg, db_path=":memory:")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+async def auth_routes_client():
+    """Async HTTP client for the auth routes (register/login/refresh/logout/me).
+
+    Uses the ``orchestrator.auth.routes`` router mounted on a minimal FastAPI app.
+
+    Usage::
+
+        async def test_register(auth_routes_client):
+            resp = await auth_routes_client.post("/auth/register", json={...})
+            assert resp.status_code == 201
+    """
+    from fastapi import FastAPI
+
+    from orchestrator.auth.error_handlers import register_error_handlers
+    from orchestrator.auth.routes import create_auth_router
+
+    cfg = AuthConfig(
+        secret_key="auth-routes-conftest-secret",
+        access_token_expire_minutes=30,
+        refresh_token_expire_days=7,
+        db_path=":memory:",
+        min_password_length=8,
+    )
+    db = UserDatabase(":memory:")
+    ts = TokenService(cfg)
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(create_auth_router(config=cfg, db=db, token_service=ts))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+# =============================================================================
+# Dashboard API Client Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+async def api_client():
+    """Async HTTP client for testing dashboard API endpoints.
+
+    Usage:
+        async def test_status(api_client):
+            response = await api_client.get("/api/status")
+            assert response.status_code == 200
+    """
+    transport = ASGITransport(app=dashboard_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+def api_client_sync():
+    """Synchronous wrapper - returns the ASGI transport for manual client creation.
+
+    For tests that need more control over the client lifecycle.
+    """
+    return ASGITransport(app=dashboard_app)

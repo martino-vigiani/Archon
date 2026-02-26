@@ -11,7 +11,6 @@ import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from .config import Config, TerminalID
 
@@ -30,11 +29,17 @@ class Report:
     summary: str = ""
     files_created: list[str] = field(default_factory=list)
     files_modified: list[str] = field(default_factory=list)
-    components_created: list[str] = field(default_factory=list)  # Components, classes, functions exposed
+    components_created: list[str] = field(
+        default_factory=list
+    )  # Components, classes, functions exposed
 
     # Dependencies and connections
-    dependencies_needed: list[dict] = field(default_factory=list)  # {"from": "t2", "what": "User model"}
-    provides_to_others: list[dict] = field(default_factory=list)  # {"to": "t1", "what": "UserAPI endpoints"}
+    dependencies_needed: list[dict] = field(
+        default_factory=list
+    )  # {"from": "t2", "what": "User model"}
+    provides_to_others: list[dict] = field(
+        default_factory=list
+    )  # {"to": "t1", "what": "UserAPI endpoints"}
 
     # Next steps
     next_steps: list[str] = field(default_factory=list)
@@ -144,7 +149,7 @@ class Report:
 
 
 # Prompt for parsing terminal output into structured report
-REPORT_PARSER_PROMPT = '''Analyze this terminal output and extract a structured report.
+REPORT_PARSER_PROMPT = """Analyze this terminal output and extract a structured report.
 
 ## Terminal Output
 
@@ -175,7 +180,7 @@ Extract the following information and return ONLY a JSON object (no markdown, no
   "success": true
 }}
 
-Be specific about file paths and component names. JSON only, no other text.'''
+Be specific about file paths and component names. JSON only, no other text."""
 
 
 class ReportManager:
@@ -252,22 +257,25 @@ class ReportManager:
         # Get terminal role for context
         terminal_config = self.config.get_terminal_config(terminal_id)
 
-        # Use Claude to parse the output
+        # Use configured model runtime to parse the output
         prompt = REPORT_PARSER_PROMPT.format(
-            output=output[:8000],  # Limit input to avoid token issues
+            output=output[:5000],  # Tight cap to keep parser calls efficient
             task_title=task_title,
             terminal_id=terminal_id,
             terminal_role=terminal_config.role,
         )
 
         try:
+            command = self.config.build_llm_command(prompt, allow_unsafe=False)
             result = subprocess.run(
-                ["claude", "--print", "-p", prompt],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=60,
+                cwd=str(self.config.base_dir),
             )
-            parsed = self._extract_json(result.stdout)
+            model_output = result.stdout.strip() or result.stderr.strip()
+            parsed = self._extract_json(model_output)
 
             if parsed:
                 return Report(
@@ -319,7 +327,9 @@ class ReportManager:
             files_modified.extend(matches[:10])
 
         # Extract summary from first meaningful line
-        lines = [l.strip() for l in output.split('\n') if l.strip() and not l.startswith('#')]
+        lines = [
+            line.strip() for line in output.split("\n") if line.strip() and not line.startswith("#")
+        ]
         summary = lines[0][:200] if lines else "Task completed"
 
         return Report(
@@ -339,8 +349,8 @@ class ReportManager:
             return None
 
         # Remove markdown code blocks
-        text = re.sub(r'```json\s*', '', text)
-        text = re.sub(r'```\s*', '', text)
+        text = re.sub(r"```json\s*", "", text)
+        text = re.sub(r"```\s*", "", text)
         text = text.strip()
 
         # Try direct parse
@@ -350,19 +360,19 @@ class ReportManager:
             pass
 
         # Find JSON in text
-        start = text.find('{')
+        start = text.find("{")
         if start == -1:
             return None
 
         depth = 0
         for i, char in enumerate(text[start:], start):
-            if char == '{':
+            if char == "{":
                 depth += 1
-            elif char == '}':
+            elif char == "}":
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(text[start:i+1])
+                        return json.loads(text[start : i + 1])
                     except json.JSONDecodeError:
                         break
 
@@ -407,12 +417,14 @@ class ReportManager:
         terminal_summary = summary[report.terminal_id]
 
         # Add report reference
-        terminal_summary["reports"].append({
-            "id": report.id,
-            "task_id": report.task_id,
-            "timestamp": report.timestamp,
-            "summary": report.summary[:100],
-        })
+        terminal_summary["reports"].append(
+            {
+                "id": report.id,
+                "task_id": report.task_id,
+                "timestamp": report.timestamp,
+                "summary": report.summary[:100],
+            }
+        )
 
         # Keep only last 20 reports
         terminal_summary["reports"] = terminal_summary["reports"][-20:]
@@ -449,7 +461,7 @@ class ReportManager:
             try:
                 data = json.loads(json_file.read_text())
                 reports.append(Report.from_dict(data))
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
         return reports
@@ -499,15 +511,23 @@ class ReportManager:
                     context_parts.append(f"**{report.summary}**\n")
 
                     if report.components_created:
-                        context_parts.append("Available components: " + ", ".join(report.components_created[:5]) + "\n")
+                        context_parts.append(
+                            "Available components: "
+                            + ", ".join(report.components_created[:5])
+                            + "\n"
+                        )
 
                     if report.files_created:
-                        context_parts.append("Files: " + ", ".join(f"`{f}`" for f in report.files_created[:3]) + "\n")
+                        context_parts.append(
+                            "Files: " + ", ".join(f"`{f}`" for f in report.files_created[:3]) + "\n"
+                        )
 
                     # Check if this report provides something to target
                     for provides in report.provides_to_others:
                         if provides.get("to") in [target_terminal, "all"]:
-                            context_parts.append(f"- Available for you: {provides.get('what', '')}\n")
+                            context_parts.append(
+                                f"- Available for you: {provides.get('what', '')}\n"
+                            )
 
                     context_parts.append("\n")
 
@@ -529,8 +549,7 @@ class ReportManager:
         for report in reports:
             # Check if report provides something to target terminal
             provides_to_target = any(
-                p.get("to") in [target_terminal, "all"]
-                for p in report.provides_to_others
+                p.get("to") in [target_terminal, "all"] for p in report.provides_to_others
             )
 
             # Check keyword overlap
@@ -553,16 +572,19 @@ class ReportManager:
         try:
             summary = json.loads(summary_file.read_text())
             return {
-                tid: data.get("components", [])  # type: ignore
-                for tid, data in summary.items()
+                tid: data.get("components", []) for tid, data in summary.items()  # type: ignore
             }
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return {}
 
     def get_dependencies_graph(self) -> dict[TerminalID, list[dict]]:
         """Get dependency graph showing what each terminal needs from others."""
         dependencies: dict[TerminalID, list[dict]] = {
-            "t1": [], "t2": [], "t3": [], "t4": [], "t5": []
+            "t1": [],
+            "t2": [],
+            "t3": [],
+            "t4": [],
+            "t5": [],
         }
 
         for tid in ["t1", "t2", "t3", "t4", "t5"]:

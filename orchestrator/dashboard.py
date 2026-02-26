@@ -5,15 +5,15 @@ Run with: python -m orchestrator.dashboard
 Or: uvicorn orchestrator.dashboard:app --reload
 """
 
+import asyncio
 import json
 import re
-import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import Config
@@ -25,6 +25,9 @@ config = Config()
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    js_dir = static_dir / "js"
+    if js_dir.exists():
+        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
 
 
 def read_json_file(path: Path) -> Any:
@@ -37,7 +40,7 @@ def read_json_file(path: Path) -> Any:
     return None
 
 
-def read_text_file(path: Path, max_lines: Optional[int] = None) -> str:
+def read_text_file(path: Path, max_lines: int | None = None) -> str:
     """Safely read a text file, optionally limiting to last N lines."""
     try:
         if path.exists():
@@ -83,10 +86,7 @@ def get_subagents_invoked() -> list[dict]:
     events_file = config.orchestra_dir / "events.json"
     events = read_json_file(events_file) or []
 
-    subagent_events = [
-        event for event in events
-        if event.get("type") == "subagent_invoked"
-    ]
+    subagent_events = [event for event in events if event.get("type") == "subagent_invoked"]
 
     # Return newest first
     return subagent_events[::-1]
@@ -94,12 +94,7 @@ def get_subagents_invoked() -> list[dict]:
 
 def parse_orchestrator_log_entry(line: str) -> dict:
     """Parse a single orchestrator log line into structured data."""
-    entry = {
-        "timestamp": None,
-        "type": "state",
-        "message": line,
-        "raw": line
-    }
+    entry = {"timestamp": None, "type": "state", "message": line, "raw": line}
 
     # Try to extract timestamp and categorize
     # Common log formats:
@@ -122,11 +117,11 @@ def parse_orchestrator_log_entry(line: str) -> dict:
 
     # Try to extract timestamp
     # Match [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
-    time_match = re.search(r'\[(\d{2}:\d{2}(?::\d{2})?)\]', line)
+    time_match = re.search(r"\[(\d{2}:\d{2}(?::\d{2})?)\]", line)
     if time_match:
         entry["timestamp"] = time_match.group(1)
         # Remove timestamp from message
-        entry["message"] = line[time_match.end():].strip()
+        entry["message"] = line[time_match.end() :].strip()
         if entry["message"].startswith(":"):
             entry["message"] = entry["message"][1:].strip()
 
@@ -181,6 +176,15 @@ async def dashboard():
     return HTMLResponse(content="<h1>Dashboard not found</h1>")
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard():
+    """Serve the API admin dashboard."""
+    html_path = static_dir / "admin.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Admin dashboard not found</h1>")
+
+
 @app.get("/api/status")
 async def get_status():
     """Get current orchestrator status."""
@@ -194,7 +198,7 @@ async def get_status():
                 "completed_count": 0,
                 "failed_count": 0,
                 "total_count": 0,
-            }
+            },
         }
         status["timestamp"] = datetime.now().isoformat()
         status["project"] = get_project_info()
@@ -277,6 +281,14 @@ async def get_terminals():
                 "role": cfg.role,
                 "description": cfg.description,
                 "subagents": cfg.subagents,
+                "specialization": cfg.specialization,
+                "provider": config.llm_provider,
+                "model": (
+                    (config.llm_model or cfg.codex_model)
+                    if config.llm_provider == "codex"
+                    else (config.llm_model or "default")
+                ),
+                "reasoning_profile": cfg.codex_reasoning,
             }
             for tid, cfg in config.terminals.items()
         }
@@ -290,8 +302,7 @@ async def get_terminal_output_endpoint(terminal_id: str, max_lines: int = 100):
     valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
+            status_code=400, detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
         )
 
     try:
@@ -336,18 +347,20 @@ async def get_subagents():
         # Transform subagent events to a consistent format
         formatted_subagents = []
         for event in subagents[:20]:  # Last 20
-            formatted_subagents.append({
-                "name": event.get("subagent", event.get("name", "unknown")),
-                "terminal": event.get("terminal_id", event.get("terminal", "unknown")),
-                "task": event.get("task", event.get("description", "No task info")),
-                "timestamp": event.get("timestamp", datetime.now().isoformat()),
-                "active": event.get("active", True),
-                "id": event.get("id", f"sa-{len(formatted_subagents)}"),
-            })
+            formatted_subagents.append(
+                {
+                    "name": event.get("subagent", event.get("name", "unknown")),
+                    "terminal": event.get("terminal_id", event.get("terminal", "unknown")),
+                    "task": event.get("task", event.get("description", "No task info")),
+                    "timestamp": event.get("timestamp", datetime.now().isoformat()),
+                    "active": event.get("active", True),
+                    "id": event.get("id", f"sa-{len(formatted_subagents)}"),
+                }
+            )
 
         return {
             "invoked": formatted_subagents,
-            "available": sorted(list(available_subagents)),
+            "available": sorted(available_subagents),
             "total_invocations": len(subagents),
         }
     except Exception as e:
@@ -404,14 +417,16 @@ async def get_artifacts():
         artifacts = []
         if config.artifacts_dir.exists():
             for f in config.artifacts_dir.iterdir():
-                artifacts.append({
-                    "name": f.name,
-                    "path": str(f),
-                    "size": f.stat().st_size if f.is_file() else 0,
-                    "is_dir": f.is_dir(),
-                })
+                artifacts.append(
+                    {
+                        "name": f.name,
+                        "path": str(f),
+                        "size": f.stat().st_size if f.is_file() else 0,
+                        "is_dir": f.is_dir(),
+                    }
+                )
         return artifacts
-    except Exception as e:
+    except Exception:
         return []
 
 
@@ -422,7 +437,7 @@ async def get_events():
         events_file = config.orchestra_dir / "events.json"
         events = read_json_file(events_file) or []
         return events[-50:][::-1]  # Last 50, newest first
-    except Exception as e:
+    except Exception:
         return []
 
 
@@ -432,8 +447,7 @@ async def post_terminal_output(terminal_id: str, output: dict):
     valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
     if terminal_id not in valid_terminals:
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
+            status_code=400, detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
         )
 
     try:
@@ -479,25 +493,21 @@ manager = ConnectionManager()
 
 async def gather_full_state() -> dict:
     """Gather all dashboard state into a single consolidated update."""
-    # Get status
     status = await get_status()
-
-    # Get tasks
     tasks = await get_tasks()
 
-    # Get terminal outputs
     terminal_outputs = {}
     for tid in ["t1", "t2", "t3", "t4", "t5"]:
         terminal_outputs[tid] = get_terminal_output(tid, max_lines=50)
 
-    # Get subagents
-    subagents_data = await get_subagents()
-
-    # Get orchestrator log
     orchestrator_log = get_orchestrator_thoughts(max_entries=20)
 
-    # Get events
-    events = await get_events()
+    # Read events.json once for both subagents and events
+    events_file = config.orchestra_dir / "events.json"
+    all_events = read_json_file(events_file) or []
+
+    subagent_events = [e for e in all_events if e.get("type") == "subagent_invoked"]
+    recent_events = all_events[-50:][::-1]
 
     return {
         "type": "update",
@@ -505,9 +515,9 @@ async def gather_full_state() -> dict:
         "status": status,
         "tasks": tasks,
         "terminal_outputs": terminal_outputs,
-        "subagents": subagents_data.get("invoked", []),
+        "subagents": subagent_events[::-1][:20],
         "orchestrator_log": orchestrator_log,
-        "events": events[:20],
+        "events": recent_events[:20],
     }
 
 
@@ -515,14 +525,17 @@ async def gather_full_state() -> dict:
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates.
 
-    Sends a single consolidated 'update' message containing all state.
+    Sends consolidated 'update' messages only when state changes.
     """
     await manager.connect(websocket)
+    last_hash = 0
     try:
         while True:
-            # Send single consolidated update
             full_state = await gather_full_state()
-            await websocket.send_json(full_state)
+            state_hash = hash(json.dumps(full_state, sort_keys=True, default=str))
+            if state_hash != last_hash:
+                last_hash = state_hash
+                await websocket.send_json(full_state)
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         manager.disconnect(websocket)

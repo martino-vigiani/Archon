@@ -17,11 +17,9 @@ No I/O needed - pure computation tests.
 import pytest
 
 from orchestrator.cli_display import (
+    TERMINAL_PERSONALITIES,
     Colors,
-    ContractDisplay,
     Spinner,
-    TerminalPersonality,
-    TerminalStatus,
     c,
     flow_state_indicator,
     format_duration,
@@ -31,7 +29,6 @@ from orchestrator.cli_display import (
     quality_bar,
     quality_label,
     strip_ansi,
-    TERMINAL_PERSONALITIES,
 )
 
 

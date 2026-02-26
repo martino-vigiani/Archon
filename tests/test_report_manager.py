@@ -12,9 +12,7 @@ All subprocess calls are mocked - never run real Claude CLI.
 """
 
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from orchestrator.config import Config
 from orchestrator.report_manager import Report, ReportManager
@@ -85,8 +83,12 @@ class TestReportDataclass:
     def test_to_markdown_failed_report(self) -> None:
         """Failed report should show error in markdown."""
         report = Report(
-            id="r3", task_id="t3", terminal_id="t2",
-            summary="Failed", success=False, error="Timeout"
+            id="r3",
+            task_id="t3",
+            terminal_id="t2",
+            summary="Failed",
+            success=False,
+            error="Timeout",
         )
         md = report.to_markdown()
         assert "Failed" in md
@@ -183,17 +185,19 @@ class TestParseOutputToReport:
     def test_successful_parse_with_mocked_claude(self, config: Config) -> None:
         """Successful Claude parsing should populate all fields."""
         rm = ReportManager(config)
-        parsed_json = json.dumps({
-            "summary": "Built login screen",
-            "files_created": ["Login.swift"],
-            "files_modified": [],
-            "components_created": ["LoginView"],
-            "provides_to_others": [{"to": "all", "what": "Login UI"}],
-            "dependencies_needed": [],
-            "next_steps": ["Add validation"],
-            "blockers": [],
-            "success": True,
-        })
+        parsed_json = json.dumps(
+            {
+                "summary": "Built login screen",
+                "files_created": ["Login.swift"],
+                "files_modified": [],
+                "components_created": ["LoginView"],
+                "provides_to_others": [{"to": "all", "what": "Login UI"}],
+                "dependencies_needed": [],
+                "next_steps": ["Add validation"],
+                "blockers": [],
+                "success": True,
+            }
+        )
         mock_result = MagicMock()
         mock_result.stdout = parsed_json
 
@@ -319,12 +323,14 @@ class TestSaveAndLoadReports:
         """get_reports_for_terminal should respect limit."""
         rm = ReportManager(config)
         for i in range(5):
-            rm.save_report(Report(
-                id=f"report_limit_{i:03d}",
-                task_id=f"task_{i}",
-                terminal_id="t1",
-                summary=f"Report {i}",
-            ))
+            rm.save_report(
+                Report(
+                    id=f"report_limit_{i:03d}",
+                    task_id=f"task_{i}",
+                    terminal_id="t1",
+                    summary=f"Report {i}",
+                )
+            )
 
         reports = rm.get_reports_for_terminal("t1", limit=3)
         assert len(reports) == 3
@@ -367,14 +373,16 @@ class TestContextForTerminal:
     def test_context_from_other_terminals(self, config: Config) -> None:
         """Should include reports from other terminals that provide to target."""
         rm = ReportManager(config)
-        rm.save_report(Report(
-            id="r_context",
-            task_id="t1",
-            terminal_id="t2",
-            summary="Built user model service",
-            components_created=["UserService"],
-            provides_to_others=[{"to": "t1", "what": "UserService API"}],
-        ))
+        rm.save_report(
+            Report(
+                id="r_context",
+                task_id="t1",
+                terminal_id="t2",
+                summary="Built user model service",
+                components_created=["UserService"],
+                provides_to_others=[{"to": "t1", "what": "UserService API"}],
+            )
+        )
 
         context = rm.get_context_for_terminal("t1", "Build user profile UI")
         assert "UserService" in context
@@ -382,14 +390,16 @@ class TestContextForTerminal:
     def test_context_excludes_own_reports(self, config: Config) -> None:
         """Should not include target terminal's own reports."""
         rm = ReportManager(config)
-        rm.save_report(Report(
-            id="r_own",
-            task_id="t1",
-            terminal_id="t1",
-            summary="Own report",
-            components_created=["OwnComponent"],
-            provides_to_others=[{"to": "t1", "what": "Self"}],
-        ))
+        rm.save_report(
+            Report(
+                id="r_own",
+                task_id="t1",
+                terminal_id="t1",
+                summary="Own report",
+                components_created=["OwnComponent"],
+                provides_to_others=[{"to": "t1", "what": "Self"}],
+            )
+        )
 
         context = rm.get_context_for_terminal("t1", "Build something")
         assert "OwnComponent" not in context
@@ -407,14 +417,24 @@ class TestAllComponents:
     def test_get_all_components(self, config: Config) -> None:
         """Should return components from summary index."""
         rm = ReportManager(config)
-        rm.save_report(Report(
-            id="r1", task_id="t1", terminal_id="t1",
-            summary="test", components_created=["ViewA"],
-        ))
-        rm.save_report(Report(
-            id="r2", task_id="t2", terminal_id="t2",
-            summary="test", components_created=["ServiceB"],
-        ))
+        rm.save_report(
+            Report(
+                id="r1",
+                task_id="t1",
+                terminal_id="t1",
+                summary="test",
+                components_created=["ViewA"],
+            )
+        )
+        rm.save_report(
+            Report(
+                id="r2",
+                task_id="t2",
+                terminal_id="t2",
+                summary="test",
+                components_created=["ServiceB"],
+            )
+        )
 
         components = rm.get_all_components()
         assert "ViewA" in components.get("t1", [])

@@ -204,7 +204,7 @@ def check_tests(quick: bool = False) -> GateResult:
     )
 
 
-def check_coverage(threshold: float = 70.0) -> GateResult:
+def check_coverage(threshold: float = 80.0) -> GateResult:
     """Gate 3: Check test coverage."""
     start = time.time()
 
@@ -420,7 +420,7 @@ def main() -> int:
     parser.add_argument("--no-types", action="store_true", help="Skip type checking")
     parser.add_argument("--coverage-only", action="store_true", help="Coverage report only")
     parser.add_argument(
-        "--threshold", type=float, default=70.0, help="Coverage threshold (default: 70)"
+        "--threshold", type=float, default=80.0, help="Coverage threshold (default: 80)"
     )
     args = parser.parse_args()
 

@@ -649,6 +649,21 @@
             color: var(--text-muted);
         }
 
+        .terminal-model-meta {
+            font-size: 10px;
+            color: var(--text-secondary);
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Courier New', monospace;
+            line-height: 1.35;
+            max-width: 240px;
+            word-break: break-word;
+        }
+
+        .terminal-model-meta.empty {
+            color: var(--text-muted);
+            font-style: italic;
+            font-family: inherit;
+        }
+
         .terminal-status {
             display: flex;
             align-items: center;
@@ -1354,6 +1369,7 @@
                                 <span class="terminal-personality">Craftsman</span>
                             </div>
                             <span class="terminal-role">UI/UX Specialist</span>
+                            <span class="terminal-model-meta empty" id="terminal-model-meta-t1">Model metadata unavailable</span>
                         </div>
                         <span class="terminal-status idle">
                             <span class="status-dot"></span>
@@ -1384,6 +1400,7 @@
                                 <span class="terminal-personality">Architect</span>
                             </div>
                             <span class="terminal-role">Backend/Systems</span>
+                            <span class="terminal-model-meta empty" id="terminal-model-meta-t2">Model metadata unavailable</span>
                         </div>
                         <span class="terminal-status idle">
                             <span class="status-dot"></span>
@@ -1414,6 +1431,7 @@
                                 <span class="terminal-personality">Narrator</span>
                             </div>
                             <span class="terminal-role">Documentation</span>
+                            <span class="terminal-model-meta empty" id="terminal-model-meta-t3">Model metadata unavailable</span>
                         </div>
                         <span class="terminal-status idle">
                             <span class="status-dot"></span>
@@ -1444,6 +1462,7 @@
                                 <span class="terminal-personality">Strategist</span>
                             </div>
                             <span class="terminal-role">Product/Vision</span>
+                            <span class="terminal-model-meta empty" id="terminal-model-meta-t4">Model metadata unavailable</span>
                         </div>
                         <span class="terminal-status idle">
                             <span class="status-dot"></span>
@@ -1474,6 +1493,7 @@
                                 <span class="terminal-personality">Skeptic</span>
                             </div>
                             <span class="terminal-role">QA/Testing</span>
+                            <span class="terminal-model-meta empty" id="terminal-model-meta-t5">Model metadata unavailable</span>
                         </div>
                         <span class="terminal-status idle">
                             <span class="status-dot"></span>
@@ -1588,11 +1608,11 @@
             orchestratorStatus: 'idle',
             project: { name: null, path: null },
             terminals: {
-                t1: { state: 'idle', task: null, role: 'UI/UX Specialist', output: '', quality: 0 },
-                t2: { state: 'idle', task: null, role: 'Backend/Systems', output: '', quality: 0 },
-                t3: { state: 'idle', task: null, role: 'Documentation', output: '', quality: 0 },
-                t4: { state: 'idle', task: null, role: 'Product/Vision', output: '', quality: 0 },
-                t5: { state: 'idle', task: null, role: 'QA/Testing', output: '', quality: 0 }
+                t1: { state: 'idle', task: null, role: 'UI/UX Specialist', output: '', quality: 0, modelMeta: null },
+                t2: { state: 'idle', task: null, role: 'Backend/Systems', output: '', quality: 0, modelMeta: null },
+                t3: { state: 'idle', task: null, role: 'Documentation', output: '', quality: 0, modelMeta: null },
+                t4: { state: 'idle', task: null, role: 'Product/Vision', output: '', quality: 0, modelMeta: null },
+                t5: { state: 'idle', task: null, role: 'QA/Testing', output: '', quality: 0, modelMeta: null }
             },
             tasks: { pending: [], in_progress: [], completed: [], failed: [] },
             events: [],
@@ -1729,7 +1749,7 @@
                 if (data.status.terminals) {
                     Object.keys(data.status.terminals).forEach(tid => {
                         const t = data.status.terminals[tid];
-                        updateTerminal(tid, t.state, t.current_task, t.quality);
+                        updateTerminal(tid, t.state, t.current_task, t.quality, t);
                     });
                     updateTerminalsMeta();
                 }
@@ -1850,7 +1870,7 @@
             }
         }
 
-        function updateTerminal(tid, terminalState, currentTask, quality) {
+        function updateTerminal(tid, terminalState, currentTask, quality, terminalData) {
             const card = document.getElementById(`terminal-${tid}`);
             if (!card) return;
 
@@ -1883,8 +1903,112 @@
                 taskEl.classList.add('empty');
             }
 
+            updateTerminalModelMeta(tid, terminalData);
+
             // Quality bar
             updateQualityBar(tid, quality || 0);
+        }
+
+        function normalizeMetadataValue(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                return trimmed.length > 0 ? trimmed : null;
+            }
+            if (typeof value === 'number' || typeof value === 'boolean') {
+                return String(value);
+            }
+            return null;
+        }
+
+        function pickMetadataValue(...values) {
+            for (const value of values) {
+                const normalized = normalizeMetadataValue(value);
+                if (normalized) return normalized;
+            }
+            return null;
+        }
+
+        function extractTerminalModelMetadata(terminalData) {
+            if (!terminalData || typeof terminalData !== 'object') return null;
+
+            const provider = pickMetadataValue(
+                terminalData.provider,
+                terminalData.model_provider,
+                terminalData.llm_provider,
+                terminalData.provider_name,
+                terminalData.model?.provider,
+                terminalData.model_info?.provider,
+                terminalData.metadata?.provider,
+                terminalData.llm?.provider,
+                terminalData.runtime?.provider,
+                terminalData.config?.provider
+            );
+
+            const model = pickMetadataValue(
+                terminalData.model_name,
+                terminalData.model_id,
+                terminalData.model_slug,
+                terminalData.llm_model,
+                typeof terminalData.model === 'string' ? terminalData.model : null,
+                terminalData.metadata?.model,
+                terminalData.model?.name,
+                terminalData.model?.id,
+                terminalData.model?.model,
+                terminalData.model_info?.model,
+                terminalData.model_info?.name,
+                terminalData.model_info?.id,
+                terminalData.runtime?.model
+            );
+
+            const profile = pickMetadataValue(
+                terminalData.reasoning_profile,
+                terminalData.reasoningProfile,
+                terminalData.profile,
+                terminalData.reasoning_mode,
+                terminalData.reasoning_level,
+                terminalData.metadata?.reasoning_profile,
+                terminalData.metadata?.profile,
+                terminalData.model?.profile,
+                terminalData.model_info?.profile,
+                terminalData.model_info?.reasoning_profile,
+                terminalData.reasoning?.profile,
+                terminalData.reasoning?.mode
+            );
+
+            if (!provider && !model && !profile) return null;
+            return { provider, model, profile };
+        }
+
+        function updateTerminalModelMeta(tid, terminalData) {
+            const metaEl = document.getElementById(`terminal-model-meta-${tid}`);
+            if (!metaEl) return;
+
+            const extracted = extractTerminalModelMetadata(terminalData);
+            if (extracted && state.terminals[tid]) {
+                state.terminals[tid].modelMeta = extracted;
+            }
+
+            const modelMeta = state.terminals[tid]?.modelMeta;
+            if (!modelMeta) {
+                metaEl.textContent = 'Model metadata unavailable';
+                metaEl.classList.add('empty');
+                return;
+            }
+
+            const details = [];
+            if (modelMeta.provider) details.push(`Provider: ${modelMeta.provider}`);
+            if (modelMeta.model) details.push(`Model: ${modelMeta.model}`);
+            if (modelMeta.profile) details.push(`Profile: ${modelMeta.profile}`);
+
+            if (details.length === 0) {
+                metaEl.textContent = 'Model metadata unavailable';
+                metaEl.classList.add('empty');
+                return;
+            }
+
+            metaEl.textContent = details.join(' · ');
+            metaEl.classList.remove('empty');
         }
 
         function updateQualityBar(tid, quality) {

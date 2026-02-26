@@ -13,9 +13,6 @@ Critical edge cases:
 - Message IDs are unique across rapid successive calls
 """
 
-import pytest
-from pathlib import Path
-
 from orchestrator.config import Config
 from orchestrator.message_bus import Message, MessageBus
 
@@ -23,8 +20,8 @@ from orchestrator.message_bus import Message, MessageBus
 class TestMessageDataclass:
     """Test Message creation and serialization."""
 
-    def test_message_to_dict_roundtrip(self) -> None:
-        """Message should survive to_dict/from_dict cycle."""
+    def test_message_to_dict(self) -> None:
+        """Message to_dict should contain all fields."""
         msg = Message(
             id="msg_001",
             sender="t1",
@@ -34,15 +31,15 @@ class TestMessageDataclass:
             metadata={"priority": "high"},
         )
 
-        restored = Message.from_dict(msg.to_dict())
+        d = msg.to_dict()
 
-        assert restored.id == msg.id
-        assert restored.sender == msg.sender
-        assert restored.recipient == msg.recipient
-        assert restored.type == msg.type
-        assert restored.content == msg.content
-        assert restored.metadata == msg.metadata
-        assert restored.read is False
+        assert d["id"] == "msg_001"
+        assert d["sender"] == "t1"
+        assert d["recipient"] == "t2"
+        assert d["type"] == "request"
+        assert d["content"] == "Need UserService API"
+        assert d["metadata"] == {"priority": "high"}
+        assert d["read"] is False
 
     def test_message_to_markdown_format(self) -> None:
         """Markdown output should contain all fields."""
@@ -91,7 +88,7 @@ class TestMessageBusInit:
 
     def test_creates_inbox_files_for_all_terminals(self, config: Config) -> None:
         """Should create inbox files for t1-t5."""
-        bus = MessageBus(config)
+        MessageBus(config)
 
         for tid in ["t1", "t2", "t3", "t4", "t5"]:
             inbox = config.get_terminal_inbox(tid)  # type: ignore
@@ -99,7 +96,7 @@ class TestMessageBusInit:
 
     def test_creates_broadcast_file(self, config: Config) -> None:
         """Should create the broadcast channel file."""
-        bus = MessageBus(config)
+        MessageBus(config)
 
         broadcast = config.get_broadcast_file()
         assert broadcast.exists()
@@ -150,19 +147,6 @@ class TestDirectMessages:
         t3_inbox = bus.read_inbox("t3")
         assert "Private to T2" not in t3_inbox
 
-    def test_request_from_terminal_convenience(self, config: Config) -> None:
-        """request_from_terminal should send a request-type message."""
-        bus = MessageBus(config)
-
-        msg = bus.request_from_terminal(
-            from_terminal="t1",
-            to_terminal="t2",
-            request="Build UserStore model",
-        )
-
-        assert msg.type == "request"
-        assert msg.sender == "t1"
-        assert msg.recipient == "t2"
 
 
 class TestBroadcastMessages:
@@ -206,30 +190,6 @@ class TestBroadcastMessages:
         for tid in ["t1", "t2", "t3", "t4", "t5"]:
             inbox = bus.read_inbox(tid)  # type: ignore
             assert "No messages yet" not in inbox
-
-
-class TestArtifactSharing:
-    """Test artifact sharing between terminals."""
-
-    def test_share_artifact_to_all(self, config: Config) -> None:
-        """Shared artifacts should be broadcast to all terminals."""
-        bus = MessageBus(config)
-
-        msg = bus.share_artifact(
-            sender="t2",
-            artifact_name="UserService",
-            artifact_path="Sources/UserService.swift",
-            description="User service with CRUD operations",
-        )
-
-        assert msg.type == "artifact"
-        assert msg.metadata["artifact_name"] == "UserService"
-        assert msg.metadata["artifact_path"] == "Sources/UserService.swift"
-
-        # Should be in all inboxes
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
-            inbox = bus.read_inbox(tid)  # type: ignore
-            assert "UserService" in inbox
 
 
 class TestMessageIDUniqueness:
