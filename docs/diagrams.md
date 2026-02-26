@@ -586,6 +586,208 @@ Message Types:
 
 ---
 
+## 9. Orchestration Flow — Sequence Diagrams
+
+How Archon processes a task from user input to completed software.
+
+### Full Orchestration Sequence
+
+```
+User              Orchestrator         Planner           TaskQueue          Terminals (T1-T5)
+ │                     │                  │                  │                    │
+ │  "Create app"       │                  │                  │                    │
+ ├────────────────────►│                  │                  │                    │
+ │                     │                  │                  │                    │
+ │                     │  initialize()    │                  │                    │
+ │                     ├──┐               │                  │                    │
+ │                     │◄─┘ ensure dirs   │                  │                    │
+ │                     │    clear state   │                  │                    │
+ │                     │                  │                  │                    │
+ │                     │  spawn_terminals()                  │                    │
+ │                     ├─────────────────────────────────────────────────────────►│
+ │                     │                                     │              start T1-T5
+ │                     │◄────────────────────────────────────────────────────────┤
+ │                     │                                     │           all ready
+ │                     │                  │                  │                    │
+ │                     │  plan(task)      │                  │                    │
+ │                     ├─────────────────►│                  │                    │
+ │                     │                  │  claude --print  │                    │
+ │                     │                  ├──┐               │                    │
+ │                     │                  │◄─┘ JSON plan     │                    │
+ │                     │  TaskPlan        │                  │                    │
+ │                     │◄─────────────────┤                  │                    │
+ │                     │                  │                  │                    │
+ │                     │  add_task() x N  │                  │                    │
+ │                     ├──────────────────────────────────►  │                    │
+ │                     │                                     │  pending.json      │
+ │                     │                                     │                    │
+ │                     │  run_task_loop()                    │                    │
+ │                     ├──┐                                  │                    │
+ │                     │  │ LOOP until all_done:             │                    │
+ │                     │  │                                  │                    │
+ │                     │  │  get_next_task_for_terminal(t1)  │                    │
+ │                     │  ├─────────────────────────────────►│                    │
+ │                     │  │                          task    │                    │
+ │                     │  │◄─────────────────────────────────┤                    │
+ │                     │  │                                  │                    │
+ │                     │  │  assign_task(task_id, t1)        │                    │
+ │                     │  ├─────────────────────────────────►│                    │
+ │                     │  │                in_progress.json  │                    │
+ │                     │  │                                  │                    │
+ │                     │  │  execute_task(prompt, task_id)   │                    │
+ │                     │  ├──────────────────────────────────────────────────────►│
+ │                     │  │                                  │               T1 works
+ │                     │  │                                  │              (async)
+ │                     │  │  [repeat for T2, T3, T4, T5]    │                    │
+ │                     │  │                                  │                    │
+ │                     │  │              TerminalOutput      │                    │
+ │                     │  │◄─────────────────────────────────────────────────────┤
+ │                     │  │                                  │                    │
+ │                     │  │  complete_task(task_id, result)  │                    │
+ │                     │  ├─────────────────────────────────►│                    │
+ │                     │  │               completed.json     │                    │
+ │                     │  │                                  │                    │
+ │                     │  │  save_report()                   │                    │
+ │                     │  │  notify_terminals()              │                    │
+ │                     │  │                                  │                    │
+ │                     │◄─┘ END LOOP                         │                    │
+ │                     │                                     │                    │
+ │                     │  _run_quality_check()               │                    │
+ │                     ├──┐                                  │                    │
+ │                     │◄─┘ fix tasks if needed              │                    │
+ │                     │                                     │                    │
+ │                     │  _generate_report()                 │                    │
+ │                     ├──┐                                  │                    │
+ │                     │◄─┘ summary                          │                    │
+ │                     │                                     │                    │
+ │  ExecutionReport    │                                     │                    │
+ │◄────────────────────┤                                     │                    │
+ │                     │                                     │                    │
+ │                     │  shutdown()                         │                    │
+ │                     ├─────────────────────────────────────────────────────────►│
+ │                     │                                     │              stop all
+```
+
+### Dashboard WebSocket Flow
+
+```
+Browser             Dashboard (FastAPI)       .orchestra/ Files
+  │                       │                         │
+  │  ws://localhost:8420/ws                          │
+  ├──────────────────────►│                         │
+  │  WebSocket Connected  │                         │
+  │◄──────────────────────┤                         │
+  │                       │                         │
+  │                       │  LOOP every 2s:         │
+  │                       │                         │
+  │                       │  read status.json       │
+  │                       ├────────────────────────►│
+  │                       │◄────────────────────────┤
+  │                       │                         │
+  │                       │  read tasks/*.json      │
+  │                       ├────────────────────────►│
+  │                       │◄────────────────────────┤
+  │                       │                         │
+  │                       │  read terminal_output/  │
+  │                       ├────────────────────────►│
+  │                       │◄────────────────────────┤
+  │                       │                         │
+  │                       │  read events.json       │
+  │                       ├────────────────────────►│
+  │                       │◄────────────────────────┤
+  │                       │                         │
+  │                       │  hash(state) changed?   │
+  │                       ├──┐                      │
+  │                       │◄─┘ yes                  │
+  │                       │                         │
+  │  { type: "update",    │                         │
+  │    status: {...},      │                         │
+  │    tasks: {...},       │                         │
+  │    terminal_outputs:{} │                         │
+  │    ... }               │                         │
+  │◄──────────────────────┤                         │
+  │                       │                         │
+  │  END LOOP (on disconnect)                       │
+```
+
+### Inter-Terminal Communication Flow
+
+```
+Orchestrator          MessageBus            T1 Inbox         T2 Inbox         Broadcast
+     │                    │                    │                │                 │
+     │  T2 completes task │                    │                │                 │
+     │                    │                    │                │                 │
+     │  notify_terminals  │                    │                │                 │
+     │  (t2 completed     │                    │                │                 │
+     │   "Build models")  │                    │                │                 │
+     │                    │                    │                │                 │
+     │  send(t2, t1,      │                    │                │                 │
+     │    "Models ready") │                    │                │                 │
+     ├───────────────────►│                    │                │                 │
+     │                    │  append to inbox   │                │                 │
+     │                    ├───────────────────►│                │                 │
+     │                    │                    │  t1_inbox.md   │                 │
+     │                    │                    │  updated       │                 │
+     │                    │                    │                │                 │
+     │  send(t2, t3,      │                    │                │                 │
+     │    "Models ready") │                    │                │                 │
+     ├───────────────────►│                    │                │                 │
+     │                    │  append t3 inbox   │                │                 │
+     │                    │                    │                │                 │
+     │  broadcast_status  │                    │                │                 │
+     │  ("Phase 2 start") │                    │                │                 │
+     ├───────────────────►│                    │                │                 │
+     │                    │  append to all     │                │                 │
+     │                    ├───────────────────►│                │                 │
+     │                    ├────────────────────────────────────►│                 │
+     │                    ├──────────────────────────────────────────────────────►│
+     │                    │                    │                │    broadcast.md │
+```
+
+### Manager Intelligence Loop
+
+```
+                    ╭──────────────────────────────────────╮
+                    │       Manager Intelligence Loop      │
+                    │       (runs every 15 seconds)        │
+                    ╰──────────────────┬───────────────────╯
+                                       │
+                    ╭──────────────────▼───────────────────╮
+                    │  Collect Terminal Heartbeats          │
+                    │  • current_task_id                    │
+                    │  • is_blocked?                        │
+                    │  • terminal state                     │
+                    ╰──────────────────┬───────────────────╯
+                                       │
+                    ╭──────────────────▼───────────────────╮
+                    │  Collect Reports & Contracts          │
+                    │  • completed work per terminal        │
+                    │  • active contracts                   │
+                    │  • current phase                      │
+                    ╰──────────────────┬───────────────────╯
+                                       │
+                    ╭──────────────────▼───────────────────╮
+                    │  analyze_and_decide()                 │
+                    │  Returns: list[ManagerAction]         │
+                    ╰──────────────────┬───────────────────╯
+                                       │
+             ┌─────────────────────────┼─────────────────────────┐
+             │                         │                         │
+       ╭─────▼─────╮            ╭──────▼──────╮           ╭─────▼─────╮
+       │  AMPLIFY   │            │  REDIRECT   │           │  INJECT   │
+       │ broadcast  │            │  message to │           │ add_task  │
+       │ success    │            │  terminal   │           │ to queue  │
+       ╰───────────╯            ╰─────────────╯           ╰───────────╯
+             │                         │                         │
+       ╭─────▼─────╮            ╭──────▼──────╮
+       │  MEDIATE   │            │   PRUNE     │
+       │ send to    │            │ block/cancel│
+       │ parties    │            │ tasks       │
+       ╰───────────╯            ╰─────────────╯
+```
+
+---
+
 ## Quick Reference Card
 
 ```

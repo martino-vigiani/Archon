@@ -55,7 +55,7 @@ coverage:
 		--cov-report=term-missing \
 		--cov-report=html:.orchestra/qa/coverage/html \
 		--cov-report=json:.orchestra/qa/coverage/coverage.json \
-		--cov-fail-under=70
+		--cov-fail-under=80
 
 coverage-report:
 	python -m pytest tests/ \
@@ -190,7 +190,7 @@ help:
 	@echo "  make test-critical  - Run critical tests only"
 	@echo ""
 	@echo "Coverage:"
-	@echo "  make coverage       - Run tests with coverage (fail under 70%)"
+	@echo "  make coverage       - Run tests with coverage (fail under 80%)"
 	@echo "  make coverage-report - Show coverage in terminal"
 	@echo "  make coverage-html  - Generate HTML coverage report"
 	@echo ""

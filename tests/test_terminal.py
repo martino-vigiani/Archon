@@ -12,9 +12,10 @@ All subprocess calls are mocked - never spawn real Claude Code.
 """
 
 import asyncio
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from orchestrator.terminal import (
     RateLimitError,
@@ -132,16 +133,6 @@ class TestTerminalError:
 class TestTerminalConfiguration:
     """Test terminal configuration options."""
 
-    def test_default_max_retries(self, tmp_path: Path) -> None:
-        """Default max retries should be 2."""
-        terminal = Terminal("t1", tmp_path)
-        assert terminal.max_retries == 2
-
-    def test_custom_max_retries(self, tmp_path: Path) -> None:
-        """Custom max retries should be respected."""
-        terminal = Terminal("t1", tmp_path, max_retries=5)
-        assert terminal.max_retries == 5
-
     def test_system_prompt_stored(self, tmp_path: Path) -> None:
         """System prompt should be stored for use in prompts."""
         terminal = Terminal("t1", tmp_path, system_prompt="You are T1, the Craftsman.")
@@ -161,9 +152,7 @@ class TestExecuteTaskMocked:
         terminal = Terminal("t1", tmp_path, verbose=False)
 
         mock_process = AsyncMock()
-        mock_process.communicate = AsyncMock(
-            return_value=(b"Task completed successfully", b"")
-        )
+        mock_process.communicate = AsyncMock(return_value=(b"Task completed successfully", b""))
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
@@ -200,9 +189,7 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
-            asyncio.get_event_loop().run_until_complete(
-                terminal.execute_task("Build UI")
-            )
+            asyncio.get_event_loop().run_until_complete(terminal.execute_task("Build UI"))
 
             # The prompt argument should contain both system prompt and task
             call_args = mock_exec.call_args
@@ -211,24 +198,22 @@ class TestExecuteTaskMocked:
             assert "Build UI" in prompt_arg
 
     def test_failed_execution_returns_error(self, tmp_path: Path) -> None:
-        """Failed execution after retries should return error output."""
-        terminal = Terminal("t1", tmp_path, verbose=False, max_retries=1)
+        """Failed execution should return error output."""
+        terminal = Terminal("t1", tmp_path, verbose=False)
 
         mock_process = AsyncMock()
         mock_process.communicate = AsyncMock(return_value=(b"", b"Error: command not found"))
         mock_process.returncode = 1
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = asyncio.get_event_loop().run_until_complete(
-                terminal.execute_task("bad task")
-            )
+            result = asyncio.get_event_loop().run_until_complete(terminal.execute_task("bad task"))
 
         assert result.is_error is True
         assert terminal.state == TerminalState.ERROR
 
     def test_rate_limit_returns_immediately(self, tmp_path: Path) -> None:
-        """Rate limit should stop retries and return immediately."""
-        terminal = Terminal("t1", tmp_path, verbose=False, max_retries=3)
+        """Rate limit should return error immediately."""
+        terminal = Terminal("t1", tmp_path, verbose=False)
 
         mock_process = AsyncMock()
         mock_process.communicate = AsyncMock(
@@ -237,9 +222,7 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = asyncio.get_event_loop().run_until_complete(
-                terminal.execute_task("test")
-            )
+            result = asyncio.get_event_loop().run_until_complete(terminal.execute_task("test"))
 
         assert result.is_error is True
         assert "RATE_LIMIT" in result.content

@@ -4,14 +4,11 @@ Message Bus for inter-terminal communication.
 Uses file-based messaging in .orchestra/messages/ for coordination.
 """
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Literal
 
 from .config import Config, TerminalID
-
 
 MessageType = Literal["request", "response", "broadcast", "status", "artifact", "intervention"]
 
@@ -40,10 +37,6 @@ class Message:
             "metadata": self.metadata,
             "read": self.read,
         }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Message":
-        return cls(**data)
 
     def to_markdown(self) -> str:
         """Format message as markdown for terminal consumption."""
@@ -176,38 +169,3 @@ class MessageBus:
             metadata=metadata or {},
         )
 
-    def request_from_terminal(
-        self,
-        from_terminal: TerminalID,
-        to_terminal: TerminalID,
-        request: str,
-    ) -> Message:
-        """Send a request from one terminal to another."""
-        return self.send(
-            sender=from_terminal,
-            recipient=to_terminal,
-            content=request,
-            msg_type="request",
-        )
-
-    def share_artifact(
-        self,
-        sender: str,
-        artifact_name: str,
-        artifact_path: str,
-        description: str,
-    ) -> Message:
-        """Share an artifact with all terminals."""
-        content = f"""## Artifact: {artifact_name}
-
-**Path:** `{artifact_path}`
-
-{description}
-"""
-        return self.send(
-            sender=sender,
-            recipient="all",
-            content=content,
-            msg_type="artifact",
-            metadata={"artifact_name": artifact_name, "artifact_path": artifact_path},
-        )

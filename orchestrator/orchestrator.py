@@ -14,25 +14,29 @@ This is the central controller that:
 """
 
 import asyncio
+import contextlib
 import fcntl
 import json
 import signal
-import sys
 from datetime import datetime
-from pathlib import Path
+
 from .cli_display import Colors
 from .config import Config, TerminalID
-from .logger import EventLogger
-from .message_bus import MessageBus
-from .planner import Planner, TaskPlan, Intent
-from .report_manager import ReportManager, Report
-from .task_queue import TaskQueue, TaskPriority, Task, TaskStatus, FlowState
-from .terminal import Terminal, TerminalState
-from .sync_manager import SyncManager, Heartbeat
 from .contract_manager import ContractManager
+from .logger import EventLogger
+from .manager_intelligence import ActionType, ManagerAction, ManagerIntelligence, TerminalHeartbeat
+from .message_bus import MessageBus
+from .planner import Planner, TaskPlan
+from .report_manager import Report, ReportManager
+from .sync_manager import SyncManager
+from .task_queue import FlowState, Task, TaskPriority, TaskQueue, TaskStatus
+from .terminal import Terminal, TerminalState
+<<<<<<< ours
+from .sync_manager import SyncManager
 from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType, TerminalHeartbeat
+=======
 from .validator import Validator
-
+>>>>>>> theirs
 
 # =============================================================================
 # Progress Bar (optional tqdm integration)
@@ -40,6 +44,7 @@ from .validator import Validator
 
 try:
     from tqdm import tqdm
+
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
@@ -92,6 +97,7 @@ class ProgressTracker:
 # Retry Configuration
 # =============================================================================
 
+
 class RetryConfig:
     """Configuration for retry behavior."""
 
@@ -108,13 +114,14 @@ class RetryConfig:
     def get_delay(self, attempt: int) -> float:
         """Get delay for a specific retry attempt."""
         if self.exponential_backoff:
-            return self.retry_delay * (2 ** attempt)
+            return self.retry_delay * (2**attempt)
         return self.retry_delay
 
 
 # =============================================================================
 # Main Orchestrator
 # =============================================================================
+
 
 class Orchestrator:
     """
@@ -164,13 +171,11 @@ class Orchestrator:
 
         # Company Mode components
         self.sync_manager = SyncManager(self.config)
-        self.contract_manager = ContractManager(self.config)
         self.manager_intelligence = ManagerIntelligence(self.config, self.task_queue)
-        self.validator = Validator(self.config)
 
         # Manager loop control
         self._manager_loop_task: asyncio.Task | None = None
-        self._manager_loop_interval = 5.0  # Check every 5 seconds
+        self._manager_loop_interval = 15.0  # Check every 15 seconds (was 5s)
 
         # Terminal instances
         self.terminals: dict[TerminalID, Terminal] = {}
@@ -195,6 +200,13 @@ class Orchestrator:
         self._quality_check_iteration = 0
         self._processed_task_ids: set[str] = set()  # Track already quality-checked tasks
 
+        # Log buffer (flush every N entries or on shutdown)
+        self._log_buffer: list[str] = []
+        self._log_buffer_max = 20
+
+        # Status dedup (skip writes when unchanged)
+        self._last_status_hash: int = 0
+
         # Rate limit tracking
         self._rate_limited = False
         self._rate_limit_reset_time: str | None = None
@@ -208,7 +220,7 @@ class Orchestrator:
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
 
-    def _handle_shutdown(self, signum, frame):
+    def _handle_shutdown(self, _signum, _frame):
         """Handle graceful shutdown on SIGINT/SIGTERM."""
         self._log_warning("Received shutdown signal...")
         self._shutdown_requested = True
@@ -230,18 +242,35 @@ class Orchestrator:
         self._write_to_log_file(message, log_type)
 
     def _write_to_log_file(self, message: str, log_type: str = "info"):
-        """Write to orchestrator.log for dashboard consumption (thread-safe)."""
-        log_file = self.config.orchestra_dir / "orchestrator.log"
+        """Buffer log entries and flush when buffer is full."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         entry = f"[{timestamp}] [{log_type.upper()}] {message}\n"
+        self._log_buffer.append(entry)
+
+        if len(self._log_buffer) >= self._log_buffer_max:
+            self._flush_log_buffer()
+
+    def _flush_log_buffer(self):
+        """Flush buffered log entries to disk."""
+        if not self._log_buffer:
+            return
+        log_file = self.config.orchestra_dir / "orchestrator.log"
+        entries = "".join(self._log_buffer)
+        self._log_buffer.clear()
         try:
             with open(log_file, "a") as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Acquire exclusive lock
-                f.write(entry)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                f.write(entries)
                 f.flush()
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
+<<<<<<< ours
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except (IOError, OSError):
+            pass
+=======
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
+        except OSError:
             pass  # Ignore write errors
+>>>>>>> theirs
 
     def _log_success(self, message: str):
         """Log a success message (green)."""
@@ -290,15 +319,13 @@ class Orchestrator:
         try:
             with open(output_file, "a") as f:
                 f.write(entry)
-        except IOError:
+        except OSError:
             pass
 
     def _log_retry(self, terminal_id: str, task_title: str, attempt: int, max_attempts: int):
         """Log a retry attempt."""
         self._log_terminal(
-            terminal_id,
-            f"Retry {attempt}/{max_attempts}: {task_title}",
-            Colors.YELLOW
+            terminal_id, f"Retry {attempt}/{max_attempts}: {task_title}", Colors.YELLOW
         )
 
     # =========================================================================
@@ -307,13 +334,26 @@ class Orchestrator:
 
     def _detect_subagent_usage(self, terminal_id: str, task_title: str, output: str):
         """Detect and log subagent usage from task output."""
+<<<<<<< ours
+        subagents = self.config.get_all_subagents()
+=======
         subagents = [
-            "swiftui-crafter", "react-crafter", "html-stylist", "design-system",
-            "swift-architect", "node-architect", "python-architect",
-            "swiftdata-expert", "database-expert", "ml-engineer",
-            "tech-writer", "marketing-strategist",
-            "product-thinker", "monetization-expert",
+            "swiftui-crafter",
+            "react-crafter",
+            "html-stylist",
+            "design-system",
+            "swift-architect",
+            "node-architect",
+            "python-architect",
+            "swiftdata-expert",
+            "database-expert",
+            "ml-engineer",
+            "tech-writer",
+            "marketing-strategist",
+            "product-thinker",
+            "monetization-expert",
         ]
+>>>>>>> theirs
         output_lower = output.lower()
         for subagent in subagents:
             if subagent in output_lower or subagent.replace("-", " ") in output_lower:
@@ -338,8 +378,6 @@ class Orchestrator:
 
         # Clear Company Mode state
         self.sync_manager.clear_all_heartbeats()
-        self.contract_manager.clear_contracts()
-        self.manager_intelligence.clear_heartbeats()
         self.manager_intelligence.clear_action_history()
 
         # Clear orchestrator log file
@@ -358,18 +396,24 @@ class Orchestrator:
         self._retry_queue.clear()
 
         # Initialize status file
-        self._update_status({
-            "state": "initializing",
-            "terminals": {},
-            "tasks": self.task_queue.get_status_summary(),
-            "started_at": datetime.now().isoformat(),
-        })
+        self._update_status(
+            {
+                "state": "initializing",
+                "terminals": {},
+                "tasks": self.task_queue.get_status_summary(),
+                "started_at": datetime.now().isoformat(),
+            }
+        )
 
         self._log_success("Orchestrator initialized")
 
     def _update_status(self, status: dict) -> None:
-        """Update the status file."""
-        self.config.status_file.write_text(json.dumps(status, indent=2))
+        """Update the status file only if the state has changed."""
+        data = json.dumps(status, indent=2)
+        data_hash = hash(data)
+        if data_hash != self._last_status_hash:
+            self._last_status_hash = data_hash
+            self.config.status_file.write_text(data)
 
     def _get_status(self) -> dict:
         """Get current status."""
@@ -436,11 +480,14 @@ class Orchestrator:
         )
 
         self._log_info(f"Task injected: {title} -> {terminal_id}")
-        self.event_logger.log_event("task_injected", {
-            "task_id": task.id,
-            "title": title,
-            "terminal": terminal_id,
-        })
+        self.event_logger.log_event(
+            "task_injected",
+            {
+                "task_id": task.id,
+                "title": title,
+                "terminal": terminal_id,
+            },
+        )
 
         # Update progress tracker if it exists
         if self._progress:
@@ -467,10 +514,13 @@ class Orchestrator:
                 self.task_queue._save_tasks("pending.json", pending)
 
                 self._log_warning(f"Task cancelled: {task.title}")
-                self.event_logger.log_event("task_cancelled", {
-                    "task_id": task_id,
-                    "title": task.title,
-                })
+                self.event_logger.log_event(
+                    "task_cancelled",
+                    {
+                        "task_id": task_id,
+                        "title": task.title,
+                    },
+                )
                 return True
 
         return False
@@ -495,12 +545,17 @@ class Orchestrator:
         terminal_states = {}
         for tid, terminal in self.terminals.items():
             current_task = self.task_queue.get_terminal_current_task(tid)
+            runtime_profile = self.config.get_terminal_runtime_profile(tid)
             terminal_states[tid] = {
                 "state": terminal.state.value if terminal else "not_started",
                 "current_task": current_task.title if current_task else None,
                 "current_task_id": current_task.id if current_task else None,
                 "quality_level": current_task.quality_level if current_task else 0.0,
                 "flow_state": current_task.flow_state.value if current_task else "idle",
+                "provider": runtime_profile["provider"],
+                "model": runtime_profile["model"],
+                "reasoning_profile": runtime_profile["reasoning"],
+                "specialization": runtime_profile["specialization"],
             }
 
         # Calculate duration
@@ -548,17 +603,15 @@ class Orchestrator:
         """Spawn a single terminal."""
         try:
             config = self.config.get_terminal_config(terminal_id)
-            prompt_file = self.config.templates_dir / config.prompt_file
 
             # Load system prompt from template
-            system_prompt = None
-            if prompt_file.exists():
-                system_prompt = prompt_file.read_text()
+            system_prompt = self.config.load_system_prompt(terminal_id)
 
             terminal = Terminal(
                 terminal_id=terminal_id,
                 working_dir=self.config.base_dir,
                 system_prompt=system_prompt,
+                runtime_config=self.config,
                 verbose=self.verbose,
             )
 
@@ -577,10 +630,8 @@ class Orchestrator:
 
         # Stop existing terminal if any
         if terminal_id in self.terminals:
-            try:
+            with contextlib.suppress(Exception):
                 await self.terminals[terminal_id].stop()
-            except Exception:
-                pass
             del self.terminals[terminal_id]
 
         # Spawn new terminal
@@ -604,7 +655,7 @@ class Orchestrator:
         self.event_logger.orchestrator_started(task)
 
         # Use planner to break down task
-        plan = self.planner.plan(task, project_context=project_context)
+        plan = await self.planner.plan(task, project_context=project_context)
 
         self._log_success(f"Plan created: {plan.summary}")
         self._log_info(f"Total tasks: {len(plan.tasks)}")
@@ -744,7 +795,9 @@ This helps the orchestrator coordinate with other terminals.
                 return False
 
             if output.is_error:
-                return await self._handle_task_failure(terminal_id, task, "Task failed or timed out")
+                return await self._handle_task_failure(
+                    terminal_id, task, "Task failed or timed out"
+                )
             else:
                 # Parse output into structured report (Manager Intelligence)
                 report = self.report_manager.parse_output_to_report(
@@ -947,21 +1000,14 @@ This helps the orchestrator coordinate with other terminals.
                     await asyncio.sleep(self._manager_loop_interval)
                     continue
 
-                # Load current state
-                heartbeats_dict = self.sync_manager.read_all_heartbeats()
-
-                # Convert dict to TerminalHeartbeat objects for manager_intelligence
+                # Build heartbeats from internal terminal state (no disk I/O)
                 heartbeats = {}
-                for tid, hb_data in heartbeats_dict.items():
+                for tid, terminal in self.terminals.items():
                     heartbeats[tid] = TerminalHeartbeat(
                         terminal_id=tid,
-                        timestamp=hb_data.get("timestamp", ""),
-                        current_task_id=hb_data.get("current_task"),
-                        current_task_title=hb_data.get("current_task"),
-                        progress_percent=int(hb_data.get("progress", "0%").replace("%", "") or 0),
-                        files_being_edited=hb_data.get("files_touched", []),
-                        is_blocked=hb_data.get("status") == "blocked",
-                        blocker_reason=hb_data.get("waiting_for"),
+                        current_task_id=terminal.current_task_id,
+                        current_task_title=terminal.current_task_id,
+                        is_blocked=(terminal.state.value == "blocked"),
                     )
 
                 # Get contracts for context
@@ -996,13 +1042,25 @@ This helps the orchestrator coordinate with other terminals.
         Handles the 5 intervention types: AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE
         """
         self._log_info(f"Manager action: {action.action_type.value} - {action.reason}")
+<<<<<<< ours
         self.event_logger.log_event("manager_action", {
             "type": action.action_type.value,
             "reason": action.reason,
             "priority": action.priority,
             "flow_state_before": action.flow_state_before,
-            "expected_flow_state_after": action.expected_flow_state_after,
         })
+=======
+        self.event_logger.log_event(
+            "manager_action",
+            {
+                "type": action.action_type.value,
+                "reason": action.reason,
+                "priority": action.priority,
+                "flow_state_before": action.flow_state_before,
+                "expected_flow_state_after": action.expected_flow_state_after,
+            },
+        )
+>>>>>>> theirs
 
         # ORGANIC FLOW INTERVENTIONS (v2.0)
 
@@ -1080,8 +1138,8 @@ This helps the orchestrator coordinate with other terminals.
             else:
                 self._log_info("SYNC POINT TRIGGERED")
                 self.message_bus.broadcast_status(
-                    f"## SYNC POINT\n\nPhase transition triggered.\n"
-                    f"All terminals should check for phase-specific tasks."
+                    "## SYNC POINT\n\nPhase transition triggered.\n"
+                    "All terminals should check for phase-specific tasks."
                 )
 
         elif action.action_type == ActionType.ESCALATE:
@@ -1105,10 +1163,14 @@ This helps the orchestrator coordinate with other terminals.
         # Check if we've exceeded max quality check iterations
         self._quality_check_iteration += 1
         if self._quality_check_iteration > self.max_quality_iterations:
-            self._log_info(f"Quality check skipped (max iterations {self.max_quality_iterations} reached)")
+            self._log_info(
+                f"Quality check skipped (max iterations {self.max_quality_iterations} reached)"
+            )
             return []
 
-        self._log_info(f"Running quality check (iteration {self._quality_check_iteration}/{self.max_quality_iterations})...")
+        self._log_info(
+            f"Running quality check (iteration {self._quality_check_iteration}/{self.max_quality_iterations})..."
+        )
 
         completed_tasks = self.task_queue.completed
 
@@ -1120,11 +1182,14 @@ This helps the orchestrator coordinate with other terminals.
             self._processed_task_ids.add(t.id)
 
         # Skip Review/Fix tasks - don't create Review of Review
-        original_tasks = [t for t in new_tasks
-                         if not t.title.startswith("Review:")
-                         and not t.title.startswith("Fix:")
-                         and not t.metadata.get("is_fix_task")
-                         and not t.metadata.get("is_review_task")]
+        original_tasks = [
+            t
+            for t in new_tasks
+            if not t.title.startswith("Review:")
+            and not t.title.startswith("Fix:")
+            and not t.metadata.get("is_fix_task")
+            and not t.metadata.get("is_review_task")
+        ]
 
         failed_tasks = [t for t in original_tasks if t.status == TaskStatus.FAILED]
 
@@ -1228,20 +1293,22 @@ If the task is not critical, you may skip it with an explanation.
                 await self._paused.wait()
                 self._log_info("Resumed!")
 
-            # Process retry queue first
+            # Process retry queue first - move failed tasks back to pending
             while self._retry_queue:
                 task, terminal_id = self._retry_queue.pop(0)
-                # Re-add to pending if not already there
-                if self.task_queue.get_task(task.id) is None:
-                    self.task_queue.add_task(
-                        title=task.title,
-                        description=task.description,
-                        priority=task.priority,
-                        dependencies=task.dependencies,
-                        assigned_to=terminal_id,
-                        phase=task.phase,
-                        metadata=task.metadata,
-                    )
+                # Move from in_progress back to pending for re-assignment
+                if not self.task_queue.requeue_task(task.id):
+                    # Task wasn't in in_progress, try adding as new
+                    if self.task_queue.get_task(task.id) is None:
+                        self.task_queue.add_task(
+                            title=task.title,
+                            description=task.description,
+                            priority=task.priority,
+                            dependencies=task.dependencies,
+                            assigned_to=terminal_id,
+                            phase=task.phase,
+                            metadata=task.metadata,
+                        )
 
             # Check if all done
             if self.task_queue.is_all_done():
@@ -1253,7 +1320,9 @@ If the task is not critical, you may skip it with an explanation.
                     # Log completion event for dashboard
                     self.event_logger.orchestrator_stopped(
                         completed=len(self.task_queue.completed),
-                        failed=len([t for t in self.task_queue.completed if t.status.value == "failed"]),
+                        failed=len(
+                            [t for t in self.task_queue.completed if t.status.value == "failed"]
+                        ),
                     )
                     break
                 # Otherwise continue with fix tasks
@@ -1349,9 +1418,7 @@ If the task is not critical, you may skip it with an explanation.
                     # Log with phase info
                     phase_tag = f"[P{assigned.phase}]" if assigned.phase > 1 else ""
                     self._log_terminal(
-                        terminal_id,
-                        f"{phase_tag} Assigned: {assigned.title}",
-                        Colors.CYAN
+                        terminal_id, f"{phase_tag} Assigned: {assigned.title}", Colors.CYAN
                     )
 
                     # Start task execution in background
@@ -1362,20 +1429,45 @@ If the task is not critical, you may skip it with an explanation.
 
             # Update status with phase/flow info
             flow_state_data = self.task_queue.get_flow_state() if self.use_organic_model else {}
+<<<<<<< ours
+            terminal_snapshot = {}
+            for tid, terminal in self.terminals.items():
+                runtime_profile = self.config.get_terminal_runtime_profile(tid)
+                terminal_snapshot[tid] = {
+                    "state": terminal.state.value,
+                    "current_task": terminal.current_task_id,
+                    "provider": runtime_profile["provider"],
+                    "model": runtime_profile["model"],
+                    "reasoning_profile": runtime_profile["reasoning"],
+                    "specialization": runtime_profile["specialization"],
+                }
+
             self._update_status({
                 "state": "running",
                 "current_phase": current_phase,
                 "use_organic_model": self.use_organic_model,
                 "flow_state": flow_state_data if self.use_organic_model else None,
-                "terminals": {
-                    tid: {
-                        "state": t.state.value,
-                        "current_task": t.current_task_id,
-                    }
-                    for tid, t in self.terminals.items()
-                },
+                "terminals": terminal_snapshot,
                 "tasks": self.task_queue.get_status_summary(),
             })
+=======
+            self._update_status(
+                {
+                    "state": "running",
+                    "current_phase": current_phase,
+                    "use_organic_model": self.use_organic_model,
+                    "flow_state": flow_state_data if self.use_organic_model else None,
+                    "terminals": {
+                        tid: {
+                            "state": t.state.value,
+                            "current_task": t.current_task_id,
+                        }
+                        for tid, t in self.terminals.items()
+                    },
+                    "tasks": self.task_queue.get_status_summary(),
+                }
+            )
+>>>>>>> theirs
 
             # Brief pause before next iteration
             await asyncio.sleep(self.config.poll_interval)
@@ -1488,10 +1580,8 @@ If the task is not critical, you may skip it with an explanation.
         # Stop manager loop
         if self._manager_loop_task:
             self._manager_loop_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._manager_loop_task
-            except asyncio.CancelledError:
-                pass
 
         # Close progress tracker
         if self._progress:
@@ -1512,13 +1602,18 @@ If the task is not critical, you may skip it with an explanation.
         self._running_tasks.clear()
 
         # Update final status
-        self._update_status({
-            "state": "stopped",
-            "stopped_at": datetime.now().isoformat(),
-            "tasks": self.task_queue.get_status_summary(),
-        })
+        self._update_status(
+            {
+                "state": "stopped",
+                "stopped_at": datetime.now().isoformat(),
+                "tasks": self.task_queue.get_status_summary(),
+            }
+        )
 
         self._log_success("Shutdown complete")
+
+        # Flush remaining log entries
+        self._flush_log_buffer()
 
     # =========================================================================
     # Reporting
@@ -1550,19 +1645,17 @@ If the task is not critical, you may skip it with an explanation.
             "rate_limited": self._rate_limited,
             "rate_limit_reset_time": self._rate_limit_reset_time,
             "tasks": {
-                "total": len(completed_tasks) + len(self.task_queue.pending) + len(self.task_queue.in_progress),
+                "total": len(completed_tasks)
+                + len(self.task_queue.pending)
+                + len(self.task_queue.in_progress),
                 "completed": len(successful),
                 "failed": len(failed),
                 "pending": len(self.task_queue.pending),
                 "total_retries": total_retries,
             },
-            "completed_tasks": [
-                {"title": t.title, "terminal": t.assigned_to}
-                for t in successful
-            ],
+            "completed_tasks": [{"title": t.title, "terminal": t.assigned_to} for t in successful],
             "failed_tasks": [
-                {"title": t.title, "terminal": t.assigned_to, "error": t.error}
-                for t in failed
+                {"title": t.title, "terminal": t.assigned_to, "error": t.error} for t in failed
             ],
         }
 
@@ -1575,7 +1668,9 @@ If the task is not critical, you may skip it with an explanation.
         if self._rate_limited:
             print(f"Status: {Colors.RED}RATE LIMITED{Colors.RESET}")
             print(f"{Colors.YELLOW}Claude rate limit reached!{Colors.RESET}")
-            print(f"Reset time: {Colors.CYAN}{self._rate_limit_reset_time or 'Check Claude dashboard'}{Colors.RESET}")
+            print(
+                f"Reset time: {Colors.CYAN}{self._rate_limit_reset_time or 'Check Claude dashboard'}{Colors.RESET}"
+            )
             print()
             print(f"{Colors.DIM}Re-run this command after the rate limit resets.{Colors.RESET}")
         else:
@@ -1583,7 +1678,9 @@ If the task is not critical, you may skip it with an explanation.
             print(f"Status: {status_color}{status.upper()}{Colors.RESET}")
 
         print(f"Duration: {duration:.1f}s")
-        print(f"Tasks: {Colors.GREEN}{report['tasks']['completed']}{Colors.RESET}/{report['tasks']['total']} completed")
+        print(
+            f"Tasks: {Colors.GREEN}{report['tasks']['completed']}{Colors.RESET}/{report['tasks']['total']} completed"
+        )
 
         if total_retries > 0:
             print(f"Retries: {Colors.YELLOW}{total_retries}{Colors.RESET}")
@@ -1591,20 +1688,23 @@ If the task is not critical, you may skip it with an explanation.
         if failed and not self._rate_limited:
             print(f"Failed: {Colors.RED}{len(failed)} tasks{Colors.RESET}")
             for f in failed:
-                error_msg = f.get('error', '')
+                error_msg = f.get("error", "")
                 # Don't show rate limit tasks as failures
-                if 'rate limit' not in error_msg.lower():
+                if "rate limit" not in error_msg.lower():
                     print(f"  {Colors.RED}✗{Colors.RESET} {f['title']}")
 
         print(f"{'='*60}")
         print()
 
         return report
+<<<<<<< ours
+=======
 
 
 # =============================================================================
 # CLI Entry Point
 # =============================================================================
+
 
 def main():
     """CLI entry point for the orchestrator."""
@@ -1613,52 +1713,35 @@ def main():
     parser = argparse.ArgumentParser(
         description="Archon Orchestrator - Multi-terminal task coordination"
     )
-    parser.add_argument(
-        "task",
-        nargs="?",
-        help="The task to execute (will prompt if not provided)"
-    )
+    parser.add_argument("task", nargs="?", help="The task to execute (will prompt if not provided)")
     parser.add_argument(
         "--continuous",
         action="store_true",
-        help="Run in continuous mode (don't exit after completion)"
+        help="Run in continuous mode (don't exit after completion)",
     )
     parser.add_argument(
         "--no-quality-check",
         action="store_true",
-        help="Disable quality check after task completion"
+        help="Disable quality check after task completion",
     )
+    parser.add_argument("--no-colors", action="store_true", help="Disable colored output")
+    parser.add_argument("--no-progress", action="store_true", help="Disable progress bar")
     parser.add_argument(
-        "--no-colors",
-        action="store_true",
-        help="Disable colored output"
-    )
-    parser.add_argument(
-        "--no-progress",
-        action="store_true",
-        help="Disable progress bar"
-    )
-    parser.add_argument(
-        "--max-retries",
-        type=int,
-        default=2,
-        help="Maximum retries per failed task (default: 2)"
+        "--max-retries", type=int, default=2, help="Maximum retries per failed task (default: 2)"
     )
     parser.add_argument(
         "--retry-delay",
         type=float,
         default=2.0,
-        help="Delay between retries in seconds (default: 2.0)"
+        help="Delay between retries in seconds (default: 2.0)",
     )
     parser.add_argument(
-        "-q", "--quiet",
-        action="store_true",
-        help="Quiet mode (less verbose output)"
+        "-q", "--quiet", action="store_true", help="Quiet mode (less verbose output)"
     )
     parser.add_argument(
         "--organic",
         action="store_true",
-        help="Use organic flow model (v2.0) instead of phase-based execution"
+        help="Use organic flow model (v2.0) instead of phase-based execution",
     )
 
     args = parser.parse_args()
@@ -1694,3 +1777,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+>>>>>>> theirs

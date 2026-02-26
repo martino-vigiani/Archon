@@ -16,9 +16,7 @@ Critical edge cases:
 """
 
 import json
-import pytest
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from orchestrator.config import Config
 from orchestrator.sync_manager import Heartbeat, SyncManager, SyncPointStatus
@@ -140,7 +138,7 @@ class TestSyncManagerWriteRead:
         """Can write a heartbeat and read it back."""
         sm = SyncManager(config)
 
-        written = sm.write_heartbeat(
+        sm.write_heartbeat(
             terminal_id="t1",
             status="working",
             current_task="Build UI",
@@ -281,7 +279,10 @@ class TestSyncPointChecking:
         sm = SyncManager(config)
 
         sm.write_heartbeat(
-            "t2", "waiting", "Done", "100%",
+            "t2",
+            "waiting",
+            "Done",
+            "100%",
             ready_artifacts=["UserService", "AuthService"],
         )
 

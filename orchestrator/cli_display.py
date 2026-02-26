@@ -13,9 +13,7 @@ Single source of truth for all terminal output:
 
 import sys
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Literal
-
 
 # =============================================================================
 # Color System - Single Source of Truth
@@ -236,19 +234,55 @@ def print_organic_banner() -> None:
     # ASCII art for ARCHON
     banner_lines = [
         "",
-        c("    ╔═══════════════════════════════════════════════════════════════╗", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + "                                                               " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("     █████╗ ██████╗  ██████╗██╗  ██╗ ██████╗ ███╗   ██╗", Colors.BRIGHT_MAGENTA) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("    ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔═══██╗████╗  ██║", Colors.BRIGHT_MAGENTA) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("    ███████║██████╔╝██║     ███████║██║   ██║██╔██╗ ██║", Colors.BRIGHT_BLUE) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("    ██╔══██║██╔══██╗██║     ██╔══██║██║   ██║██║╚██╗██║", Colors.BRIGHT_BLUE) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("    ██║  ██║██║  ██║╚██████╗██║  ██║╚██████╔╝██║ ╚████║", Colors.CYAN) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝", Colors.CYAN) + "       " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + "                                                               " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("            Organic Multi-Agent Orchestrator", Colors.BRIGHT_WHITE, Colors.BOLD) + "                 " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + c("              Work flows. Quality emerges.", Colors.DIM) + "                    " + c("║", Colors.BRIGHT_CYAN),
-        c("    ║", Colors.BRIGHT_CYAN) + "                                                               " + c("║", Colors.BRIGHT_CYAN),
-        c("    ╚═══════════════════════════════════════════════════════════════╝", Colors.BRIGHT_CYAN),
+        c(
+            "    ╔═══════════════════════════════════════════════════════════════╗",
+            Colors.BRIGHT_CYAN,
+        ),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + "                                                               "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("     █████╗ ██████╗  ██████╗██╗  ██╗ ██████╗ ███╗   ██╗", Colors.BRIGHT_MAGENTA)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("    ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔═══██╗████╗  ██║", Colors.BRIGHT_MAGENTA)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("    ███████║██████╔╝██║     ███████║██║   ██║██╔██╗ ██║", Colors.BRIGHT_BLUE)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("    ██╔══██║██╔══██╗██║     ██╔══██║██║   ██║██║╚██╗██║", Colors.BRIGHT_BLUE)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("    ██║  ██║██║  ██║╚██████╗██║  ██║╚██████╔╝██║ ╚████║", Colors.CYAN)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝", Colors.CYAN)
+        + "       "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + "                                                               "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("            Organic Multi-Agent Orchestrator", Colors.BRIGHT_WHITE, Colors.BOLD)
+        + "                 "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + c("              Work flows. Quality emerges.", Colors.DIM)
+        + "                    "
+        + c("║", Colors.BRIGHT_CYAN),
+        c("    ║", Colors.BRIGHT_CYAN)
+        + "                                                               "
+        + c("║", Colors.BRIGHT_CYAN),
+        c(
+            "    ╚═══════════════════════════════════════════════════════════════╝",
+            Colors.BRIGHT_CYAN,
+        ),
         "",
     ]
 
@@ -324,9 +358,15 @@ def print_organic_status(
     print(c("    ╭" + "─" * (width - 2) + "╮", Colors.BRIGHT_CYAN))
 
     # Header
-    header = f" ARCHON - Organic Flow Active"
+    header = " ARCHON - Organic Flow Active"
     header_padding = " " * (inner_width - len(header) - len(time_str))
-    print(c("    │", Colors.BRIGHT_CYAN) + c(header, Colors.BRIGHT_WHITE, Colors.BOLD) + header_padding + c(time_str, Colors.DIM) + c(" │", Colors.BRIGHT_CYAN))
+    print(
+        c("    │", Colors.BRIGHT_CYAN)
+        + c(header, Colors.BRIGHT_WHITE, Colors.BOLD)
+        + header_padding
+        + c(time_str, Colors.DIM)
+        + c(" │", Colors.BRIGHT_CYAN)
+    )
 
     # Separator
     print(c("    ├" + "─" * (width - 2) + "┤", Colors.BRIGHT_CYAN))
@@ -365,7 +405,12 @@ def print_organic_status(
     footer = f" {contracts_str}  |  {interventions_str}"
     footer_padding = " " * (inner_width - len(footer))
 
-    print(c("    │", Colors.BRIGHT_CYAN) + c(footer, Colors.DIM) + footer_padding + c("│", Colors.BRIGHT_CYAN))
+    print(
+        c("    │", Colors.BRIGHT_CYAN)
+        + c(footer, Colors.DIM)
+        + footer_padding
+        + c("│", Colors.BRIGHT_CYAN)
+    )
 
     # Bottom border
     print(c("    ╰" + "─" * (width - 2) + "╯", Colors.BRIGHT_CYAN))
@@ -429,12 +474,12 @@ def print_contracts_summary(contracts: list[ContractDisplay]) -> None:
 
 
 InterventionType = Literal[
-    "AMPLIFY",      # Boost priority of good work
-    "REDIRECT",     # Change direction of terminal
-    "BRIDGE",       # Connect two terminals
-    "CLARIFY",      # Request clarification
-    "ACCELERATE",   # Speed up slow progress
-    "PAUSE",        # Temporarily pause work
+    "AMPLIFY",  # Boost priority of good work
+    "REDIRECT",  # Change direction of terminal
+    "BRIDGE",  # Connect two terminals
+    "CLARIFY",  # Request clarification
+    "ACCELERATE",  # Speed up slow progress
+    "PAUSE",  # Temporarily pause work
 ]
 
 
@@ -505,11 +550,15 @@ def print_flow_state(
     print()
 
     if terminals_flowing:
-        flowing_badges = " ".join(get_terminal_badge(t, include_name=False) for t in terminals_flowing)
+        flowing_badges = " ".join(
+            get_terminal_badge(t, include_name=False) for t in terminals_flowing
+        )
         print(f"    {c('Flowing:', Colors.BRIGHT_GREEN)} {flowing_badges}")
 
     if terminals_blocked:
-        blocked_badges = " ".join(get_terminal_badge(t, include_name=False) for t in terminals_blocked)
+        blocked_badges = " ".join(
+            get_terminal_badge(t, include_name=False) for t in terminals_blocked
+        )
         print(f"    {c('Blocked:', Colors.BRIGHT_RED)} {blocked_badges}")
 
     if sync_point_pending:
@@ -566,6 +615,7 @@ def show_cursor() -> None:
 def strip_ansi(text: str) -> str:
     """Strip ANSI escape codes from text for length calculation."""
     import re
+
     return re.sub(r"\033\[[0-9;]*m", "", text)
 
 
@@ -599,7 +649,11 @@ def print_box(
         remaining = inner - len(title_stripped) - 2  # 2 for spaces around title
         left_border = "─" * 1
         right_border = "─" * max(0, remaining - 1)
-        print(c(f"{pad}╭{left_border}", border_color) + f" {title} " + c(f"{right_border}╮", border_color))
+        print(
+            c(f"{pad}╭{left_border}", border_color)
+            + f" {title} "
+            + c(f"{right_border}╮", border_color)
+        )
     else:
         print(c(f"{pad}╭{'─' * inner}╮", border_color))
 

@@ -13,7 +13,6 @@ from typing import Literal
 
 from .config import Config, TerminalID
 
-
 HeartbeatStatus = Literal["working", "waiting", "blocked", "idle"]
 
 
@@ -194,7 +193,7 @@ class SyncManager:
         try:
             data = json.loads(heartbeat_path.read_text())
             return Heartbeat.from_dict(data)
-        except (json.JSONDecodeError, KeyError, IOError) as e:
+        except (OSError, json.JSONDecodeError, KeyError) as e:
             print(f"[SyncManager] Error reading heartbeat for {terminal_id}: {e}")
             return None
 

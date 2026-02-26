@@ -12,34 +12,46 @@ Usage:
 
 import argparse
 import asyncio
+import contextlib
 import json
 import subprocess
 import sys
 import time
 import webbrowser
-from datetime import datetime
 from pathlib import Path
 
+<<<<<<< ours
 from .config import Config
-from .orchestrator import Orchestrator
-from .planner import Planner
-from .manager_chat import ManagerChat, chat_repl
 from .cli_display import (
     Colors,
     c,
     print_organic_banner,
     print_terminals_ready,
-    print_organic_status,
-    quality_bar,
-    quality_label,
-    get_terminal_badge,
-    get_terminal_name,
-    get_terminal_color,
-    format_duration,
-    print_separator,
-    TerminalStatus,
-    TERMINAL_PERSONALITIES,
 )
+from .session import (
+    load_project_state,
+    validate_project_directory,
+    get_project_summary,
+    run_dry_run,
+    run_orchestrator,
+    run_with_chat,
+    retry_failed_tasks,
+=======
+from .cli_display import (
+    Colors,
+    c,
+    format_duration,
+    get_terminal_color,
+    get_terminal_name,
+    print_organic_banner,
+    print_separator,
+    print_terminals_ready,
+>>>>>>> theirs
+)
+from .config import Config
+from .manager_chat import ManagerChat, chat_repl
+from .orchestrator import Orchestrator
+from .planner import Planner
 
 
 # ============================================================================
@@ -68,6 +80,50 @@ terminals:
         """,
     )
 
+<<<<<<< ours
+    parser.add_argument("task", type=str, nargs="?", default=None,
+                        help="The high-level task to execute")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Enable verbose output")
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="Minimal output")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Plan the task but don't execute it")
+    parser.add_argument("--config", type=str,
+                        help="Path to custom config file (JSON)")
+    parser.add_argument("--timeout", type=int, default=3600,
+                        help="Maximum execution time in seconds (default: 3600)")
+    parser.add_argument("--continuous", action="store_true",
+                        help="Continuous mode: ask for new task after completion")
+    parser.add_argument("--dashboard", action="store_true",
+                        help="Also start the web dashboard")
+    parser.add_argument("--max-retries", type=int, default=2, metavar="N",
+                        help="Maximum retries for failed tasks (default: 2)")
+    parser.add_argument("--parallel", type=int, default=4, metavar="N",
+                        help="Number of parallel terminals (default: 4, max: 10)")
+    parser.add_argument("--project", type=str, metavar="PATH",
+                        help="Path to an existing project directory")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume the last interrupted task")
+    parser.add_argument("--chat", action="store_true",
+                        help="Enable interactive Manager Chat mode")
+    parser.add_argument("--no-testing", action="store_true",
+                        help="Disable T5 QA/Testing terminal (saves API limits)")
+    parser.add_argument("--quality-threshold", type=float, default=0.8, metavar="LEVEL",
+                        help="Minimum quality level (0.0-1.0, default: 0.8)")
+    parser.add_argument("--verbose-flow", action="store_true",
+                        help="Show detailed flow state changes")
+    parser.add_argument("--llm-provider", choices=["claude", "codex"], default="claude",
+                        help="Model runtime provider for planning/execution (default: claude)")
+    parser.add_argument("--llm-command", type=str,
+                        help="Override LLM CLI command (defaults: claude/codex)")
+    parser.add_argument("--llm-model", type=str,
+                        help="Model id to pass to the selected provider")
+    parser.add_argument("--full-prompts", action="store_true",
+                        help="Use full prompt templates (disables compact token-saving prompts)")
+    parser.add_argument("--max-system-prompt-chars", type=int, default=4200, metavar="N",
+                        help="Max chars for each system prompt after loading (default: 4200)")
+=======
     parser.add_argument(
         "task",
         type=str,
@@ -77,13 +133,15 @@ terminals:
     )
 
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output with detailed flow information",
     )
 
     parser.add_argument(
-        "-q", "--quiet",
+        "-q",
+        "--quiet",
         action="store_true",
         help="Minimal output (errors and final summary only)",
     )
@@ -176,48 +234,63 @@ terminals:
         action="store_true",
         help="Show detailed flow state changes during execution",
     )
+>>>>>>> theirs
 
     return parser.parse_args()
 
 
 # ============================================================================
-# Banner
+# Display Helpers (CLI-specific)
 # ============================================================================
-def print_banner():
-    """Print the Archon banner with colors - uses organic banner from cli_display."""
-    print_organic_banner()
-
-
 def print_config_summary(args: argparse.Namespace, project_path: Path | None = None):
-    """Print current configuration with organic model info."""
+    """Print current configuration."""
     print(c("    Configuration:", Colors.BOLD, Colors.WHITE))
 
-    # Terminals with personalities
     terminal_list = ["t1", "t2", "t3", "t4"]
     if not args.no_testing:
         terminal_list.append("t5")
 
     print(f"    {c('Terminals:', Colors.DIM)} {len(terminal_list)}")
-
-    # Show terminal personalities compactly
     print()
     print_terminals_ready(terminal_list)
 
-    # Other config
     print(f"    {c('Flow Model:', Colors.DIM)} {c('Organic', Colors.BRIGHT_GREEN)}")
-    print(f"    {c('Quality Threshold:', Colors.DIM)} {c(f'{args.quality_threshold:.1f}', Colors.BRIGHT_YELLOW)}")
+    print(
+        f"    {c('Quality Threshold:', Colors.DIM)} {c(f'{args.quality_threshold:.1f}', Colors.BRIGHT_YELLOW)}"
+    )
     print(f"    {c('Max Retries:', Colors.DIM)} {c(str(args.max_retries), Colors.BRIGHT_YELLOW)}")
     print(f"    {c('Timeout:', Colors.DIM)} {c(f'{args.timeout}s', Colors.BRIGHT_YELLOW)}")
+<<<<<<< ours
+    print(f"    {c('LLM Provider:', Colors.DIM)} {c(args.llm_provider, Colors.BRIGHT_CYAN)}")
+    if args.llm_model:
+        print(f"    {c('LLM Model:', Colors.DIM)} {c(args.llm_model, Colors.BRIGHT_CYAN)}")
+    print(f"    {c('Prompt Mode:', Colors.DIM)} {c('compact' if not args.full_prompts else 'full', Colors.BRIGHT_CYAN)}")
     print(f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.DIM)}")
     print(f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.DIM)}")
     print(f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.DIM)}")
     print(f"    {c('Verbose Flow:', Colors.DIM)} {c('Yes' if args.verbose_flow else 'No', Colors.BRIGHT_GREEN if args.verbose_flow else Colors.DIM)}")
+=======
+    print(
+        f"    {c('Continuous:', Colors.DIM)} {c('Yes' if args.continuous else 'No', Colors.BRIGHT_GREEN if args.continuous else Colors.DIM)}"
+    )
+    print(
+        f"    {c('Dashboard:', Colors.DIM)} {c('Yes' if args.dashboard else 'No', Colors.BRIGHT_GREEN if args.dashboard else Colors.DIM)}"
+    )
+    print(
+        f"    {c('Chat Mode:', Colors.DIM)} {c('Yes' if args.chat else 'No', Colors.BRIGHT_GREEN if args.chat else Colors.DIM)}"
+    )
+    print(
+        f"    {c('Verbose Flow:', Colors.DIM)} {c('Yes' if args.verbose_flow else 'No', Colors.BRIGHT_GREEN if args.verbose_flow else Colors.DIM)}"
+    )
+>>>>>>> theirs
 
     if project_path:
         print(f"    {c('Project:', Colors.DIM)} {c(str(project_path), Colors.BRIGHT_CYAN)}")
     print()
 
 
+<<<<<<< ours
+=======
 # ============================================================================
 # Project Management
 # ============================================================================
@@ -255,7 +328,7 @@ def load_project_state(config: Config) -> dict | None:
 
     try:
         return json.loads(state_file.read_text())
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         return None
 
 
@@ -304,20 +377,29 @@ def get_project_summary(project_path: Path) -> str:
     # Count files and find key files
     key_files = []
     key_patterns = [
-        "Package.swift", "*.xcodeproj", "*.xcworkspace",  # Swift/iOS
-        "package.json", "tsconfig.json",  # Node.js/TypeScript
-        "pyproject.toml", "setup.py", "requirements.txt",  # Python
+        "Package.swift",
+        "*.xcodeproj",
+        "*.xcworkspace",  # Swift/iOS
+        "package.json",
+        "tsconfig.json",  # Node.js/TypeScript
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",  # Python
         "Cargo.toml",  # Rust
         "go.mod",  # Go
-        "README.md", "README.txt", "README",
-        ".gitignore", "Makefile", "Dockerfile",
+        "README.md",
+        "README.txt",
+        "README",
+        ".gitignore",
+        "Makefile",
+        "Dockerfile",
     ]
 
     total_files = 0
     directories = []
 
     for item in project_path.iterdir():
-        if item.name.startswith('.'):
+        if item.name.startswith("."):
             continue  # Skip hidden files in listing
 
         if item.is_dir():
@@ -423,7 +505,7 @@ def get_project_context_for_planner(project_path: Path) -> str:
     # List key directories
     dirs = []
     for item in sorted(project_path.iterdir()):
-        if item.is_dir() and not item.name.startswith('.'):
+        if item.is_dir() and not item.name.startswith("."):
             dirs.append(item.name)
 
     if dirs:
@@ -444,7 +526,7 @@ def get_project_context_for_planner(project_path: Path) -> str:
             try:
                 content = readme_path.read_text()[:1000]  # First 1000 chars
                 key_files_content.append(f"README excerpt:\n{content}")
-            except IOError:
+            except OSError:
                 pass
             break
 
@@ -453,8 +535,10 @@ def get_project_context_for_planner(project_path: Path) -> str:
     if package_json.exists():
         try:
             pkg = json.loads(package_json.read_text())
-            key_files_content.append(f"package.json - name: {pkg.get('name', 'unknown')}, deps: {len(pkg.get('dependencies', {}))}")
-        except (json.JSONDecodeError, IOError):
+            key_files_content.append(
+                f"package.json - name: {pkg.get('name', 'unknown')}, deps: {len(pkg.get('dependencies', {}))}"
+            )
+        except (OSError, json.JSONDecodeError):
             pass
 
     # Check for Package.swift (Swift)
@@ -480,9 +564,22 @@ def get_project_context_for_planner(project_path: Path) -> str:
     for ext in source_extensions:
         files = list(project_path.rglob(f"*{ext}"))
         # Filter out common non-source directories
-        files = [f for f in files if not any(
-            part in f.parts for part in ["node_modules", ".build", "build", "dist", "__pycache__", ".git", "venv"]
-        )]
+        files = [
+            f
+            for f in files
+            if not any(
+                part in f.parts
+                for part in [
+                    "node_modules",
+                    ".build",
+                    "build",
+                    "dist",
+                    "__pycache__",
+                    ".git",
+                    "venv",
+                ]
+            )
+        ]
         source_files.extend(files)
 
     if source_files:
@@ -513,13 +610,18 @@ def print_plan(plan) -> None:
     print_separator("-", 40, Colors.DIM, indent=2)
 
     for i, task in enumerate(plan.tasks, 1):
-        deps = f" {c(f'(depends on: {', '.join(task.dependencies)})', Colors.DIM)}" if task.dependencies else ""
+        deps_text = ", ".join(task.dependencies)
+        deps = f" {c(f'(depends on: {deps_text})', Colors.DIM)}" if task.dependencies else ""
         term_color = get_terminal_color(task.terminal)
 
         print()
-        print(f"  {c(str(i) + '.', Colors.BOLD)} [{c(task.terminal.upper(), term_color)}] {c(task.title, Colors.WHITE)}")
+        print(
+            f"  {c(str(i) + '.', Colors.BOLD)} [{c(task.terminal.upper(), term_color)}] {c(task.title, Colors.WHITE)}"
+        )
         print(f"     {c('Priority:', Colors.DIM)} {task.priority}{deps}")
-        desc_preview = task.description[:80] + "..." if len(task.description) > 80 else task.description
+        desc_preview = (
+            task.description[:80] + "..." if len(task.description) > 80 else task.description
+        )
         print(f"     {c(desc_preview, Colors.DIM)}")
 
     print()
@@ -542,7 +644,11 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
 
     # Status
     status = result.get("status", "unknown")
-    status_color = Colors.BRIGHT_GREEN if status == "success" else Colors.BRIGHT_YELLOW if status == "partial" else Colors.BRIGHT_RED
+    status_color = (
+        Colors.BRIGHT_GREEN
+        if status == "success"
+        else Colors.BRIGHT_YELLOW if status == "partial" else Colors.BRIGHT_RED
+    )
     print(f"  {c('Status:', Colors.BOLD)} {c(status.upper(), status_color, Colors.BOLD)}")
     print()
 
@@ -561,8 +667,12 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
     print_separator("-", 25, Colors.DIM, indent=2)
     print(f"    Total:             {c(str(tasks.get('total', 0)), Colors.BRIGHT_WHITE)}")
     print(f"    Completed:         {c(str(tasks.get('completed', 0)), Colors.BRIGHT_GREEN)}")
-    print(f"    Failed:            {c(str(tasks.get('failed', 0)), Colors.BRIGHT_RED if tasks.get('failed', 0) > 0 else Colors.DIM)}")
-    print(f"    Pending:           {c(str(tasks.get('pending', 0)), Colors.BRIGHT_YELLOW if tasks.get('pending', 0) > 0 else Colors.DIM)}")
+    print(
+        f"    Failed:            {c(str(tasks.get('failed', 0)), Colors.BRIGHT_RED if tasks.get('failed', 0) > 0 else Colors.DIM)}"
+    )
+    print(
+        f"    Pending:           {c(str(tasks.get('pending', 0)), Colors.BRIGHT_YELLOW if tasks.get('pending', 0) > 0 else Colors.DIM)}"
+    )
     print()
 
     # Tasks per terminal
@@ -591,7 +701,9 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
                 color = get_terminal_color(term_id)
                 name = get_terminal_name(term_id)
                 total = stats["completed"] + stats["failed"]
-                print(f"    {c(f'[{term_id.upper()}]', color)} {name}: {c(str(total), Colors.BRIGHT_WHITE)} tasks ({c(str(stats['completed']), Colors.BRIGHT_GREEN)} ok, {c(str(stats['failed']), Colors.BRIGHT_RED)} failed)")
+                print(
+                    f"    {c(f'[{term_id.upper()}]', color)} {name}: {c(str(total), Colors.BRIGHT_WHITE)} tasks ({c(str(stats['completed']), Colors.BRIGHT_GREEN)} ok, {c(str(stats['failed']), Colors.BRIGHT_RED)} failed)"
+                )
         print()
 
     # Subagents used (from events log)
@@ -654,8 +766,9 @@ def print_detailed_summary(result: dict, events_file: Path, start_time: datetime
 # ============================================================================
 # Interactive Menu
 # ============================================================================
+>>>>>>> theirs
 def show_interactive_menu(has_failed_tasks: bool) -> str:
-    """Show post-completion interactive menu and return user choice."""
+    """Show post-completion interactive menu."""
     print(c("  What would you like to do?", Colors.BOLD, Colors.WHITE))
     print()
 
@@ -675,7 +788,12 @@ def show_interactive_menu(has_failed_tasks: bool) -> str:
             choice = input(c("  > ", Colors.BRIGHT_WHITE)).strip().lower()
             if choice in valid_choices:
                 return choice
-            print(c(f"    Invalid choice. Please enter one of: {', '.join(valid_choices)}", Colors.BRIGHT_RED))
+            print(
+                c(
+                    f"    Invalid choice. Please enter one of: {', '.join(valid_choices)}",
+                    Colors.BRIGHT_RED,
+                )
+            )
         except (KeyboardInterrupt, EOFError):
             return "q"
 
@@ -693,6 +811,18 @@ def get_new_task() -> str | None:
         return None
 
 
+def ask_create_directory(project_path: Path) -> bool:
+    """Ask the user if they want to create a non-existent directory."""
+    print()
+    print(c(f"  Directory does not exist: {project_path}", Colors.BRIGHT_YELLOW))
+    print()
+    try:
+        response = input(c("  Create it? [y/N] ", Colors.BRIGHT_WHITE)).strip().lower()
+        return response in ("y", "yes")
+    except (KeyboardInterrupt, EOFError):
+        return False
+
+
 # ============================================================================
 # Dashboard
 # ============================================================================
@@ -707,21 +837,35 @@ def start_dashboard(config: Config):
     print(c("  Starting dashboard...", Colors.DIM))
 
     try:
-        # Start dashboard as background process
+        log_file = config.orchestra_dir / "dashboard.log"
+        config.orchestra_dir.mkdir(parents=True, exist_ok=True)
+        log_fh = open(log_file, "w")
+
+        # Use venv Python if available, otherwise fall back to sys.executable
+        venv_python = config.base_dir / ".venv" / "bin" / "python"
+        python_exe = str(venv_python) if venv_python.exists() else sys.executable
+
         process = subprocess.Popen(
-            [sys.executable, str(dashboard_script)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            [python_exe, "-m", "orchestrator.dashboard"],
+            stdout=log_fh,
+            stderr=log_fh,
+            cwd=str(config.base_dir),
             start_new_session=True,
         )
+        time.sleep(2)
 
-        # Wait a moment for it to start
-        time.sleep(1)
+        # Check if process actually started
+        if process.poll() is not None:
+            log_fh.close()
+            error_output = log_file.read_text().strip()
+            print(c(f"  [ERROR] Dashboard crashed on startup:", Colors.BRIGHT_RED))
+            if error_output:
+                for line in error_output.split("\n")[-5:]:
+                    print(c(f"    {line}", Colors.DIM))
+            return None
 
-        # Open in browser
         dashboard_url = "http://localhost:8420"
         webbrowser.open(dashboard_url)
-
         print(c(f"  Dashboard started at {dashboard_url}", Colors.BRIGHT_GREEN))
         return process
     except Exception as e:
@@ -730,7 +874,7 @@ def start_dashboard(config: Config):
 
 
 def open_dashboard():
-    """Open the dashboard in browser (assume it's running)."""
+    """Open the dashboard in browser."""
     dashboard_url = "http://localhost:8420"
     try:
         webbrowser.open(dashboard_url)
@@ -740,6 +884,8 @@ def open_dashboard():
 
 
 # ============================================================================
+<<<<<<< ours
+=======
 # Execution Functions
 # ============================================================================
 async def run_dry_run(
@@ -749,8 +895,11 @@ async def run_dry_run(
     project_path: Path | None = None,
 ) -> int:
     """Run in dry-run mode - plan only."""
+    _ = verbose
     print()
-    print(c("  [DRY RUN MODE] Planning task without execution...", Colors.BRIGHT_YELLOW, Colors.BOLD))
+    print(
+        c("  [DRY RUN MODE] Planning task without execution...", Colors.BRIGHT_YELLOW, Colors.BOLD)
+    )
 
     planner = Planner(config)
 
@@ -798,6 +947,8 @@ async def run_orchestrator(
     project_path: Path | None = None,
 ) -> tuple[int, dict]:
     """Run the full orchestrator."""
+    _ = max_retries
+    _ = max_retries
     start_time = datetime.now()
 
     # Save project state before starting
@@ -830,7 +981,7 @@ async def run_orchestrator(
         exit_code = 0 if status == "success" else 1
         return exit_code, result
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print()
         time_str = format_duration(timeout)
         print(c(f"  Error: Execution timed out after {time_str}.", Colors.BRIGHT_RED, Colors.BOLD))
@@ -861,6 +1012,7 @@ async def run_with_chat(
 
     Both the orchestrator and the chat REPL run concurrently.
     """
+    _ = max_retries
     start_time = datetime.now()
 
     # Save project state before starting
@@ -884,7 +1036,7 @@ async def run_with_chat(
                 orchestrator.run(task, project_context=project_context),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return {"status": "timeout", "tasks": {"failed": 1}}
         except asyncio.CancelledError:
             return {"status": "cancelled", "tasks": {}}
@@ -908,10 +1060,8 @@ async def run_with_chat(
             # Give chat a moment to clean up
             if chat_task in pending:
                 chat_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await chat_task
-                except asyncio.CancelledError:
-                    pass
             result = orchestrator_task.result()
         else:
             # Chat exited - wait for orchestrator
@@ -965,19 +1115,17 @@ async def retry_failed_tasks(
 
 
 # ============================================================================
+>>>>>>> theirs
 # Main
 # ============================================================================
 def main() -> int:
     args = parse_args()
+    print_organic_banner()
 
-    print_banner()
-
-    # Load config early for project state access
     config = Config()
-
-    # Handle --resume flag
     project_path: Path | None = None
 
+    # Handle --resume
     if args.resume:
         state = load_project_state(config)
         if not state:
@@ -985,11 +1133,8 @@ def main() -> int:
             print()
             print(c("  To start a new session:", Colors.DIM))
             print(c('    python -m orchestrator "Your task here"', Colors.BRIGHT_WHITE))
-            print(c("  To work on an existing project:", Colors.DIM))
-            print(c('    python -m orchestrator --project ./path "Your task"', Colors.BRIGHT_WHITE))
             return 1
 
-        # Restore state
         project_path = Path(state["path"])
         if not args.task:
             args.task = state.get("task")
@@ -998,19 +1143,16 @@ def main() -> int:
         print(f"    Project: {c(str(project_path), Colors.BRIGHT_WHITE)}")
         print(f"    Task: {c(state.get('task', 'N/A'), Colors.DIM)}")
         print(f"    Last status: {c(state.get('status', 'unknown'), Colors.BRIGHT_YELLOW)}")
-        print(f"    Timestamp: {c(state.get('timestamp', 'N/A'), Colors.DIM)}")
         print()
 
-    # Handle --project flag
+    # Handle --project
     elif args.project:
         project_path, error = validate_project_directory(args.project)
-
         if error:
             print(c(f"  [ERROR] {error}", Colors.BRIGHT_RED))
             return 1
 
         if project_path and not project_path.exists():
-            # Directory doesn't exist - ask user
             if ask_create_directory(project_path):
                 try:
                     project_path.mkdir(parents=True, exist_ok=True)
@@ -1022,13 +1164,11 @@ def main() -> int:
                 print(c("  Aborted.", Colors.DIM))
                 return 1
 
-        # Show project summary
         if project_path and project_path.exists():
             print(c("  Project Directory:", Colors.BOLD, Colors.WHITE))
             print(c(f"  {project_path}", Colors.BRIGHT_CYAN))
             print()
-            summary = get_project_summary(project_path)
-            print(summary)
+            print(get_project_summary(project_path))
             print()
 
     print_config_summary(args, project_path)
@@ -1042,24 +1182,31 @@ def main() -> int:
 
     config.max_terminals = args.parallel
     config.disable_testing = args.no_testing
+    config.llm_provider = args.llm_provider
+    config.llm_command = args.llm_command or ("codex" if args.llm_provider == "codex" else "claude")
+    config.llm_model = args.llm_model
+    config.compact_prompts = not args.full_prompts
+    config.max_system_prompt_chars = args.max_system_prompt_chars
 
     if args.config:
-        # Load custom config (future: parse JSON config file)
         try:
-            custom_config = json.loads(Path(args.config).read_text())
+            json.loads(Path(args.config).read_text())
+<<<<<<< ours
+=======
             # Apply custom config values here
+>>>>>>> theirs
             print(c(f"  Loaded config from {args.config}", Colors.DIM))
         except Exception as e:
             print(c(f"  [WARNING] Could not load config: {e}", Colors.BRIGHT_YELLOW))
 
     verbose = not args.quiet
 
-    # Start dashboard if requested
+    # Dashboard
     dashboard_process = None
     if args.dashboard:
         dashboard_process = start_dashboard(config)
 
-    # Handle continuous mode without initial task
+    # Get task
     if args.continuous and not args.task:
         print(c("  Continuous mode - waiting for task...", Colors.BRIGHT_CYAN))
         task = get_new_task()
@@ -1073,21 +1220,41 @@ def main() -> int:
         print(c("  Error: No task provided.", Colors.BRIGHT_RED))
         print()
         print(c("  Usage:", Colors.DIM))
+<<<<<<< ours
         print(c('    python -m orchestrator "Create an iOS app for habit tracking"', Colors.BRIGHT_WHITE))
         print(c('    python -m orchestrator --resume           # resume last session', Colors.BRIGHT_WHITE))
-        print(c('    python -m orchestrator --help             # see all options', Colors.BRIGHT_WHITE))
+=======
+        print(
+            c(
+                '    python -m orchestrator "Create an iOS app for habit tracking"',
+                Colors.BRIGHT_WHITE,
+            )
+        )
+        print(
+            c(
+                "    python -m orchestrator --resume           # resume last session",
+                Colors.BRIGHT_WHITE,
+            )
+        )
+        print(
+            c(
+                "    python -m orchestrator --help             # see all options",
+                Colors.BRIGHT_WHITE,
+            )
+        )
+>>>>>>> theirs
         return 1
 
     print(f"  {c('Task:', Colors.BOLD)} {task}")
     print()
 
-    # Dry run mode
+    # Dry run
     if args.dry_run:
         return asyncio.run(run_dry_run(task, config, verbose, project_path))
 
-    # Chat mode - interactive REPL during execution
+    # Chat mode
     if args.chat:
-        exit_code, last_result = asyncio.run(
+        exit_code, _ = asyncio.run(
             run_with_chat(task, config, verbose, args.timeout, args.max_retries, project_path)
         )
         return exit_code
@@ -1102,11 +1269,9 @@ def main() -> int:
             run_orchestrator(task, config, verbose, args.timeout, args.max_retries, project_path)
         )
 
-        # Check for failed tasks
         tasks_info = last_result.get("tasks", {})
         has_failed = tasks_info.get("failed", 0) > 0
 
-        # In non-continuous mode, show menu and handle choice
         if not args.continuous:
             choice = show_interactive_menu(has_failed)
 
@@ -1116,7 +1281,9 @@ def main() -> int:
             elif choice == "r" and has_failed:
                 if retry_count < args.max_retries:
                     retry_count += 1
-                    print(c(f"  Retry attempt {retry_count}/{args.max_retries}", Colors.BRIGHT_YELLOW))
+                    print(
+                        c(f"  Retry attempt {retry_count}/{args.max_retries}", Colors.BRIGHT_YELLOW)
+                    )
                     exit_code, last_result = asyncio.run(
                         retry_failed_tasks(config, verbose, args.timeout, last_result, project_path)
                     )
@@ -1134,10 +1301,9 @@ def main() -> int:
                     continue
                 else:
                     continue
-
             break
 
-        # Continuous mode - always ask for new task
+        # Continuous mode
         print()
         print(c("  Task completed. Ready for next task.", Colors.BRIGHT_GREEN))
         new_task = get_new_task()
@@ -1149,12 +1315,9 @@ def main() -> int:
             print(c("  No task provided. Exiting continuous mode.", Colors.DIM))
             break
 
-    # Cleanup dashboard if we started it
     if dashboard_process:
-        try:
+        with contextlib.suppress(Exception):
             dashboard_process.terminate()
-        except Exception:
-            pass
 
     return exit_code
 

@@ -12,38 +12,28 @@ Provides:
 import asyncio
 import json
 import subprocess
-import sys
 from datetime import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .orchestrator import Orchestrator
 
-from .config import Config, TerminalID
 from .cli_display import (
+    TERMINAL_PERSONALITIES,
     Colors,
     c,
+    get_terminal_badge,
+    get_terminal_color,
+    get_terminal_name,
     quality_bar,
     quality_label,
-    get_terminal_badge,
-    get_terminal_name,
-    get_terminal_color,
-    print_organic_status,
-    print_contracts_summary,
-    print_intervention_help,
-    print_flow_state,
-    TerminalStatus,
-    ContractDisplay,
-    FlowState,
-    InterventionType,
-    TERMINAL_PERSONALITIES,
 )
-
+from .config import Config
 
 # =============================================================================
 # Chat History
 # =============================================================================
+
 
 class ChatHistory:
     """Manages chat history for context."""
@@ -60,24 +50,26 @@ class ChatHistory:
         if self.history_file.exists():
             try:
                 self.entries = json.loads(self.history_file.read_text())
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 self.entries = []
 
     def _save(self) -> None:
         """Save history to file."""
         self.config.ensure_dirs()
-        self.history_file.write_text(json.dumps(self.entries[-self.max_entries:], indent=2))
+        self.history_file.write_text(json.dumps(self.entries[-self.max_entries :], indent=2))
 
     def add(self, role: str, content: str) -> None:
         """Add an entry to history."""
-        self.entries.append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.entries.append(
+            {
+                "role": role,
+                "content": content,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         # Keep only recent entries
         if len(self.entries) > self.max_entries:
-            self.entries = self.entries[-self.max_entries:]
+            self.entries = self.entries[-self.max_entries :]
         self._save()
 
     def get_recent(self, count: int = 10) -> list[dict]:
@@ -93,6 +85,7 @@ class ChatHistory:
 # =============================================================================
 # Manager Chat Core
 # =============================================================================
+
 
 class ManagerChat:
     """
@@ -110,20 +103,16 @@ class ManagerChat:
         "quality": "Show quality gradients for all terminals",
         "flow": "Show current flow state (organic model)",
         "contracts": "Show all active interface contracts",
-
         # Control
         "pause": "Pause execution (current tasks will complete)",
         "resume": "Resume execution",
-
         # Task Management
         "inject: <task>": "Inject a new task into the queue",
         "cancel <task_id>": "Cancel a pending task",
         "tasks": "List all tasks with status",
-
         # Organic Interventions
         "intervene": "Show intervention types",
         "intervene <type> <target>": "Manual intervention (AMPLIFY, REDIRECT, etc.)",
-
         # Info
         "reports": "Show recent reports from terminals",
         "help": "Show this help message",
@@ -189,10 +178,20 @@ class ManagerChat:
         # Simple commands (including new organic commands)
         lower = text.lower()
         simple_commands = [
-            "status", "pause", "resume", "tasks", "reports", "help",
-            "quit", "exit", "q",
+            "status",
+            "pause",
+            "resume",
+            "tasks",
+            "reports",
+            "help",
+            "quit",
+            "exit",
+            "q",
             # New organic commands
-            "quality", "flow", "contracts", "intervene",
+            "quality",
+            "flow",
+            "contracts",
+            "intervene",
         ]
 
         if lower in simple_commands:
@@ -225,7 +224,11 @@ class ManagerChat:
         # State
         state = status.get("state", "unknown")
         paused = status.get("paused", False)
-        state_str = f"{Colors.BRIGHT_YELLOW}PAUSED{Colors.RESET}" if paused else f"{Colors.BRIGHT_GREEN}{state.upper()}{Colors.RESET}"
+        state_str = (
+            f"{Colors.BRIGHT_YELLOW}PAUSED{Colors.RESET}"
+            if paused
+            else f"{Colors.BRIGHT_GREEN}{state.upper()}{Colors.RESET}"
+        )
         lines.append(f"State: {state_str}")
 
         # Phase
@@ -262,7 +265,11 @@ class ManagerChat:
             color = get_terminal_color(tid)
             name = get_terminal_name(tid)
 
-            status_str = f"{Colors.BRIGHT_GREEN}idle{Colors.RESET}" if t_state == "idle" else f"{Colors.BRIGHT_BLUE}working{Colors.RESET}"
+            status_str = (
+                f"{Colors.BRIGHT_GREEN}idle{Colors.RESET}"
+                if t_state == "idle"
+                else f"{Colors.BRIGHT_BLUE}working{Colors.RESET}"
+            )
             task_str = f" - {t_task[:40]}..." if t_task else ""
 
             lines.append(f"  {color}[{tid.upper()}]{Colors.RESET} {name}: {status_str}{task_str}")
@@ -336,7 +343,7 @@ class ManagerChat:
         )
 
         name = get_terminal_name(terminal_id)
-        return f"Task injected: \"{task.title}\"\nAssigned to: {terminal_id.upper()} ({name})\nTask ID: {task.id}"
+        return f'Task injected: "{task.title}"\nAssigned to: {terminal_id.upper()} ({name})\nTask ID: {task.id}'
 
     async def cmd_cancel(self, task_id: str) -> str:
         """Handle cancel command."""
@@ -362,7 +369,9 @@ class ManagerChat:
             lines.append(f"{Colors.BRIGHT_BLUE}In Progress:{Colors.RESET}")
             for t in in_progress:
                 color = self._get_terminal_color(t.get("assigned_to", ""))
-                lines.append(f"  {color}[{t.get('assigned_to', '?').upper()}]{Colors.RESET} {t.get('title', 'Unknown')}")
+                lines.append(
+                    f"  {color}[{t.get('assigned_to', '?').upper()}]{Colors.RESET} {t.get('title', 'Unknown')}"
+                )
             lines.append("")
 
         # Pending
@@ -381,7 +390,9 @@ class ManagerChat:
         failed = tasks_info.get("failed_count", 0)
         total = tasks_info.get("total_count", 0)
 
-        lines.append(f"Summary: {Colors.BRIGHT_GREEN}{completed}{Colors.RESET} completed, {Colors.BRIGHT_RED}{failed}{Colors.RESET} failed, {total} total")
+        lines.append(
+            f"Summary: {Colors.BRIGHT_GREEN}{completed}{Colors.RESET} completed, {Colors.BRIGHT_RED}{failed}{Colors.RESET} failed, {total} total"
+        )
 
         return "\n".join(lines)
 
@@ -464,18 +475,25 @@ class ManagerChat:
         if not contracts:
             lines.append(c("  No contracts defined yet.", Colors.DIM))
             lines.append("")
-            lines.append(c("  Contracts are created when T1/T2 define interface expectations.", Colors.DIM))
+            lines.append(
+                c("  Contracts are created when T1/T2 define interface expectations.", Colors.DIM)
+            )
             return "\n".join(lines)
 
         # Group by status using ContractStatus enum values
-        from .contract_manager import ContractStatus
 
         status_groups: dict[str, list] = {
-            "negotiating": [], "agreed": [], "implemented": [], "verified": [],
-            "disputed": [], "deprecated": [],
+            "negotiating": [],
+            "agreed": [],
+            "implemented": [],
+            "verified": [],
+            "disputed": [],
+            "deprecated": [],
         }
         for contract in contracts:
-            status_key = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+            status_key = (
+                contract.status.value if hasattr(contract.status, "value") else str(contract.status)
+            )
             if status_key in status_groups:
                 status_groups[status_key].append(contract)
 
@@ -500,7 +518,9 @@ class ManagerChat:
         for status_name, status_contracts in status_groups.items():
             if status_contracts:
                 color = status_colors.get(status_name, Colors.WHITE)
-                lines.append(c(f"  {status_name.upper()} ({len(status_contracts)}):", color, Colors.BOLD))
+                lines.append(
+                    c(f"  {status_name.upper()} ({len(status_contracts)}):", color, Colors.BOLD)
+                )
 
                 for contract in status_contracts:
                     icon = c(status_icons.get(status_name, "[?]"), color)
@@ -511,7 +531,9 @@ class ManagerChat:
                         impl_by = get_terminal_badge(contract.implementer, include_name=False)
                         impl_str = f" -> {impl_by}"
 
-                    lines.append(f"    {icon} {c(contract.name, Colors.WHITE)} {proposed_by}{impl_str}")
+                    lines.append(
+                        f"    {icon} {c(contract.name, Colors.WHITE)} {proposed_by}{impl_str}"
+                    )
 
                 lines.append("")
 
@@ -553,23 +575,18 @@ class ManagerChat:
 
         # Overall state
         if paused:
-            overall_state: FlowState = "syncing"
             state_desc = "PAUSED"
             state_color = Colors.BRIGHT_YELLOW
         elif blocked_terminals and not flowing_terminals:
-            overall_state = "blocked"
             state_desc = "BLOCKED"
             state_color = Colors.BRIGHT_RED
         elif in_progress_count == 0 and pending_count == 0:
-            overall_state = "completing"
             state_desc = "COMPLETING"
             state_color = Colors.BRIGHT_GREEN
         elif flowing_terminals:
-            overall_state = "flowing"
             state_desc = "FLOWING"
             state_color = Colors.BRIGHT_GREEN
         else:
-            overall_state = "idle"
             state_desc = "IDLE"
             state_color = Colors.DIM
 
@@ -645,11 +662,16 @@ class ManagerChat:
 
         valid_types = ["AMPLIFY", "REDIRECT", "BRIDGE", "CLARIFY", "ACCELERATE", "PAUSE"]
         if intervention_type not in valid_types:
-            return c(f"Unknown intervention type: {intervention_type}. Valid: {', '.join(valid_types)}", Colors.BRIGHT_RED)
+            return c(
+                f"Unknown intervention type: {intervention_type}. Valid: {', '.join(valid_types)}",
+                Colors.BRIGHT_RED,
+            )
 
         valid_targets = ["t1", "t2", "t3", "t4", "t5"]
         if target not in valid_targets:
-            return c(f"Unknown target: {target}. Valid: {', '.join(valid_targets)}", Colors.BRIGHT_RED)
+            return c(
+                f"Unknown target: {target}. Valid: {', '.join(valid_targets)}", Colors.BRIGHT_RED
+            )
 
         # Execute intervention
         return await self._execute_intervention(intervention_type, target, message)
@@ -677,8 +699,13 @@ class ManagerChat:
             broadcast = f"## INTERVENTION: AMPLIFY\n\n{target.upper()}, your current work looks promising. Continue with higher priority.\n\n{message or ''}"
         elif intervention_type == "REDIRECT":
             if not message:
-                return c("REDIRECT requires a message. Usage: intervene REDIRECT t2 'Focus on X'", Colors.BRIGHT_RED)
-            broadcast = f"## INTERVENTION: REDIRECT\n\n{target.upper()}, please adjust focus:\n\n{message}"
+                return c(
+                    "REDIRECT requires a message. Usage: intervene REDIRECT t2 'Focus on X'",
+                    Colors.BRIGHT_RED,
+                )
+            broadcast = (
+                f"## INTERVENTION: REDIRECT\n\n{target.upper()}, please adjust focus:\n\n{message}"
+            )
         elif intervention_type == "BRIDGE":
             broadcast = f"## INTERVENTION: BRIDGE\n\n{target.upper()}, coordinate with other terminals on current work.\n\n{message or 'Check reports from other terminals.'}"
         elif intervention_type == "CLARIFY":
@@ -700,11 +727,14 @@ class ManagerChat:
         )
 
         # Log the intervention
-        self.orchestrator.event_logger.log_event("intervention", {
-            "type": intervention_type,
-            "target": target,
-            "message": message,
-        })
+        self.orchestrator.event_logger.log_event(
+            "intervention",
+            {
+                "type": intervention_type,
+                "target": target,
+                "message": message,
+            },
+        )
 
         return c(f"Intervention {intervention_type} sent to {target.upper()}", color, Colors.BOLD)
 
@@ -749,12 +779,13 @@ class ManagerChat:
 
         lines.append(c("  Natural Language:", Colors.BRIGHT_CYAN, Colors.BOLD))
         lines.append(f"    {c('Ask anything about the execution state.', Colors.DIM)}")
-        lines.append(f"    {c('Example: \"What has T2 built?\" or \"Why is T1 slow?\"', Colors.DIM)}")
+        example = 'Example: "What has T2 built?" or "Why is T1 slow?"'
+        lines.append(f"    {c(example, Colors.DIM)}")
 
         return "\n".join(lines)
 
     # =========================================================================
-    # Claude Integration for Natural Language
+    # Model Integration for Natural Language
     # =========================================================================
 
     async def ask_claude(self, query: str) -> str:
@@ -772,21 +803,25 @@ class ManagerChat:
         reports = self.orchestrator.report_manager.get_all_components()
         recent_history = self.history.get_recent(5)
 
+        status_payload = json.dumps(status, indent=2)[:4000]
+        reports_payload = json.dumps(reports, indent=2)[:3000]
+        history_payload = json.dumps(recent_history, indent=2)[:1500]
+
         # Build prompt
         prompt = f"""You are the Manager Assistant for Archon, a multi-terminal orchestration system.
 Answer the user's question concisely based on the current execution state.
 
 ## Current Execution State
 
-{json.dumps(status, indent=2)}
+{status_payload}
 
 ## Terminal Components Created
 
-{json.dumps(reports, indent=2)}
+{reports_payload}
 
 ## Recent Chat History
 
-{json.dumps(recent_history, indent=2)}
+{history_payload}
 
 ## User Question
 
@@ -798,26 +833,37 @@ Answer the user's question concisely based on the current execution state.
 - Reference specific terminals (T1=UI/UX, T2=Features, T3=Docs, T4=Strategy)
 - If you don't have enough information, say so
 - Provide actionable insights when possible
+- Avoid repeating context verbatim.
 """
 
         try:
-            # Use claude --print for quick response
+            # Use configured model runtime for quick response
+            command = self.config.build_llm_command(prompt, allow_unsafe=False)
             result = subprocess.run(
-                ["claude", "--print", "-p", prompt],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=str(self.config.base_dir),
             )
 
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
+            if result.returncode == 0 and result.stderr.strip():
+                return result.stderr.strip()
             else:
                 return "I couldn't process that question. Try rephrasing or use a specific command like 'status'."
 
         except subprocess.TimeoutExpired:
             return "Response timed out. Try a simpler question or use 'status' for quick info."
         except FileNotFoundError:
-            return "Claude CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
+<<<<<<< ours
+            return "Configured model CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
+=======
+            return (
+                "Claude CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
+            )
+>>>>>>> theirs
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -895,6 +941,7 @@ Answer the user's question concisely based on the current execution state.
 # Chat REPL
 # =============================================================================
 
+
 async def chat_repl(manager: ManagerChat) -> None:
     """
     Run the chat REPL loop.
@@ -905,8 +952,18 @@ async def chat_repl(manager: ManagerChat) -> None:
     # Print welcome message
     print()
     print(c("    ╭" + "─" * 48 + "╮", Colors.BRIGHT_CYAN))
-    print(c("    │", Colors.BRIGHT_CYAN) + c("  ARCHON - Manager Chat", Colors.BRIGHT_WHITE, Colors.BOLD) + " " * 24 + c("│", Colors.BRIGHT_CYAN))
-    print(c("    │", Colors.BRIGHT_CYAN) + c("  Organic Flow Control Interface", Colors.DIM) + " " * 15 + c("│", Colors.BRIGHT_CYAN))
+    print(
+        c("    │", Colors.BRIGHT_CYAN)
+        + c("  ARCHON - Manager Chat", Colors.BRIGHT_WHITE, Colors.BOLD)
+        + " " * 24
+        + c("│", Colors.BRIGHT_CYAN)
+    )
+    print(
+        c("    │", Colors.BRIGHT_CYAN)
+        + c("  Organic Flow Control Interface", Colors.DIM)
+        + " " * 15
+        + c("│", Colors.BRIGHT_CYAN)
+    )
     print(c("    ╰" + "─" * 48 + "╯", Colors.BRIGHT_CYAN))
     print()
     print(c("    Commands: status, quality, flow, contracts, intervene, help", Colors.DIM))
@@ -917,8 +974,7 @@ async def chat_repl(manager: ManagerChat) -> None:
         try:
             # Get user input
             user_input = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: input(f"{Colors.BRIGHT_WHITE}> {Colors.RESET}")
+                None, lambda: input(f"{Colors.BRIGHT_WHITE}> {Colors.RESET}")
             )
 
             if not user_input.strip():

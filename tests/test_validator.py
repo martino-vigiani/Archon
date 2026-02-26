@@ -11,9 +11,8 @@ The Validator provides quality checks for the T5 terminal:
 All subprocess calls are mocked - never run real builds.
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from orchestrator.config import Config
 from orchestrator.contract_manager import Contract, ContractManager, ContractStatus
@@ -154,6 +153,7 @@ class TestBuildDetection:
     def test_detect_node_with_build_script(self, config: Config, tmp_path: Path) -> None:
         """Should detect npm build when package.json has build script."""
         import json
+
         (tmp_path / "package.json").write_text(json.dumps({"scripts": {"build": "tsc"}}))
         validator = Validator(config)
         cmd = validator._detect_build_command(tmp_path)
@@ -162,6 +162,7 @@ class TestBuildDetection:
     def test_detect_node_without_build(self, config: Config, tmp_path: Path) -> None:
         """Should fall back to npm install when no build script."""
         import json
+
         (tmp_path / "package.json").write_text(json.dumps({"scripts": {}}))
         validator = Validator(config)
         cmd = validator._detect_build_command(tmp_path)
@@ -222,6 +223,7 @@ class TestBuildDetection:
     def test_build_timeout(self, config: Config, tmp_path: Path) -> None:
         """Timed-out build should return failed."""
         import subprocess as sp
+
         (tmp_path / "Package.swift").touch()
         validator = Validator(config)
 
@@ -267,6 +269,7 @@ class TestValidateContracts:
     def test_implemented_without_implementer(self, config: Config) -> None:
         """Implemented contract without implementer should be invalid."""
         from orchestrator.contract_manager import NegotiationEntry
+
         validator = Validator(config)
         contract = Contract(
             id="c1",
@@ -274,12 +277,14 @@ class TestValidateContracts:
             contract_type="interface",
             proposer="t1",
             status=ContractStatus.IMPLEMENTED,
-            history=[NegotiationEntry(
-                terminal="t1",
-                timestamp="2026-01-01T00:00:00",
-                action="proposal",
-                content="Test proposal",
-            )],
+            history=[
+                NegotiationEntry(
+                    terminal="t1",
+                    timestamp="2026-01-01T00:00:00",
+                    action="proposal",
+                    content="Test proposal",
+                )
+            ],
         )
         results = validator.validate_contracts([contract])
         assert results[0].is_valid is False
@@ -419,7 +424,9 @@ class TestValidationReport:
         """All passing should show all passed message."""
         validator = Validator(config)
         report = validator.get_validation_report(
-            build_result=BuildResult(status="success", project_path="/tmp", build_command="swift build"),
+            build_result=BuildResult(
+                status="success", project_path="/tmp", build_command="swift build"
+            ),
             test_result=TestResult(status="passed", project_path="/tmp", tests_failed=0),
         )
         assert "All validations passed" in report
@@ -436,9 +443,7 @@ class TestValidationReport:
     def test_invalid_contracts_in_report(self, config: Config) -> None:
         """Invalid contracts should appear in report."""
         validator = Validator(config)
-        cv = ContractValidation(
-            contract_name="BadContract", is_valid=False, issues=["No history"]
-        )
+        cv = ContractValidation(contract_name="BadContract", is_valid=False, issues=["No history"])
         report = validator.get_validation_report(contract_validations=[cv])
         assert "BadContract" in report
         assert "No history" in report

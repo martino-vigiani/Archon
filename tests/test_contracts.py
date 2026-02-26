@@ -13,10 +13,9 @@ Contracts enable parallel work by documenting expectations.
 """
 
 import pytest
-from datetime import datetime
 
-from orchestrator.config import Config, TerminalID
-from orchestrator.contract_manager import Contract, ContractManager, ContractStatus
+from orchestrator.config import Config
+from orchestrator.contract_manager import ContractManager, ContractStatus
 
 
 class TestContractProposal:
@@ -71,10 +70,9 @@ protocol UserDataProvider {
 
         assert "already exists" in str(exc_info.value)
 
-    def test_contract_saved_to_disk(
-        self, contract_manager: ContractManager, config: Config
-    ):
+    def test_contract_saved_to_disk(self, contract_manager: ContractManager, config: Config):
         """Contracts should be persisted to disk."""
+        _ = config
         contract = contract_manager.propose_contract(
             from_terminal="t1",
             name="PersistentContract",
@@ -243,7 +241,7 @@ class TestContractImplementation:
             content="Needs response",
         )
 
-        c2 = contract_manager.propose_contract(
+        contract_manager.propose_contract(
             from_terminal="t1",
             name="Pending2",
             contract_type="api",
@@ -337,6 +335,7 @@ class TestNegotiationHistoryTracking:
 
         # Wait and update
         import time
+
         time.sleep(0.01)
 
         updated = contract_manager.respond_to_contract(
@@ -395,7 +394,7 @@ class TestContractQueries:
             contract_type="interface",
             content="First",
         )
-        c2 = contract_manager.propose_contract(
+        contract_manager.propose_contract(
             from_terminal="t1",
             name="StatusTest2",
             contract_type="interface",
@@ -443,22 +442,20 @@ class TestContractQueries:
         assert fetched is not None
         assert fetched.name == "NamedContract"
 
-    def test_get_nonexistent_contract_returns_none(
-        self, contract_manager: ContractManager
-    ):
+    def test_get_nonexistent_contract_returns_none(self, contract_manager: ContractManager):
         """Getting a non-existent contract returns None."""
         contract = contract_manager.get_contract("does_not_exist_12345")
         assert contract is None
 
     def test_get_contracts_for_terminal(self, contract_manager: ContractManager):
         """Can get contracts for a specific terminal."""
-        c1 = contract_manager.propose_contract(
+        contract_manager.propose_contract(
             from_terminal="t1",
             name="T1Contract",
             contract_type="interface",
             content="By T1",
         )
-        c2 = contract_manager.propose_contract(
+        contract_manager.propose_contract(
             from_terminal="t2",
             name="T2Contract",
             contract_type="api",
@@ -488,7 +485,7 @@ class TestContractSummary:
             contract_type="interface",
             content="First",
         )
-        c2 = contract_manager.propose_contract(
+        contract_manager.propose_contract(
             from_terminal="t1",
             name="SummaryTest2",
             contract_type="api",

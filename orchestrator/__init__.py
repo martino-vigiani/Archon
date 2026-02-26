@@ -8,8 +8,8 @@ each with a distinct personality, working through organic flow.
 __version__ = "2.0.0"
 __author__ = "Archon"
 
-from .orchestrator import Orchestrator
 from .config import Config, TerminalConfig
-from .report_manager import ReportManager, Report
+from .orchestrator import Orchestrator
+from .report_manager import Report, ReportManager
 
 __all__ = ["Orchestrator", "Config", "TerminalConfig", "ReportManager", "Report"]

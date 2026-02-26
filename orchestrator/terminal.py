@@ -1,16 +1,17 @@
 """
-Terminal Controller using subprocess to run Claude Code commands.
+Terminal Controller using subprocess to run a configured model CLI.
 
 Instead of maintaining interactive sessions, each task is executed
-with `claude --print` which is more reliable and doesn't require TTY.
+as a single non-interactive CLI call for reliability.
 """
 
 import asyncio
-import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+
+from .config import Config
 
 
 class TerminalState(str, Enum):
@@ -71,8 +72,12 @@ class RateLimitError(Exception):
             # Try to extract reset time
             reset_time = None
             import re
+
             # Match patterns like "resets 7pm (Europe/Berlin)" or "resets at 19:00"
-            reset_match = re.search(r"resets?\s+(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:\([^)]+\))?)", output_lower)
+            reset_match = re.search(
+                r"resets?\s+(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:\([^)]+\))?)",
+                output_lower,
+            )
             if reset_match:
                 reset_time = reset_match.group(1).strip()
 
@@ -83,27 +88,28 @@ class RateLimitError(Exception):
 
 class Terminal:
     """
-    Controls a Claude Code "terminal" using subprocess.
+    Controls a model-backed "terminal" using subprocess.
 
-    Each task is run as a separate `claude --print` command.
+    Each task is run as a separate non-interactive CLI command.
     This is more reliable than maintaining interactive sessions.
-    """
 
-    MAX_RETRIES = 2  # Maximum number of attempts per task
+    Retry logic is handled at the orchestrator level, not here.
+    Each execute_task() call is a single attempt.
+    """
 
     def __init__(
         self,
         terminal_id: str,
         working_dir: Path,
         system_prompt: str | None = None,
+        runtime_config: Config | None = None,
         verbose: bool = True,
-        max_retries: int | None = None,
     ):
         self.terminal_id = terminal_id
         self.working_dir = working_dir
         self.system_prompt = system_prompt
+        self.runtime_config = runtime_config or Config()
         self.verbose = verbose
-        self.max_retries = max_retries if max_retries is not None else self.MAX_RETRIES
 
         self.state = TerminalState.IDLE
         self.current_task_id: str | None = None
@@ -142,17 +148,32 @@ class Terminal:
             TerminalError: If the command fails with a non-zero exit code
             asyncio.TimeoutError: If the command times out
         """
-        self._log(f"Attempt {attempt}/{self.max_retries}")
+        self._log(f"Executing attempt {attempt}")
+
+        # Clean env: remove CLAUDECODE to allow nested Claude Code sessions
+        import os
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+        command = self.runtime_config.build_llm_command(
+            full_prompt,
+            allow_unsafe=True,
+        )
 
         # Use asyncio subprocess for non-blocking execution
         self._process = await asyncio.create_subprocess_exec(
+<<<<<<< ours
+            *command,
+=======
             "claude",
             "--print",
             "--dangerously-skip-permissions",
-            "-p", full_prompt,
+            "-p",
+            full_prompt,
+>>>>>>> theirs
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(self.working_dir),
+            env=env,
         )
 
         # Wait for completion with timeout
@@ -212,12 +233,14 @@ class Terminal:
         timeout: float = 300,
     ) -> TerminalOutput:
         """
-        Execute a task using claude --print with retry logic.
+        Execute a task using the configured model CLI (single attempt).
+
+        Retry logic is handled by the orchestrator, not here.
 
         Args:
             prompt: The task prompt to send to Claude
             task_id: Optional task ID for tracking
-            timeout: Maximum time to wait for response (per attempt)
+            timeout: Maximum time to wait for response
 
         Returns:
             TerminalOutput with the result
@@ -232,8 +255,40 @@ class Terminal:
 
         self._log(f"Executing task: {prompt[:60]}...")
 
-        last_error: Exception | None = None
+        try:
+            result = await self._execute_single_attempt(
+                full_prompt=full_prompt,
+                timeout=timeout,
+                attempt=1,
+            )
 
+<<<<<<< ours
+            self.state = TerminalState.IDLE
+            self._log(f"Task complete: {len(result.content)} chars output")
+            return result
+
+        except asyncio.TimeoutError:
+            self._log("Task timed out")
+
+            # Clean up the timed-out process
+            if self._process:
+                try:
+                    self._process.terminate()
+                    await asyncio.sleep(0.5)
+                    if self._process.returncode is None:
+                        self._process.kill()
+                except ProcessLookupError:
+                    pass
+                finally:
+                    self._process = None
+
+            self.state = TerminalState.ERROR
+            return TerminalOutput(
+                content=f"Task timed out after {timeout}s",
+                is_complete=True,
+                is_error=True,
+            )
+=======
         for attempt in range(1, self.max_retries + 1):
             try:
                 result = await self._execute_single_attempt(
@@ -246,9 +301,9 @@ class Terminal:
                 self._log(f"Task complete: {len(result.content)} chars output")
                 return result
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._log(f"Attempt {attempt}/{self.max_retries} timed out")
-                last_error = asyncio.TimeoutError(f"Task timed out after {timeout}s")
+                last_error = TimeoutError(f"Task timed out after {timeout}s")
 
                 # Clean up the timed-out process
                 if self._process:
@@ -268,7 +323,7 @@ class Terminal:
                     break
 
                 # Wait before retry
-                retry_delay = 2 ** attempt  # Exponential backoff: 2s, 4s, 8s...
+                retry_delay = 2**attempt  # Exponential backoff: 2s, 4s, 8s...
                 self._log(f"Retrying in {retry_delay}s...")
                 await asyncio.sleep(retry_delay)
 
@@ -292,7 +347,7 @@ class Terminal:
                     break
 
                 # Wait before retry with exponential backoff
-                retry_delay = 2 ** attempt
+                retry_delay = 2**attempt
                 self._log(f"Retrying in {retry_delay}s...")
                 await asyncio.sleep(retry_delay)
 
@@ -312,7 +367,7 @@ class Terminal:
                 if attempt >= self.max_retries:
                     break
 
-                retry_delay = 2 ** attempt
+                retry_delay = 2**attempt
                 self._log(f"Retrying in {retry_delay}s...")
                 await asyncio.sleep(retry_delay)
 
@@ -320,13 +375,46 @@ class Terminal:
         self.state = TerminalState.ERROR
         error_message = str(last_error) if last_error else "Unknown error after all retries"
         self._log(f"Task failed after {self.max_retries} attempts: {error_message}")
+>>>>>>> theirs
 
-        return TerminalOutput(
-            content=error_message,
-            is_complete=True,
-            is_error=True,
-            attempt=self.max_retries,
-        )
+        except RateLimitError as e:
+            self._log(f"Rate limit hit! Resets: {e.reset_time or 'check provider dashboard'}")
+            self.state = TerminalState.ERROR
+
+            return TerminalOutput(
+                content=f"RATE_LIMIT: {e.reset_time or 'Check provider dashboard for reset time'}",
+                is_complete=True,
+                is_error=True,
+            )
+
+        except TerminalError as e:
+            self._log(f"Task failed: {e}")
+            self.state = TerminalState.ERROR
+
+            return TerminalOutput(
+                content=str(e),
+                is_complete=True,
+                is_error=True,
+            )
+
+        except Exception as e:
+            self._log(f"Unexpected error: {e}")
+
+            # Clean up process if it exists
+            if self._process:
+                try:
+                    self._process.terminate()
+                except ProcessLookupError:
+                    pass
+                finally:
+                    self._process = None
+
+            self.state = TerminalState.ERROR
+            return TerminalOutput(
+                content=str(e),
+                is_complete=True,
+                is_error=True,
+            )
 
     async def stop(self) -> None:
         """Stop any running task."""

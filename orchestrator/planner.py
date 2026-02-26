@@ -1,5 +1,5 @@
 """
-Task Planner using Claude Code CLI to split high-level tasks into subtasks.
+Task Planner using a configurable model CLI to split high-level tasks into subtasks.
 
 ## Planning Models
 
@@ -15,9 +15,9 @@ INTENT-BASED PLANNING: Broadcast high-level intent, let terminals interpret.
 - Flow state tracks health of work, not phase progression
 """
 
+import asyncio
 import json
 import re
-import subprocess
 from dataclasses import dataclass, field
 
 from .config import Config, TerminalID
@@ -55,6 +55,7 @@ class Intent:
     Instead of assigning rigid tasks, we broadcast intents that
     terminals interpret and execute autonomously.
     """
+
     goal: str  # What we want to achieve
     context: str  # Background information
     suggested_terminals: list[TerminalID]  # Which terminals might handle this
@@ -80,74 +81,64 @@ class TaskPlan:
     planning_mode: str = "legacy"  # "legacy" or "organic"
 
 
+<<<<<<< ours
+# New parallel-first planner prompt (compact to reduce token overhead)
+PLANNER_PROMPT = """You are a parallel planner for 5 terminals:
+T1 UI/UX, T2 Features/Python/Core, T3 Docs, T4 Ideas/Research, T5 QA.
+=======
 # New parallel-first planner prompt
-PLANNER_PROMPT = '''You are a PARALLEL task planner. All 5 terminals work SIMULTANEOUSLY.
+PLANNER_PROMPT = """You are a PARALLEL task planner. All 5 terminals work SIMULTANEOUSLY.
+>>>>>>> theirs
 
-## Terminals (All Start Immediately)
+Rules:
+- No blocking dependencies in phase 1.
+- Include phases 0,1,2,3.
+- Include at least one T5 task in phase 3.
+- Keep descriptions concrete and short.
 
-T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
-T2 - Features: Builds architecture, exposes APIs, writes unit tests
-T3 - Docs: Creates documentation progressively
-T4 - Strategy: Provides direction fast (2 min), then detailed docs
-T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
-
-## CRITICAL: Parallel Execution Rules
-
-1. ALL terminals start in Phase 1 - NO BLOCKING DEPENDENCIES
-2. Terminals work with assumptions and mock data
-3. Phase 2 tasks refine/integrate after initial work
-4. Phase 3 is final testing, validation, and polish
-
-## Task to Plan
-
+Task:
 {task}
 {project_context}
 
-## Output Format
-
-Return ONLY JSON (no markdown):
-
+Return JSON only:
 {{
-  "summary": "Brief plan summary",
+  "summary": "short summary",
   "tasks": [
     {{
-      "title": "Task title",
-      "description": "Detailed description with specific deliverables",
+      "title": "task title",
+      "description": "deliverable-focused description",
       "terminal": "t1|t2|t3|t4|t5",
       "priority": "critical|high|medium|low",
-      "phase": 1,
-      "dependencies": []
+      "phase": 0,
+      "dependencies": [],
+      "required_subagents": ["optional-subagent"]
     }}
   ],
-  "execution_order": ["task1", "task2"]
+  "execution_order": ["task title 1", "task title 2"]
 }}
+Create 8-12 tasks."""
 
-## Required Task Structure
 
-PHASE 0 (Planning & Contracts - First 2-5 minutes):
-- T4: "Broadcast MVP scope and direction" (priority: critical, phase: 0)
-- T1: "Define interface contracts" (priority: critical, phase: 0)
-- T5: "Setup monitoring infrastructure" (priority: high, phase: 0)
+PLANNER_PROMPT_WITH_PROJECT = """You are a parallel planner for an existing codebase.
+Terminals: T1 UI/UX, T2 Features/Python/Core, T3 Docs, T4 Ideas/Research, T5 QA.
 
-PHASE 1 (Parallel Build - All terminals start immediately):
-- T2: "Build core architecture and models" (priority: critical, phase: 1)
-- T1: "Create UI components with mock data" (priority: critical, phase: 1)
-- T3: "Create documentation structure" (priority: high, phase: 1)
-
-PHASE 2 (Integration - after Phase 1):
-- T2: "Integrate with T1's interface contracts" (phase: 2)
-- T1: "Connect UI to T2's real APIs" (phase: 2)
-
+<<<<<<< ours
+Rules:
+- Respect existing architecture and conventions.
+- Prefer edits over rewrites.
+- Include phases 0,1,2,3 and at least one T5 phase-3 validation task.
+- Keep descriptions short and specific.
+=======
 PHASE 3 (Final - testing, validation, polish):
 - T5: "Run all tests and verify build" (priority: critical, phase: 3)
 - T5: "Validate output quality and completeness" (priority: high, phase: 3)
 - T1: "Verify UI compilation and previews" (phase: 3)
 - T3: "Finalize documentation" (phase: 3)
 
-Return 8-14 tasks covering all phases. JSON only.'''
+Return 8-14 tasks covering all phases. JSON only."""
 
 
-PLANNER_PROMPT_WITH_PROJECT = '''You are a PARALLEL task planner for an EXISTING PROJECT.
+PLANNER_PROMPT_WITH_PROJECT = """You are a PARALLEL task planner for an EXISTING PROJECT.
 
 ## Terminals (All Start Immediately)
 
@@ -166,13 +157,17 @@ T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
 5. Phase 3 is final testing and validation by T5
 
 ## Existing Project
+>>>>>>> theirs
 
+Existing project context:
 {project_context}
 
-## Task to Plan
-
+Task:
 {task}
 
+<<<<<<< ours
+Return JSON only using keys: summary, tasks[], execution_order[]."""
+=======
 ## Guidelines for Existing Projects
 
 1. RESPECT existing architecture - enhance, don't replace
@@ -203,7 +198,8 @@ Return ONLY JSON (no markdown):
 
 IMPORTANT: Always include Phase 0 tasks and at least one T5 task in Phase 3 to validate the build.
 
-Return 6-12 tasks. JSON only.'''
+Return 6-12 tasks. JSON only."""
+>>>>>>> theirs
 
 
 class Planner:
@@ -225,7 +221,7 @@ class Planner:
         self.config = config
         self.use_organic_model = use_organic_model
 
-    def plan(self, task: str, project_context: str = "") -> TaskPlan:
+    async def plan(self, task: str, project_context: str = "") -> TaskPlan:
         """
         Create an execution plan.
 
@@ -242,41 +238,60 @@ class Planner:
         if self.use_organic_model:
             return self._plan_organic(task, project_context)
 
+        normalized_task = task.strip()
+        if len(normalized_task) > 1000:
+            normalized_task = f"{normalized_task[:1000]}..."
+
+        normalized_context = project_context.strip()
+        if len(normalized_context) > 4000:
+            normalized_context = f"{normalized_context[:4000]}\n[project context truncated]"
+
         # Legacy planning
-        if project_context:
+        if normalized_context:
             prompt = PLANNER_PROMPT_WITH_PROJECT.format(
-                task=task,
-                project_context=project_context,
+                task=normalized_task,
+                project_context=normalized_context,
             )
         else:
-            prompt = PLANNER_PROMPT.format(task=task, project_context="")
+            prompt = PLANNER_PROMPT.format(task=normalized_task, project_context="")
 
         try:
-            result = subprocess.run(
-                ["claude", "--print", "-p", prompt],
-                capture_output=True,
-                text=True,
-                timeout=120,
+            # Clean env: remove CLAUDECODE to allow nested Claude Code sessions
+            import os
+            env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+            command = self.config.build_llm_command(prompt, allow_unsafe=False)
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=str(self.config.base_dir),
             )
-            output = result.stdout
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(), timeout=120
+            )
+            output = stdout_bytes.decode() if stdout_bytes else ""
 
-            if not output and result.stderr:
-                output = result.stderr
+            if not output and stderr_bytes:
+                output = stderr_bytes.decode()
 
-        except subprocess.TimeoutExpired:
-            print("[Planner] Claude timed out, using parallel fallback plan")
+        except asyncio.TimeoutError:
+            print("[Planner] Planner model timed out, using parallel fallback plan")
+            if process.returncode is None:
+                process.kill()
             return self._parallel_fallback_plan(task)
         except FileNotFoundError:
-            print("[Planner] Claude CLI not found, using parallel fallback plan")
+            print("[Planner] LLM CLI not found, using parallel fallback plan")
             return self._parallel_fallback_plan(task)
         except Exception as e:
-            print(f"[Planner] Error running Claude: {e}, using parallel fallback plan")
+            print(f"[Planner] Error running planner model: {e}, using parallel fallback plan")
             return self._parallel_fallback_plan(task)
 
         plan_data = self._extract_json(output)
 
         if not plan_data:
-            print(f"[Planner] Could not parse JSON, using parallel fallback plan")
+            print("[Planner] Could not parse JSON, using parallel fallback plan")
             return self._parallel_fallback_plan(task)
 
         planned_tasks = []
@@ -289,15 +304,17 @@ class Planner:
             if terminal == "t5" and self.config.disable_testing:
                 continue
 
-            planned_tasks.append(PlannedTask(
-                title=task_data.get("title", "Untitled"),
-                description=task_data.get("description", ""),
-                terminal=terminal,
-                priority=task_data.get("priority", "medium"),
-                dependencies=task_data.get("dependencies", []),
-                phase=task_data.get("phase", 1),
-                required_subagents=task_data.get("required_subagents", []),
-            ))
+            planned_tasks.append(
+                PlannedTask(
+                    title=task_data.get("title", "Untitled"),
+                    description=task_data.get("description", ""),
+                    terminal=terminal,
+                    priority=task_data.get("priority", "medium"),
+                    dependencies=task_data.get("dependencies", []),
+                    phase=task_data.get("phase", 1),
+                    required_subagents=task_data.get("required_subagents", []),
+                )
+            )
 
         if not planned_tasks:
             return self._parallel_fallback_plan(task)
@@ -314,7 +331,7 @@ class Planner:
             planning_mode="legacy",
         )
 
-    def _plan_organic(self, task: str, project_context: str = "") -> TaskPlan:
+    def _plan_organic(self, task: str, _project_context: str = "") -> TaskPlan:
         """
         Create an organic flow execution plan (v2.0).
 
@@ -325,7 +342,9 @@ class Planner:
         4. Tracks flow state instead of phase progression
         """
         task_lower = task.lower()
-        is_mobile = any(w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"])
+        is_mobile = any(
+            w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"]
+        )
 
         # Create high-level intents instead of rigid tasks
         intents = [
@@ -360,31 +379,35 @@ class Planner:
         ]
 
         if not self.config.disable_testing:
-            intents.append(Intent(
-                goal="Validate quality and ensure tests pass",
-                context=f"QA for: {task}. Monitor builds and test results.",
-                suggested_terminals=["t5"],
-                priority="high",
-                quality_threshold=0.9,
-            ))
+            intents.append(
+                Intent(
+                    goal="Validate quality and ensure tests pass",
+                    context=f"QA for: {task}. Monitor builds and test results.",
+                    suggested_terminals=["t5"],
+                    priority="high",
+                    quality_threshold=0.9,
+                )
+            )
 
         # Convert intents to tasks for backward compatibility
         # In organic model, these are more like "suggested work" than rigid assignments
         planned_tasks = []
 
-        for i, intent in enumerate(intents):
+        for _i, intent in enumerate(intents):
             terminal = intent.suggested_terminals[0] if intent.suggested_terminals else "t2"
-            planned_tasks.append(PlannedTask(
-                title=intent.goal,
-                description=intent.context,
-                terminal=terminal,
-                priority=intent.priority,
-                dependencies=[],  # No rigid dependencies in organic model
-                phase=1,  # All work starts in "flow" state
-                intent=intent.goal,
-                quality_target=intent.quality_threshold,
-                required_subagents=self._suggest_subagents(intent.goal, is_mobile),
-            ))
+            planned_tasks.append(
+                PlannedTask(
+                    title=intent.goal,
+                    description=intent.context,
+                    terminal=terminal,
+                    priority=intent.priority,
+                    dependencies=[],  # No rigid dependencies in organic model
+                    phase=1,  # All work starts in "flow" state
+                    intent=intent.goal,
+                    quality_target=intent.quality_threshold,
+                    required_subagents=self._suggest_subagents(intent.goal, is_mobile),
+                )
+            )
 
         return TaskPlan(
             original_task=task,
@@ -417,8 +440,8 @@ class Planner:
         if not text:
             return None
 
-        text = re.sub(r'```json\s*', '', text)
-        text = re.sub(r'```\s*', '', text)
+        text = re.sub(r"```json\s*", "", text)
+        text = re.sub(r"```\s*", "", text)
         text = text.strip()
 
         try:
@@ -426,19 +449,19 @@ class Planner:
         except json.JSONDecodeError:
             pass
 
-        start = text.find('{')
+        start = text.find("{")
         if start == -1:
             return None
 
         depth = 0
         for i, char in enumerate(text[start:], start):
-            if char == '{':
+            if char == "{":
                 depth += 1
-            elif char == '}':
+            elif char == "}":
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(text[start:i+1])
+                        return json.loads(text[start : i + 1])
                     except json.JSONDecodeError:
                         break
 
@@ -452,14 +475,17 @@ class Planner:
         All Phase 1 tasks have NO dependencies - they all start immediately.
         """
         task_lower = task.lower()
-        is_mobile = any(w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"])
+        is_mobile = any(
+            w in task_lower for w in ["ios", "app", "mobile", "iphone", "ipad", "swiftui"]
+        )
 
         tasks = []
 
         # PHASE 0: Planning & Contracts
-        tasks.append(PlannedTask(
-            title="Broadcast MVP scope and direction",
-            description=f"""Immediately analyze and broadcast within 2 minutes:
+        tasks.append(
+            PlannedTask(
+                title="Broadcast MVP scope and direction",
+                description=f"""Immediately analyze and broadcast within 2 minutes:
 1. MVP scope (3-5 core features maximum)
 2. Visual direction for T1 (style, colors, vibe)
 3. Technical direction for T2 (architecture approach)
@@ -468,16 +494,18 @@ class Planner:
 Write to .orchestra/messages/broadcast.md so all terminals can read it.
 
 Task context: {task}""",
-            terminal="t4",
-            priority="critical",
-            dependencies=[],
-            phase=0,
-            required_subagents=["product-thinker"],
-        ))
+                terminal="t4",
+                priority="critical",
+                dependencies=[],
+                phase=0,
+                required_subagents=["product-thinker"],
+            )
+        )
 
-        tasks.append(PlannedTask(
-            title="Define interface contracts",
-            description=f"""Create interface contracts in .orchestra/contracts/:
+        tasks.append(
+            PlannedTask(
+                title="Define interface contracts",
+                description=f"""Create interface contracts in .orchestra/contracts/:
 1. Identify key data models the UI will need
 2. Document expected interfaces/APIs
 3. Create contract files for T2 to implement
@@ -491,34 +519,38 @@ Example contract: UserDisplayData.json
 }}
 
 Task context: {task}""",
-            terminal="t1",
-            priority="critical",
-            dependencies=[],
-            phase=0,
-            required_subagents=["swiftui-crafter"],
-        ))
+                terminal="t1",
+                priority="critical",
+                dependencies=[],
+                phase=0,
+                required_subagents=["swiftui-crafter"],
+            )
+        )
 
         if not self.config.disable_testing:
-            tasks.append(PlannedTask(
-                title="Setup QA monitoring infrastructure",
-                description="""Setup monitoring in .orchestra/qa/:
+            tasks.append(
+                PlannedTask(
+                    title="Setup QA monitoring infrastructure",
+                    description="""Setup monitoring in .orchestra/qa/:
 1. Create directory structure
 2. Initialize build tracking
 3. Setup contract monitoring
 4. Prepare for continuous validation
 
 See templates/terminal_prompts/t5_qa.md for Phase 0 instructions.""",
-                terminal="t5",
-                priority="high",
-                dependencies=[],
-                phase=0,
-                required_subagents=["test-genius"],
-            ))
+                    terminal="t5",
+                    priority="high",
+                    dependencies=[],
+                    phase=0,
+                    required_subagents=["test-genius"],
+                )
+            )
 
         # PHASE 1: All start immediately, NO dependencies
-        tasks.append(PlannedTask(
-            title="Build core architecture and data models",
-            description=f"""Start immediately with architecture:
+        tasks.append(
+            PlannedTask(
+                title="Build core architecture and data models",
+                description=f"""Start immediately with architecture:
 1. Create data models based on task requirements
 2. Build service layer with clear public APIs
 3. Set up persistence (SwiftData/CoreData for iOS, or appropriate)
@@ -529,16 +561,18 @@ Don't wait for T4 - infer requirements from task description.
 If T1 has created interface contracts, match them.
 
 Task context: {task}""",
-            terminal="t2",
-            priority="critical",
-            dependencies=[],  # NO dependencies
-            phase=1,
-            required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
-        ))
+                terminal="t2",
+                priority="critical",
+                dependencies=[],  # NO dependencies
+                phase=1,
+                required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
+            )
+        )
 
-        tasks.append(PlannedTask(
-            title="Create UI components with mock data",
-            description=f"""Start immediately with UI:
+        tasks.append(
+            PlannedTask(
+                title="Create UI components with mock data",
+                description=f"""Start immediately with UI:
 1. Define visual design system (colors, typography, spacing)
 2. Create all main screens/views with placeholder data
 3. Implement navigation structure
@@ -549,16 +583,18 @@ Don't wait for T2 - use mock data and document assumptions.
 T2 will implement interfaces matching your contracts.
 
 Task context: {task}""",
-            terminal="t1",
-            priority="critical",
-            dependencies=[],  # NO dependencies
-            phase=1,
-            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
-        ))
+                terminal="t1",
+                priority="critical",
+                dependencies=[],  # NO dependencies
+                phase=1,
+                required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
+            )
+        )
 
-        tasks.append(PlannedTask(
-            title="Create documentation structure",
-            description=f"""Start immediately with docs:
+        tasks.append(
+            PlannedTask(
+                title="Create documentation structure",
+                description=f"""Start immediately with docs:
 1. Create README.md skeleton
 2. Set up docs/ folder structure
 3. Draft installation instructions
@@ -568,47 +604,53 @@ Task context: {task}""",
 Fill in what you can, mark placeholders for what you can't.
 
 Task context: {task}""",
-            terminal="t3",
-            priority="high",
-            dependencies=[],  # NO dependencies
-            phase=1,
-            required_subagents=["tech-writer"],
-        ))
+                terminal="t3",
+                priority="high",
+                dependencies=[],  # NO dependencies
+                phase=1,
+                required_subagents=["tech-writer"],
+            )
+        )
 
         # PHASE 2: Integration (soft dependencies)
-        tasks.append(PlannedTask(
-            title="Integrate T1 interfaces with T2 implementations",
-            description="""Check T1's interface contracts and ensure T2's models match:
+        tasks.append(
+            PlannedTask(
+                title="Integrate T1 interfaces with T2 implementations",
+                description="""Check T1's interface contracts and ensure T2's models match:
 1. Read .orchestra/reports/t1/ for interface expectations
 2. Adapt models/services if needed to match T1's contracts
 3. Replace any mock implementations with real ones
 4. Ensure all T1-facing APIs are complete""",
-            terminal="t2",
-            priority="high",
-            dependencies=["Build core architecture and data models"],
-            phase=2,
-            required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
-        ))
+                terminal="t2",
+                priority="high",
+                dependencies=["Build core architecture and data models"],
+                phase=2,
+                required_subagents=["swift-architect"] if is_mobile else ["node-architect"],
+            )
+        )
 
-        tasks.append(PlannedTask(
-            title="Connect UI to real data services",
-            description="""Replace mock data with T2's real implementations:
+        tasks.append(
+            PlannedTask(
+                title="Connect UI to real data services",
+                description="""Replace mock data with T2's real implementations:
 1. Read .orchestra/reports/t2/ for available APIs
 2. Wire UI components to actual services
 3. Test all data flows work correctly
 4. Verify loading and error states with real scenarios""",
-            terminal="t1",
-            priority="high",
-            dependencies=["Create UI components with mock data"],
-            phase=2,
-            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
-        ))
+                terminal="t1",
+                priority="high",
+                dependencies=["Create UI components with mock data"],
+                phase=2,
+                required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
+            )
+        )
 
         # PHASE 3: Testing and finalization
         if not self.config.disable_testing:
-            tasks.append(PlannedTask(
-                title="Run all tests and verify build",
-                description="""Final verification:
+            tasks.append(
+                PlannedTask(
+                    title="Run all tests and verify build",
+                    description="""Final verification:
 1. Run swift build / npm run build
 2. Run swift test / npm test
 3. Fix any compilation errors
@@ -616,69 +658,76 @@ Task context: {task}""",
 5. Ensure no warnings in production code
 
 Do NOT mark complete until all tests pass.""",
-                terminal="t5",
-                priority="critical",
-                dependencies=["Integrate T1 interfaces with T2 implementations"],
-                phase=3,
-                required_subagents=["test-genius"],
-            ))
+                    terminal="t5",
+                    priority="critical",
+                    dependencies=["Integrate T1 interfaces with T2 implementations"],
+                    phase=3,
+                    required_subagents=["test-genius"],
+                )
+            )
 
-            tasks.append(PlannedTask(
-                title="Validate output quality and completeness",
-                description="""Quality validation:
+            tasks.append(
+                PlannedTask(
+                    title="Validate output quality and completeness",
+                    description="""Quality validation:
 1. Verify all contract requirements met
 2. Check code quality metrics
 3. Validate documentation completeness
 4. Ensure all phase objectives achieved
 
 Do NOT mark complete until validation passes.""",
-                terminal="t5",
-                priority="high",
-                dependencies=["Run all tests and verify build"],
-                phase=3,
-                required_subagents=["test-genius"],
-            ))
+                    terminal="t5",
+                    priority="high",
+                    dependencies=["Run all tests and verify build"],
+                    phase=3,
+                    required_subagents=["test-genius"],
+                )
+            )
 
-        tasks.append(PlannedTask(
-            title="Verify UI compilation and previews",
-            description="""Final UI verification:
+        tasks.append(
+            PlannedTask(
+                title="Verify UI compilation and previews",
+                description="""Final UI verification:
 1. Ensure all views compile without errors
 2. Verify SwiftUI previews work (if applicable)
 3. Check for any layout issues
 4. Verify all navigation paths work
 
 Do NOT mark complete until build succeeds.""",
-            terminal="t1",
-            priority="high",
-            dependencies=["Connect UI to real data services"],
-            phase=3,
-            required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
-        ))
+                terminal="t1",
+                priority="high",
+                dependencies=["Connect UI to real data services"],
+                phase=3,
+                required_subagents=["swiftui-crafter"] if is_mobile else ["react-crafter"],
+            )
+        )
 
-        tasks.append(PlannedTask(
-            title="Finalize all documentation",
-            description="""Complete documentation:
+        tasks.append(
+            PlannedTask(
+                title="Finalize all documentation",
+                description="""Complete documentation:
 1. Fill in all placeholder sections
 2. Add code examples from T2's final APIs
 3. Verify all links work
 4. Ensure README accurately reflects the final product""",
-            terminal="t3",
-            priority="medium",
-            dependencies=["Create documentation structure"],
-            phase=3,
-            required_subagents=["tech-writer"],
-        ))
+                terminal="t3",
+                priority="medium",
+                dependencies=["Create documentation structure"],
+                phase=3,
+                required_subagents=["tech-writer"],
+            )
+        )
 
         return TaskPlan(
             original_task=task,
-            summary=f"4-phase execution plan: Phase 0 (planning), Phase 1 (parallel build), Phase 2 (integration), Phase 3 (testing)",
+            summary="4-phase execution plan: Phase 0 (planning), Phase 1 (parallel build), Phase 2 (integration), Phase 3 (testing)",
             tasks=tasks,
             execution_order=[t.title for t in tasks],
         )
 
 
-def quick_plan(task: str, project_context: str = "") -> TaskPlan:
+async def quick_plan(task: str, project_context: str = "") -> TaskPlan:
     """Convenience function for quick planning."""
     config = Config()
     planner = Planner(config)
-    return planner.plan(task, project_context=project_context)
+    return await planner.plan(task, project_context=project_context)

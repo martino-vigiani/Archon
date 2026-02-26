@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archon API Admin</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --accent: #6366f1;
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245, 158, 11, 0.12);
+    --radius: 8px;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ─── Layout ─────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .header h1 span { color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+  .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .status-label { font-size: 13px; color: var(--text-dim); }
+
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: calc(100vh - 57px);
+  }
+
+  /* ─── Sidebar ────────────────────────────────────── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav-section { padding: 16px; }
+  .nav-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.15s;
+    color: var(--text-dim);
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 500; }
+  .nav-icon { width: 18px; text-align: center; font-size: 15px; }
+
+  .token-box {
+    margin: 16px;
+    padding: 14px;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+  .token-box h4 { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .token-bar-track {
+    height: 4px; border-radius: 2px; background: var(--border);
+    margin-bottom: 6px; overflow: hidden;
+  }
+  .token-bar-fill {
+    height: 100%; border-radius: 2px; background: var(--green);
+    transition: width 1s linear;
+  }
+  .token-bar-fill.warning { background: var(--amber); }
+  .token-bar-fill.expired { background: var(--red); }
+  .token-info { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* ─── Content ────────────────────────────────────── */
+  .content { padding: 24px; overflow-y: auto; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-size: 15px; font-weight: 600; }
+  .panel-body { padding: 18px; }
+
+  /* ─── Login Form ─────────────────────────────────── */
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+  input[type="text"], input[type="password"], input[type="email"],
+  select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  textarea { resize: vertical; min-height: 80px; font-family: var(--mono); font-size: 13px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.15); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+
+  /* ─── User Table ─────────────────────────────────── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  td {
+    padding: 12px 14px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-2); }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge-admin { background: var(--accent-glow); color: var(--accent); }
+  .badge-user { background: var(--green-dim); color: var(--green); }
+
+  .user-email { color: var(--text-dim); font-size: 13px; }
+  .user-id { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+
+  /* ─── Endpoint Tester ────────────────────────────── */
+  .endpoint-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .method-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--mono);
+    min-width: 60px;
+    text-align: center;
+  }
+  .method-GET { background: var(--green-dim); color: var(--green); }
+  .method-POST { background: var(--accent-glow); color: var(--accent); }
+  .method-PUT { background: var(--amber-dim); color: var(--amber); }
+  .method-DELETE { background: var(--red-dim); color: var(--red); }
+
+  .response-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 400px;
+    overflow-y: auto;
+    color: var(--green);
+  }
+  .response-box.error { color: var(--red); }
+
+  .response-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: var(--mono);
+    margin-bottom: 10px;
+  }
+  .response-status.ok { background: var(--green-dim); color: var(--green); }
+  .response-status.err { background: var(--red-dim); color: var(--red); }
+
+  /* ─── Utilities ──────────────────────────────────── */
+  .flex { display: flex; }
+  .gap-8 { gap: 8px; }
+  .gap-12 { gap: 12px; }
+  .mt-12 { margin-top: 12px; }
+  .mt-16 { margin-top: 16px; }
+  .mb-8 { margin-bottom: 8px; }
+  .hidden { display: none !important; }
+  .text-dim { color: var(--text-dim); }
+  .text-sm { font-size: 13px; }
+  .mono { font-family: var(--mono); }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    z-index: 1000;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+  .toast.error { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Header ──────────────────────────────────────────── -->
+<div class="header">
+  <h1><span>Archon</span> API Admin</h1>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-label" id="statusLabel">Mock Mode</span>
+    <button class="btn btn-outline btn-sm" id="toggleMode">Switch to Live</button>
+  </div>
+</div>
+
+<!-- ─── Main ────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="nav-section">
+      <h3>Navigation</h3>
+      <div class="nav-item active" data-view="login" onclick="showView('login')">
+        <span class="nav-icon">&#x1f511;</span> Login
+      </div>
+      <div class="nav-item" data-view="users" onclick="showView('users')">
+        <span class="nav-icon">&#x1f465;</span> Users
+      </div>
+      <div class="nav-item" data-view="resources" onclick="showView('resources')">
+        <span class="nav-icon">&#x1f4c4;</span> Resources
+      </div>
+      <div class="nav-item" data-view="tester" onclick="showView('tester')">
+        <span class="nav-icon">&#x26a1;</span> Endpoint Tester
+      </div>
+    </div>
+
+    <!-- Token Status -->
+    <div class="token-box" id="tokenBox">
+      <h4>Token Status</h4>
+      <div id="tokenContent">
+        <div class="text-sm text-dim">Not authenticated</div>
+      </div>
+    </div>
+
+    <!-- API Info -->
+    <div class="nav-section" style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 16px;">
+      <div class="text-sm text-dim mb-8">API Contract v1.0</div>
+      <div class="text-sm mono text-dim">Base: /api/v1</div>
+      <div class="text-sm mono text-dim">Endpoints: 15</div>
+      <div class="text-sm mono text-dim">Auth: JWT (HS256)</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ─── Login View ─────────────────────────────── -->
+    <div id="view-login">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Authentication</span>
+          <span class="text-sm text-dim">POST /auth/login</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="loginEmail" value="alice@example.com" placeholder="user@example.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="loginPassword" value="s3cur3P@ss!" placeholder="Min 8 characters">
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-primary" onclick="doLogin()">Login</button>
+            <button class="btn btn-outline" onclick="doRegister()">Register New</button>
+            <button class="btn btn-outline btn-danger" id="logoutBtn" onclick="doLogout()" style="margin-left:auto; display:none;">Logout</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auth Response -->
+      <div class="panel hidden" id="authResponsePanel">
+        <div class="panel-header">
+          <span class="panel-title">Response</span>
+          <div id="authStatus"></div>
+        </div>
+        <div class="panel-body">
+          <div class="response-box" id="authResponse"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Users View ─────────────────────────────── -->
+    <div id="view-users" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Users</span>
+          <span class="text-sm text-dim" id="userCount">0 users</span>
+        </div>
+        <div class="panel-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Created</th>
+                  <th>ID</th>
+                </tr>
+              </thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Resources View ─────────────────────────── -->
+    <div id="view-resources" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Protected Resources</span>
+          <span class="text-sm text-dim" id="resourceMeta">Page 1 of 1</span>
+        </div>
+        <div class="panel-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Content</th>
+                  <th>Owner</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="resourcesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Endpoint Tester View ───────────────────── -->
+    <div id="view-tester" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Endpoint Tester</span>
+          <span class="text-sm text-dim">Send requests against the API contract</span>
+        </div>
+        <div class="panel-body">
+          <div class="endpoint-row">
+            <select id="testerMethod" style="width: 100px;">
+              <option value="GET">GET</option>
+              <option value="POST" selected>POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+            <select id="testerEndpoint" style="flex: 1;" onchange="updateTesterBody()">
+              <option value="/auth/register" data-method="POST">/auth/register</option>
+              <option value="/auth/login" data-method="POST" selected>/auth/login</option>
+              <option value="/auth/refresh" data-method="POST">/auth/refresh</option>
+              <option value="/auth/logout" data-method="DELETE">/auth/logout</option>
+              <option value="/users/me" data-method="GET">/users/me</option>
+              <option value="/users/me" data-method="PUT">/users/me (update)</option>
+              <option value="/resources" data-method="GET">/resources</option>
+              <option value="/health" data-method="GET">/health</option>
+            </select>
+            <button class="btn btn-primary" onclick="sendTestRequest()">Send</button>
+          </div>
+
+          <div class="form-group">
+            <label>Request Body (JSON)</label>
+            <textarea id="testerBody">{"email": "alice@example.com", "password": "s3cur3P@ss!"}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Headers</label>
+            <div class="text-sm mono text-dim" id="testerHeaders">
+              Content-Type: application/json
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tester Response -->
+      <div class="panel" id="testerResponsePanel">
+        <div class="panel-header">
+          <span class="panel-title">Response</span>
+          <div id="testerStatus"></div>
+        </div>
+        <div class="panel-body">
+          <div class="response-box" id="testerResponse">Send a request to see the response.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Storage Keys ──────────────────────────────────────────────────
+
+const STORAGE = {
+  TOKENS: 'archon_tokens',
+  TOKEN_ISSUED: 'archon_token_issued',
+  USER: 'archon_user',
+  MODE: 'archon_mode',
+};
+
+// ─── Mock Data (matches contract schemas exactly) ──────────────────
+
+const MOCK = {
+  users: [
+    { id: "550e8400-e29b-41d4-a716-446655440000", email: "alice@example.com", name: "Alice Chen", role: "admin", created_at: "2026-01-15T08:00:00Z", updated_at: "2026-02-19T14:30:00Z" },
+    { id: "660e8400-e29b-41d4-a716-446655440001", email: "bob@example.com", name: "Bob Martinez", role: "user", created_at: "2026-01-20T10:15:00Z", updated_at: "2026-02-18T09:00:00Z" },
+    { id: "770e8400-e29b-41d4-a716-446655440002", email: "carol@example.com", name: "Carol Nakamura", role: "user", created_at: "2026-02-01T16:45:00Z", updated_at: "2026-02-20T10:00:00Z" },
+    { id: "880e8400-e29b-41d4-a716-446655440003", email: "dave@example.com", name: "Dave Okonkwo", role: "user", created_at: "2026-02-10T11:30:00Z", updated_at: "2026-02-20T10:00:00Z" },
+    { id: "990e8400-e29b-41d4-a716-446655440004", email: "eve@example.com", name: "Eve Rosenberg", role: "user", created_at: "2026-02-15T07:20:00Z", updated_at: "2026-02-20T10:00:00Z" },
+  ],
+
+  resources: [
+    { id: "res-a1b2c3d4", title: "API Design Notes", content: "RESTful patterns and endpoint conventions.", owner_id: "550e8400-e29b-41d4-a716-446655440000", created_at: "2026-02-18T12:00:00Z" },
+    { id: "res-e5f6g7h8", title: "Sprint Retro", content: "What went well, what to improve.", owner_id: "660e8400-e29b-41d4-a716-446655440001", created_at: "2026-02-18T14:00:00Z" },
+    { id: "res-i9j0k1l2", title: "Architecture Decision Record", content: "Chose FastAPI over Flask for async support.", owner_id: "550e8400-e29b-41d4-a716-446655440000", created_at: "2026-02-19T09:00:00Z" },
+    { id: "res-m3n4o5p6", title: "Deployment Checklist", content: "Pre-launch verification steps.", owner_id: "770e8400-e29b-41d4-a716-446655440002", created_at: "2026-02-19T15:00:00Z" },
+    { id: "res-q7r8s9t0", title: "Performance Baseline", content: "Initial load test results and metrics.", owner_id: "550e8400-e29b-41d4-a716-446655440000", created_at: "2026-02-20T08:00:00Z" },
+  ],
+
+  generateToken() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const rand = (n) => Array.from({length: n}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return { access_token: `eyJhbGciOiJIUzI1NiJ9.${rand(40)}.${rand(20)}`, refresh_token: `refresh.${rand(40)}`, token_type: "bearer", expires_in: 900 };
+  }
+};
+
+// ─── State ─────────────────────────────────────────────────────────
+
+let state = {
+  mode: localStorage.getItem(STORAGE.MODE) || 'mock',
+  tokens: null,
+  tokenIssuedAt: null,
+  currentUser: null,
+  _refreshing: null,  // in-flight refresh promise (dedup)
+};
+
+const LIVE_BASE = 'http://localhost:8000/api/v1';
+const MOCK_BASE = '/api/v1';
+
+function getBaseUrl() {
+  return state.mode === 'live' ? LIVE_BASE : MOCK_BASE;
+}
+
+// ─── Token Persistence ─────────────────────────────────────────────
+
+function saveSession() {
+  if (state.tokens) {
+    localStorage.setItem(STORAGE.TOKENS, JSON.stringify(state.tokens));
+    localStorage.setItem(STORAGE.TOKEN_ISSUED, String(state.tokenIssuedAt));
+  }
+  if (state.currentUser) {
+    localStorage.setItem(STORAGE.USER, JSON.stringify(state.currentUser));
+  }
+  localStorage.setItem(STORAGE.MODE, state.mode);
+}
+
+function clearSession() {
+  state.tokens = null;
+  state.tokenIssuedAt = null;
+  state.currentUser = null;
+  localStorage.removeItem(STORAGE.TOKENS);
+  localStorage.removeItem(STORAGE.TOKEN_ISSUED);
+  localStorage.removeItem(STORAGE.USER);
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE.TOKENS);
+    if (raw) {
+      state.tokens = JSON.parse(raw);
+      state.tokenIssuedAt = parseInt(localStorage.getItem(STORAGE.TOKEN_ISSUED) || '0', 10);
+      const userRaw = localStorage.getItem(STORAGE.USER);
+      if (userRaw) state.currentUser = JSON.parse(userRaw);
+    }
+  } catch { clearSession(); }
+}
+
+// ─── Mock API Handler ──────────────────────────────────────────────
+
+function mockAPI(method, path, body) {
+  const delay = () => new Promise(r => setTimeout(r, 50));
+  const handlers = {
+    'POST /auth/register': async () => {
+      await delay();
+      if (!body.email || !body.password || !body.name) return { status: 422, data: { error: { code: "VALIDATION_ERROR", message: "Missing required fields." } } };
+      if (MOCK.users.some(u => u.email === body.email)) return { status: 409, data: { error: { code: "CONFLICT", message: "A user with this email already exists." } } };
+      const user = { id: crypto.randomUUID(), email: body.email, name: body.name, role: "user", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      return { status: 201, data: { user, tokens: MOCK.generateToken() } };
+    },
+    'POST /auth/login': async () => {
+      await delay();
+      if (!body.email || !body.password) return { status: 422, data: { error: { code: "VALIDATION_ERROR", message: "Email and password are required." } } };
+      const user = MOCK.users.find(u => u.email === body.email);
+      if (!user) return { status: 401, data: { error: { code: "INVALID_CREDENTIALS", message: "Email or password is incorrect." } } };
+      return { status: 200, data: { user, tokens: MOCK.generateToken() } };
+    },
+    'POST /auth/refresh': async () => {
+      await delay();
+      if (!body.refresh_token) return { status: 401, data: { error: { code: "INVALID_TOKEN", message: "Refresh token is invalid or has expired." } } };
+      return { status: 200, data: MOCK.generateToken() };
+    },
+    'DELETE /auth/logout': async () => {
+      await delay();
+      if (!state.tokens) return { status: 401, data: { error: { code: "UNAUTHORIZED", message: "Access token is missing or invalid." } } };
+      return { status: 200, data: { message: "Logged out successfully." } };
+    },
+    'GET /users/me': async () => {
+      await delay();
+      if (!state.tokens) return { status: 401, data: { error: { code: "UNAUTHORIZED", message: "Access token is missing or invalid." } } };
+      return { status: 200, data: state.currentUser || MOCK.users[0] };
+    },
+    'PUT /users/me': async () => {
+      await delay();
+      if (!state.tokens) return { status: 401, data: { error: { code: "UNAUTHORIZED", message: "Access token is missing or invalid." } } };
+      return { status: 200, data: { ...(state.currentUser || MOCK.users[0]), ...body, updated_at: new Date().toISOString() } };
+    },
+    'GET /resources': async () => {
+      await delay();
+      if (!state.tokens) return { status: 401, data: { error: { code: "UNAUTHORIZED", message: "Access token is missing or invalid." } } };
+      return { status: 200, data: { data: MOCK.resources, meta: { page: 1, per_page: 20, total: MOCK.resources.length, total_pages: 1 } } };
+    },
+    'GET /health': async () => {
+      await delay();
+      return { status: 200, data: { status: "healthy", timestamp: new Date().toISOString() } };
+    }
+  };
+  const handler = handlers[`${method} ${path}`];
+  return handler ? handler() : Promise.resolve({ status: 404, data: { error: { code: "NOT_FOUND", message: `No mock for ${method} ${path}` } } });
+}
+
+// ─── Token Refresh ─────────────────────────────────────────────────
+
+async function refreshToken() {
+  if (!state.tokens || !state.tokens.refresh_token) return false;
+
+  // Deduplicate concurrent refresh calls
+  if (state._refreshing) return state._refreshing;
+
+  state._refreshing = (async () => {
+    try {
+      const result = await rawApiCall('POST', '/auth/refresh', { refresh_token: state.tokens.refresh_token });
+      if (result.status === 200 && result.data.access_token) {
+        state.tokens = { ...state.tokens, ...result.data };
+        state.tokenIssuedAt = Date.now();
+        saveSession();
+        updateTokenUI();
+        return true;
+      }
+      clearSession();
+      return false;
+    } catch {
+      clearSession();
+      return false;
+    } finally {
+      state._refreshing = null;
+    }
+  })();
+
+  return state._refreshing;
+}
+
+// ─── Raw API Call (no retry) ───────────────────────────────────────
+
+async function rawApiCall(method, path, body = null) {
+  if (state.mode === 'mock') return mockAPI(method, path, body);
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.tokens) headers['Authorization'] = `Bearer ${state.tokens.access_token}`;
+
+  try {
+    const opts = { method, headers };
+    if (body && method !== 'GET') opts.body = JSON.stringify(body);
+    const resp = await fetch(`${getBaseUrl()}${path}`, opts);
+    const data = await resp.json();
+    return { status: resp.status, data };
+  } catch (err) {
+    return { status: 0, data: { error: { code: "NETWORK_ERROR", message: err.message } } };
+  }
+}
+
+// ─── API Call (with auto-refresh on 401) ───────────────────────────
+
+async function apiCall(method, path, body = null) {
+  const result = await rawApiCall(method, path, body);
+
+  // Auto-refresh on 401 (skip for auth endpoints to avoid loops)
+  if (result.status === 401 && state.tokens && !path.startsWith('/auth/')) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      return rawApiCall(method, path, body);
+    }
+    // Refresh failed - force logout
+    clearSession();
+    updateAuthUI();
+    toast('Session expired. Please log in again.', 'error');
+  }
+
+  return result;
+}
+
+// ─── View Management ───────────────────────────────────────────────
+
+function showView(name) {
+  document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`view-${name}`).classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === name);
+  });
+
+  // Fetch fresh data when navigating to data views
+  if (name === 'users' && state.tokens) fetchUsers();
+  if (name === 'resources' && state.tokens) fetchResources();
+}
+
+// ─── Auth UI ───────────────────────────────────────────────────────
+
+function updateAuthUI() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (state.tokens) {
+    logoutBtn.style.display = '';
+  } else {
+    logoutBtn.style.display = 'none';
+  }
+  updateTokenUI();
+  updateTesterHeaders();
+}
+
+// ─── Auth Actions ──────────────────────────────────────────────────
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const result = await rawApiCall('POST', '/auth/login', { email, password });
+  showAuthResponse(result);
+
+  if (result.status === 200 && result.data.tokens) {
+    state.tokens = result.data.tokens;
+    state.tokenIssuedAt = Date.now();
+    state.currentUser = result.data.user;
+    saveSession();
+    updateAuthUI();
+    fetchUsers();
+    fetchResources();
+    toast('Logged in as ' + result.data.user.name, 'success');
+  } else {
+    toast(result.data.error?.message || 'Login failed', 'error');
+  }
+}
+
+async function doRegister() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const name = email.split('@')[0].replace(/[^a-zA-Z]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const result = await rawApiCall('POST', '/auth/register', { email, password, name });
+  showAuthResponse(result);
+
+  if (result.status === 201 && result.data.tokens) {
+    state.tokens = result.data.tokens;
+    state.tokenIssuedAt = Date.now();
+    state.currentUser = result.data.user;
+    saveSession();
+    updateAuthUI();
+    toast('Registered as ' + result.data.user.name, 'success');
+  } else {
+    toast(result.data.error?.message || 'Registration failed', 'error');
+  }
+}
+
+async function doLogout() {
+  const result = await rawApiCall('DELETE', '/auth/logout');
+  clearSession();
+  updateAuthUI();
+  renderUsersTable([]);
+  renderResourcesTable([], null);
+  showAuthResponse(result);
+  toast('Logged out', 'success');
+}
+
+function showAuthResponse(result) {
+  const panel = document.getElementById('authResponsePanel');
+  const statusEl = document.getElementById('authStatus');
+  const bodyEl = document.getElementById('authResponse');
+  panel.classList.remove('hidden');
+  const ok = result.status >= 200 && result.status < 300;
+  statusEl.innerHTML = `<div class="response-status ${ok ? 'ok' : 'err'}">${result.status} ${ok ? 'OK' : 'Error'}</div>`;
+  bodyEl.className = 'response-box' + (ok ? '' : ' error');
+  bodyEl.textContent = JSON.stringify(result.data, null, 2);
+}
+
+// ─── Token UI ──────────────────────────────────────────────────────
+
+function updateTokenUI() {
+  const box = document.getElementById('tokenContent');
+  const dot = document.getElementById('statusDot');
+
+  if (!state.tokens) {
+    box.innerHTML = '<div class="text-sm text-dim">Not authenticated</div>';
+    dot.classList.add('offline');
+    return;
+  }
+
+  dot.classList.remove('offline');
+  const elapsed = (Date.now() - state.tokenIssuedAt) / 1000;
+  const remaining = Math.max(0, state.tokens.expires_in - elapsed);
+  const pct = (remaining / state.tokens.expires_in) * 100;
+  const cls = pct > 30 ? '' : pct > 10 ? ' warning' : ' expired';
+
+  // Auto-refresh when token is about to expire (< 60s remaining)
+  if (remaining > 0 && remaining < 60 && !state._refreshing) {
+    refreshToken();
+  }
+
+  box.innerHTML = `
+    <div class="token-bar-track"><div class="token-bar-fill${cls}" style="width:${pct}%"></div></div>
+    <div class="token-info">${Math.floor(remaining)}s / ${state.tokens.expires_in}s</div>
+    <div class="text-sm text-dim mt-12">Type: ${state.tokens.token_type}</div>
+    <div class="text-sm mono text-dim" style="margin-top:4px; word-break:break-all;">
+      ${state.tokens.access_token.substring(0, 32)}...
+    </div>
+  `;
+}
+
+setInterval(updateTokenUI, 1000);
+
+// ─── Data Fetching (live API) ──────────────────────────────────────
+
+async function fetchUsers() {
+  if (state.mode === 'mock') {
+    renderUsersTable(MOCK.users);
+    return;
+  }
+
+  // Live mode: GET /users/me returns only current user
+  const result = await apiCall('GET', '/users/me');
+  if (result.status === 200) {
+    state.currentUser = result.data;
+    saveSession();
+    renderUsersTable([result.data]);
+  } else {
+    renderUsersTable([]);
+  }
+}
+
+async function fetchResources() {
+  if (state.mode === 'mock') {
+    renderResourcesTable(MOCK.resources, { page: 1, per_page: 20, total: MOCK.resources.length, total_pages: 1 });
+    return;
+  }
+
+  const result = await apiCall('GET', '/resources');
+  if (result.status === 200 && result.data.data) {
+    renderResourcesTable(result.data.data, result.data.meta);
+  } else {
+    renderResourcesTable([], null);
+  }
+}
+
+// ─── Users Table ───────────────────────────────────────────────────
+
+function renderUsersTable(users) {
+  const tbody = document.getElementById('usersTable');
+  document.getElementById('userCount').textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+
+  if (users.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-dim text-sm" style="text-align:center;padding:24px;">Log in to view user data</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td><strong>${esc(u.name)}</strong></td>
+      <td class="user-email">${esc(u.email)}</td>
+      <td><span class="badge badge-${u.role}">${u.role}</span></td>
+      <td class="text-sm text-dim">${formatDate(u.created_at)}</td>
+      <td class="user-id">${u.id.substring(0, 8)}...</td>
+    </tr>
+  `).join('');
+}
+
+// ─── Resources Table ───────────────────────────────────────────────
+
+function renderResourcesTable(resources, meta) {
+  const tbody = document.getElementById('resourcesTable');
+  const metaEl = document.getElementById('resourceMeta');
+
+  if (meta) {
+    metaEl.textContent = `Page ${meta.page} of ${meta.total_pages} (${meta.total} items)`;
+  } else {
+    metaEl.textContent = '';
+  }
+
+  if (resources.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-dim text-sm" style="text-align:center;padding:24px;">Log in to view resources</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = resources.map(r => {
+    const ownerName = (state.mode === 'mock')
+      ? (MOCK.users.find(u => u.id === r.owner_id)?.name || r.owner_id.substring(0, 8))
+      : (r.owner_id === state.currentUser?.id ? state.currentUser.name : r.owner_id.substring(0, 8));
+    return `
+      <tr>
+        <td><strong>${esc(r.title)}</strong></td>
+        <td class="text-dim text-sm">${esc(r.content)}</td>
+        <td class="text-sm">${esc(ownerName)}</td>
+        <td class="text-sm text-dim">${formatDate(r.created_at)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ─── Endpoint Tester ───────────────────────────────────────────────
+
+const ENDPOINT_BODIES = {
+  '/auth/register': { email: "newuser@example.com", password: "s3cur3P@ss!", name: "New User" },
+  '/auth/login': { email: "alice@example.com", password: "s3cur3P@ss!" },
+  '/auth/refresh': { refresh_token: "<paste_refresh_token>" },
+  '/auth/logout': null,
+  '/users/me': null,
+  '/users/me (update)': { name: "Updated Name" },
+  '/resources': null,
+  '/health': null,
+};
+
+function updateTesterBody() {
+  const select = document.getElementById('testerEndpoint');
+  const opt = select.options[select.selectedIndex];
+  const method = opt.dataset.method;
+  const path = opt.textContent.trim();
+  document.getElementById('testerMethod').value = method;
+  const body = ENDPOINT_BODIES[path];
+  document.getElementById('testerBody').value = body ? JSON.stringify(body, null, 2) : '';
+
+  // Auto-fill refresh token if available
+  if (path === '/auth/refresh' && state.tokens) {
+    document.getElementById('testerBody').value = JSON.stringify({ refresh_token: state.tokens.refresh_token }, null, 2);
+  }
+  updateTesterHeaders();
+}
+
+function updateTesterHeaders() {
+  let headers = 'Content-Type: application/json';
+  if (state.tokens) {
+    headers += `\nAuthorization: Bearer ${state.tokens.access_token.substring(0, 40)}...`;
+  }
+  document.getElementById('testerHeaders').textContent = headers;
+}
+
+async function sendTestRequest() {
+  const method = document.getElementById('testerMethod').value;
+  const select = document.getElementById('testerEndpoint');
+  const path = select.value;
+  const bodyText = document.getElementById('testerBody').value.trim();
+
+  let body = null;
+  if (bodyText && method !== 'GET') {
+    try { body = JSON.parse(bodyText); }
+    catch { toast('Invalid JSON in request body', 'error'); return; }
+  }
+
+  // Use rawApiCall for tester (user controls auth, no auto-retry)
+  const result = await rawApiCall(method, path, body);
+
+  const statusEl = document.getElementById('testerStatus');
+  const responseEl = document.getElementById('testerResponse');
+  const ok = result.status >= 200 && result.status < 300;
+
+  statusEl.innerHTML = `<div class="response-status ${ok ? 'ok' : 'err'}">${result.status} ${ok ? 'OK' : 'Error'}</div>`;
+  responseEl.className = 'response-box' + (ok ? '' : ' error');
+  responseEl.textContent = JSON.stringify(result.data, null, 2);
+
+  // If login/register succeeded via tester, capture tokens
+  if (ok && result.data.tokens) {
+    state.tokens = result.data.tokens;
+    state.tokenIssuedAt = Date.now();
+    if (result.data.user) state.currentUser = result.data.user;
+    saveSession();
+    updateAuthUI();
+  }
+}
+
+// ─── Utilities ─────────────────────────────────────────────────────
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function formatDate(iso) {
+  try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  catch { return iso; }
+}
+
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ─── Mode Toggle ───────────────────────────────────────────────────
+
+document.getElementById('toggleMode').addEventListener('click', () => {
+  state.mode = state.mode === 'mock' ? 'live' : 'mock';
+  saveSession();
+  const btn = document.getElementById('toggleMode');
+  const label = document.getElementById('statusLabel');
+  btn.textContent = state.mode === 'mock' ? 'Switch to Live' : 'Switch to Mock';
+  label.textContent = state.mode === 'mock' ? 'Mock Mode' : 'Live Mode';
+
+  // Re-render data tables with appropriate source
+  if (state.tokens) {
+    fetchUsers();
+    fetchResources();
+  } else {
+    renderUsersTable(state.mode === 'mock' ? MOCK.users : []);
+    renderResourcesTable(state.mode === 'mock' ? MOCK.resources : [], state.mode === 'mock' ? { page: 1, per_page: 20, total: 5, total_pages: 1 } : null);
+  }
+
+  toast(`Switched to ${state.mode} mode`);
+});
+
+// ─── Init ──────────────────────────────────────────────────────────
+
+(function init() {
+  // Restore persisted session
+  restoreSession();
+  updateAuthUI();
+
+  // Set mode toggle button text
+  const btn = document.getElementById('toggleMode');
+  const label = document.getElementById('statusLabel');
+  btn.textContent = state.mode === 'mock' ? 'Switch to Live' : 'Switch to Mock';
+  label.textContent = state.mode === 'mock' ? 'Mock Mode' : 'Live Mode';
+
+  // Render initial data
+  if (state.tokens) {
+    fetchUsers();
+    fetchResources();
+  } else {
+    renderUsersTable(state.mode === 'mock' ? MOCK.users : []);
+    renderResourcesTable(state.mode === 'mock' ? MOCK.resources : [], state.mode === 'mock' ? { page: 1, per_page: 20, total: 5, total_pages: 1 } : null);
+  }
+
+  updateTesterBody();
+})();
+</script>
+</body>
+</html>

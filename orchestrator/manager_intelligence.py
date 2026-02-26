@@ -23,15 +23,13 @@ rather than phase completion gates.
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Literal
 
 from .config import Config, TerminalID
 from .report_manager import Report
-from .task_queue import Task, TaskQueue, FlowState
-
+from .task_queue import FlowState, TaskQueue
 
 # =============================================================================
 # Heartbeat Data Structure
@@ -129,20 +127,20 @@ class ActionType(Enum):
     """
 
     # Organic Flow Interventions (v2.0)
-    AMPLIFY = "amplify"                      # Increase focus on flourishing work
-    REDIRECT = "redirect"                    # Change direction on stalled work
-    MEDIATE = "mediate"                      # Resolve conflicts between terminals
-    INJECT = "inject"                        # Add new work (alias for inject_task)
-    PRUNE = "prune"                          # Remove/deprioritize unproductive work
+    AMPLIFY = "amplify"  # Increase focus on flourishing work
+    REDIRECT = "redirect"  # Change direction on stalled work
+    MEDIATE = "mediate"  # Resolve conflicts between terminals
+    INJECT = "inject"  # Add new work (alias for inject_task)
+    PRUNE = "prune"  # Remove/deprioritize unproductive work
 
     # Legacy Actions (backward compatibility)
-    REORDER_TASKS = "reorder_tasks"          # Reorder task queue for better flow
-    INJECT_TASK = "inject_task"              # Add emergency/unblocking task
-    BROADCAST_UPDATE = "broadcast_update"    # Send coordination message to all
-    PAUSE_TERMINAL = "pause_terminal"        # Tell terminal to wait
-    RESUME_TERMINAL = "resume_terminal"      # Resume paused terminal
-    ESCALATE = "escalate"                    # Needs human attention
-    TRIGGER_SYNC_POINT = "trigger_sync_point" # Force a synchronization point
+    REORDER_TASKS = "reorder_tasks"  # Reorder task queue for better flow
+    INJECT_TASK = "inject_task"  # Add emergency/unblocking task
+    BROADCAST_UPDATE = "broadcast_update"  # Send coordination message to all
+    PAUSE_TERMINAL = "pause_terminal"  # Tell terminal to wait
+    RESUME_TERMINAL = "resume_terminal"  # Resume paused terminal
+    ESCALATE = "escalate"  # Needs human attention
+    TRIGGER_SYNC_POINT = "trigger_sync_point"  # Force a synchronization point
 
 
 @dataclass
@@ -151,14 +149,7 @@ class ManagerAction:
     An action the manager intelligence wants to take.
 
     The orchestrator will execute these actions to coordinate terminals.
-
-    ORGANIC FLOW MODEL (v2.0):
-    Actions now include intervention-specific data for the 5 intervention types:
-    - AMPLIFY: quality_boost, resource_increase
-    - REDIRECT: new_direction, reason_for_redirect
-    - MEDIATE: conflict_parties, resolution_approach
-    - INJECT: task_title, task_description (same as legacy)
-    - PRUNE: task_ids_to_prune, prune_reason
+    Uses 5 organic flow interventions: AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE.
     """
 
     action_type: ActionType
@@ -172,34 +163,21 @@ class ManagerAction:
     # For INJECT_TASK / INJECT
     task_title: str | None = None
     task_description: str | None = None
-    task_intent: str | None = None  # High-level intent for organic model
+    task_intent: str | None = None
 
-    # For BROADCAST_UPDATE
+    # For BROADCAST_UPDATE / AMPLIFY / REDIRECT
     broadcast_message: str | None = None
-
-    # For REORDER_TASKS
-    new_task_order: list[str] | None = None  # List of task IDs in desired order
-
-    # Organic Flow Intervention Data (v2.0)
-    # For AMPLIFY
-    quality_boost: float | None = None  # How much to boost quality expectation
-    resource_increase: str | None = None  # Description of resource increase
-
-    # For REDIRECT
-    new_direction: str | None = None  # New direction for the work
-    redirect_reason: str | None = None  # Why we're redirecting
 
     # For MEDIATE
     conflict_parties: list[TerminalID] = field(default_factory=list)
-    resolution_approach: str | None = None  # How to resolve the conflict
+    resolution_approach: str | None = None
 
     # For PRUNE
     task_ids_to_prune: list[str] = field(default_factory=list)
     prune_reason: str | None = None
 
     # Flow state context
-    flow_state_before: str | None = None  # Flow state that triggered this action
-    expected_flow_state_after: str | None = None  # Expected flow state after action
+    flow_state_before: str | None = None
 
     # Metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -215,17 +193,11 @@ class ManagerAction:
             "task_description": self.task_description,
             "task_intent": self.task_intent,
             "broadcast_message": self.broadcast_message,
-            "new_task_order": self.new_task_order,
-            "quality_boost": self.quality_boost,
-            "resource_increase": self.resource_increase,
-            "new_direction": self.new_direction,
-            "redirect_reason": self.redirect_reason,
             "conflict_parties": self.conflict_parties,
             "resolution_approach": self.resolution_approach,
             "task_ids_to_prune": self.task_ids_to_prune,
             "prune_reason": self.prune_reason,
             "flow_state_before": self.flow_state_before,
-            "expected_flow_state_after": self.expected_flow_state_after,
             "created_at": self.created_at,
         }
 
@@ -376,13 +348,15 @@ class ManagerIntelligence:
         # 1. Check for stalled terminals
         stalled = self.detect_stalled_terminals(heartbeats)
         for terminal_id in stalled:
-            actions.append(ManagerAction(
-                action_type=ActionType.ESCALATE,
-                reason=f"Terminal {terminal_id} stalled for {self.stall_threshold_seconds}s",
-                priority="high",
-                target_terminal=terminal_id,
-                flow_state_before=flow_state["overall_flow"],
-            ))
+            actions.append(
+                ManagerAction(
+                    action_type=ActionType.ESCALATE,
+                    reason=f"Terminal {terminal_id} stalled for {self.stall_threshold_seconds}s",
+                    priority="high",
+                    target_terminal=terminal_id,
+                    flow_state_before=flow_state["overall_flow"],
+                )
+            )
 
         # 2. Check for blocked terminals
         blocked = self.detect_blocked_terminals(heartbeats)
@@ -414,23 +388,27 @@ class ManagerIntelligence:
 
         # 5. Check if we should trigger a sync point - with deduplication
         # NOTE: In organic model, sync points are replaced by flow convergence
-        if current_phase not in self._triggered_sync_points:
+        if current_phase not in self._triggered_sync_points and (
+            flow_state["ready_for_convergence"]
+            or self.should_trigger_sync_point(heartbeats, current_phase)
+        ):
             # Use flow state instead of phase completion
-            if flow_state["ready_for_convergence"] or self.should_trigger_sync_point(heartbeats, current_phase):
-                actions.append(ManagerAction(
+            actions.append(
+                ManagerAction(
                     action_type=ActionType.TRIGGER_SYNC_POINT,
                     reason=f"Work converging (quality avg: {flow_state['quality_average']})",
                     priority="high",
                     affected_terminals=list(heartbeats.keys()),
                     flow_state_before=flow_state["overall_flow"],
-                    expected_flow_state_after=FlowState.CONVERGING.value,
+<<<<<<< ours
                 ))
                 self._triggered_sync_points.add(current_phase)
-
-        # 6. Check for task reordering opportunities
-        reorder_action = self._check_task_reordering(heartbeats, current_phase)
-        if reorder_action:
-            actions.append(reorder_action)
+=======
+                    expected_flow_state_after=FlowState.CONVERGING.value,
+                )
+            )
+            self._triggered_sync_points.add(current_phase)
+>>>>>>> theirs
 
         # Store actions in history
         self._action_history.extend(actions)
@@ -444,7 +422,7 @@ class ManagerIntelligence:
 
     def _check_for_amplify_opportunities(
         self,
-        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        _heartbeats: dict[TerminalID, TerminalHeartbeat],
         flow_state: dict,
     ) -> list[ManagerAction]:
         """
@@ -463,25 +441,38 @@ class ManagerIntelligence:
 
             if task.quality_level >= self.quality_flourishing_threshold:
                 # This task is doing well - amplify it
+<<<<<<< ours
                 actions.append(ManagerAction(
                     action_type=ActionType.AMPLIFY,
                     reason=f"Task '{task.title}' flourishing at {task.quality_level:.0%} quality",
                     priority="medium",
                     target_terminal=task.assigned_to,
-                    quality_boost=0.1,  # Aim for 10% more quality
-                    resource_increase=f"Prioritize completion of {task.title}",
                     flow_state_before=flow_state["overall_flow"],
-                    expected_flow_state_after=FlowState.CONVERGING.value,
                     broadcast_message=f"Great progress on '{task.title}'! Keep the momentum.",
                 ))
+=======
+                actions.append(
+                    ManagerAction(
+                        action_type=ActionType.AMPLIFY,
+                        reason=f"Task '{task.title}' flourishing at {task.quality_level:.0%} quality",
+                        priority="medium",
+                        target_terminal=task.assigned_to,
+                        quality_boost=0.1,  # Aim for 10% more quality
+                        resource_increase=f"Prioritize completion of {task.title}",
+                        flow_state_before=flow_state["overall_flow"],
+                        expected_flow_state_after=FlowState.CONVERGING.value,
+                        broadcast_message=f"Great progress on '{task.title}'! Keep the momentum.",
+                    )
+                )
+>>>>>>> theirs
                 self._amplified_tasks.add(task.id)
 
         return actions
 
     def _check_for_redirect_opportunities(
         self,
-        heartbeats: dict[TerminalID, TerminalHeartbeat],
-        flow_state: dict,
+        _heartbeats: dict[TerminalID, TerminalHeartbeat],
+        _flow_state: dict,
     ) -> list[ManagerAction]:
         """
         Check for stalled work that should be redirected.
@@ -503,19 +494,34 @@ class ManagerIntelligence:
                     start_time = datetime.fromisoformat(task.started_at)
                     elapsed = (datetime.now() - start_time).total_seconds()
 
-                    # Stalled: low quality AND long time elapsed
-                    if task.quality_level < self.quality_stalled_threshold and elapsed > 300:
+<<<<<<< ours
+                    # Stalled: low quality AND long time elapsed (15min threshold)
+                    if task.quality_level < self.quality_stalled_threshold and elapsed > 900:
                         actions.append(ManagerAction(
                             action_type=ActionType.REDIRECT,
                             reason=f"Task '{task.title}' stalled at {task.quality_level:.0%} for {elapsed/60:.1f}m",
                             priority="high",
                             target_terminal=task.assigned_to,
-                            new_direction="Simplify approach or break into smaller pieces",
-                            redirect_reason=f"Low progress after {elapsed/60:.1f} minutes",
                             flow_state_before=FlowState.STALLED.value,
-                            expected_flow_state_after=FlowState.FLOWING.value,
                             broadcast_message=f"Consider simplifying '{task.title}' - breaking it down may help.",
                         ))
+=======
+                    # Stalled: low quality AND long time elapsed
+                    if task.quality_level < self.quality_stalled_threshold and elapsed > 300:
+                        actions.append(
+                            ManagerAction(
+                                action_type=ActionType.REDIRECT,
+                                reason=f"Task '{task.title}' stalled at {task.quality_level:.0%} for {elapsed/60:.1f}m",
+                                priority="high",
+                                target_terminal=task.assigned_to,
+                                new_direction="Simplify approach or break into smaller pieces",
+                                redirect_reason=f"Low progress after {elapsed/60:.1f} minutes",
+                                flow_state_before=FlowState.STALLED.value,
+                                expected_flow_state_after=FlowState.FLOWING.value,
+                                broadcast_message=f"Consider simplifying '{task.title}' - breaking it down may help.",
+                            )
+                        )
+>>>>>>> theirs
                         self._redirected_tasks.add(task.id)
                 except (ValueError, TypeError):
                     pass
@@ -524,7 +530,7 @@ class ManagerIntelligence:
 
     def _check_for_mediation_needs(
         self,
-        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        _heartbeats: dict[TerminalID, TerminalHeartbeat],
         contracts: dict[TerminalID, list[Report]],
     ) -> list[ManagerAction]:
         """
@@ -539,6 +545,7 @@ class ManagerIntelligence:
         mismatches = self.detect_interface_mismatches(contracts)
         if len(mismatches) > 2:
             # Multiple mismatches suggest T1/T2 are not aligned
+<<<<<<< ours
             actions.append(ManagerAction(
                 action_type=ActionType.MEDIATE,
                 reason=f"Multiple interface mismatches ({len(mismatches)}) between T1 and T2",
@@ -546,12 +553,28 @@ class ManagerIntelligence:
                 conflict_parties=["t1", "t2"],
                 resolution_approach="Schedule alignment check - T1 and T2 should review each other's contracts",
                 flow_state_before=FlowState.BLOCKED.value,
-                expected_flow_state_after=FlowState.FLOWING.value,
                 broadcast_message=(
                     "T1 and T2: Please pause and align your interfaces. "
                     "Check .orchestra/contracts/ for the latest expectations."
                 ),
             ))
+=======
+            actions.append(
+                ManagerAction(
+                    action_type=ActionType.MEDIATE,
+                    reason=f"Multiple interface mismatches ({len(mismatches)}) between T1 and T2",
+                    priority="high",
+                    conflict_parties=["t1", "t2"],
+                    resolution_approach="Schedule alignment check - T1 and T2 should review each other's contracts",
+                    flow_state_before=FlowState.BLOCKED.value,
+                    expected_flow_state_after=FlowState.FLOWING.value,
+                    broadcast_message=(
+                        "T1 and T2: Please pause and align your interfaces. "
+                        "Check .orchestra/contracts/ for the latest expectations."
+                    ),
+                )
+            )
+>>>>>>> theirs
 
         return actions
 
@@ -570,20 +593,23 @@ class ManagerIntelligence:
         # Find low-priority pending tasks when we have blocked high-priority work
         pending = self.task_queue.pending
         blocked_high_priority = [
-            t for t in pending
+            t
+            for t in pending
             if t.flow_state == FlowState.BLOCKED and t.priority.value in ["critical", "high"]
         ]
 
         if blocked_high_priority:
             # Look for low priority tasks that could be pruned
             low_priority_pending = [
-                t for t in pending
+                t
+                for t in pending
                 if t.priority.value in ["low", "medium"] and t.flow_state != FlowState.BLOCKED
             ]
 
             if len(low_priority_pending) > 3:
                 # Too many low priority tasks - suggest pruning
                 task_ids = [t.id for t in low_priority_pending[:2]]
+<<<<<<< ours
                 actions.append(ManagerAction(
                     action_type=ActionType.PRUNE,
                     reason=f"High-priority work blocked while {len(low_priority_pending)} low-priority tasks pending",
@@ -591,8 +617,20 @@ class ManagerIntelligence:
                     task_ids_to_prune=task_ids,
                     prune_reason="Deprioritize to focus on blocked high-priority work",
                     flow_state_before=flow_state["overall_flow"],
-                    expected_flow_state_after=FlowState.FLOWING.value,
                 ))
+=======
+                actions.append(
+                    ManagerAction(
+                        action_type=ActionType.PRUNE,
+                        reason=f"High-priority work blocked while {len(low_priority_pending)} low-priority tasks pending",
+                        priority="medium",
+                        task_ids_to_prune=task_ids,
+                        prune_reason="Deprioritize to focus on blocked high-priority work",
+                        flow_state_before=flow_state["overall_flow"],
+                        expected_flow_state_after=FlowState.FLOWING.value,
+                    )
+                )
+>>>>>>> theirs
 
         return actions
 
@@ -667,7 +705,7 @@ class ManagerIntelligence:
                 reason=f"Coordinate: {terminal_id} blocked waiting for dependency",
                 priority="high",
                 broadcast_message=f"⚠️ {terminal_id.upper()} is blocked: {blocker_reason}\n\n"
-                                  f"If you have related work ready, please complete it to unblock {terminal_id.upper()}.",
+                f"If you have related work ready, please complete it to unblock {terminal_id.upper()}.",
             )
 
         # Missing file or component
@@ -679,7 +717,7 @@ class ManagerIntelligence:
                 target_terminal=self._guess_responsible_terminal(blocker_reason),
                 task_title=f"Unblock {terminal_id}: Create missing dependency",
                 task_description=f"Terminal {terminal_id} is blocked because: {blocker_reason}\n\n"
-                                 f"Please create the missing file/component to unblock them.",
+                f"Please create the missing file/component to unblock them.",
             )
 
         # Unknown blocker - escalate
@@ -740,14 +778,19 @@ class ManagerIntelligence:
                 severity: Literal["low", "medium", "high"] = "medium"
 
                 # Increase severity for critical files
-                if any(critical in file_path.lower() for critical in ["model", "schema", "config", "main"]):
+                if any(
+                    critical in file_path.lower()
+                    for critical in ["model", "schema", "config", "main"]
+                ):
                     severity = "high"
 
-                conflicts.append(FileConflict(
-                    file_path=file_path,
-                    terminals=terminals,
-                    severity=severity,
-                ))
+                conflicts.append(
+                    FileConflict(
+                        file_path=file_path,
+                        terminals=terminals,
+                        severity=severity,
+                    )
+                )
 
         return conflicts
 
@@ -766,10 +809,10 @@ class ManagerIntelligence:
                 priority="high",
                 affected_terminals=conflict.terminals,
                 broadcast_message=f"⚠️ FILE CONFLICT DETECTED\n\n"
-                                  f"File: `{conflict.file_path}`\n"
-                                  f"Terminals: {', '.join(t.upper() for t in conflict.terminals)}\n\n"
-                                  f"Please coordinate to avoid merge conflicts. "
-                                  f"{terminal_to_pause.upper()}, consider waiting for others to finish first.",
+                f"File: `{conflict.file_path}`\n"
+                f"Terminals: {', '.join(t.upper() for t in conflict.terminals)}\n\n"
+                f"Please coordinate to avoid merge conflicts. "
+                f"{terminal_to_pause.upper()}, consider waiting for others to finish first.",
             )
 
         # Low/medium severity - just warn
@@ -779,7 +822,7 @@ class ManagerIntelligence:
             priority="low",
             affected_terminals=conflict.terminals,
             broadcast_message=f"ℹ️ FYI: `{conflict.file_path}` is being edited by multiple terminals. "
-                              f"Coordinate if needed.",
+            f"Coordinate if needed.",
         )
 
     # =========================================================================
@@ -825,12 +868,14 @@ class ManagerIntelligence:
         for component_name, description in t1_needs.items():
             # Simple check: is the component name in T2's provides list?
             if component_name.lower() not in t2_provides:
-                mismatches.append(InterfaceMismatch(
-                    component_name=component_name,
-                    t1_expectation=description,
-                    t2_implementation=None,
-                    severity="medium",
-                ))
+                mismatches.append(
+                    InterfaceMismatch(
+                        component_name=component_name,
+                        t1_expectation=description,
+                        t2_implementation=None,
+                        severity="medium",
+                    )
+                )
 
         return mismatches
 
@@ -859,7 +904,7 @@ class ManagerIntelligence:
             target_terminal="t2",
             task_title=f"Implement {mismatch.component_name} for T1",
             task_description=f"T1 (UI) needs: {mismatch.t1_expectation}\n\n"
-                             f"Please implement this so T1 can integrate with it.",
+            f"Please implement this so T1 can integrate with it.",
         )
 
     # =========================================================================
@@ -881,8 +926,7 @@ class ManagerIntelligence:
         """
         # Check if all terminals are idle or blocked
         all_idle = all(
-            hb.current_task_id is None or hb.progress_percent >= 100
-            for hb in heartbeats.values()
+            hb.current_task_id is None or hb.progress_percent >= 100 for hb in heartbeats.values()
         )
 
         if not all_idle:
@@ -919,6 +963,8 @@ class ManagerIntelligence:
         - If a terminal is idle and has no assigned tasks, but there are unassigned tasks
         - If tasks are blocked by dependencies that can't be resolved yet
         """
+        _ = current_phase
+
         # Get pending tasks
         pending = self.task_queue.pending
         if len(pending) <= 1:
@@ -926,7 +972,8 @@ class ManagerIntelligence:
 
         # Check for idle terminals with no assigned work
         idle_terminals = [
-            tid for tid, hb in heartbeats.items()
+            tid
+            for tid, hb in heartbeats.items()
             if hb.current_task_id is None and not hb.is_blocked
         ]
 
@@ -937,14 +984,15 @@ class ManagerIntelligence:
         unassigned_tasks = [t for t in pending if t.assigned_to is None]
         if unassigned_tasks:
             # Suggest moving unassigned tasks to front
-            new_order = [t.id for t in unassigned_tasks] + [t.id for t in pending if t.assigned_to is not None]
+            new_order = [t.id for t in unassigned_tasks] + [
+                t.id for t in pending if t.assigned_to is not None
+            ]
 
             return ManagerAction(
                 action_type=ActionType.REORDER_TASKS,
                 reason=f"Idle terminals available: {', '.join(idle_terminals)}. Prioritize unassigned tasks.",
                 priority="low",
                 affected_terminals=idle_terminals,
-                new_task_order=new_order,
             )
 
         return None

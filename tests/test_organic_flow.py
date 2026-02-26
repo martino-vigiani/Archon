@@ -11,9 +11,8 @@ continuous, organic work progression.
 """
 
 import pytest
-from datetime import datetime
 
-from orchestrator.task_queue import FlowState, Task, TaskPriority, TaskQueue, TaskStatus
+from orchestrator.task_queue import FlowState, Task
 
 
 class TestFlowStateTransitions:
@@ -125,14 +124,14 @@ class TestFlowWithoutPhaseGates:
     def test_next_task_ignores_strict_phase_gating(self, task_queue):
         """Tasks should be available based on readiness, not phase number."""
         # Add phase 1 task
-        p1_task = task_queue.add_task(
+        task_queue.add_task(
             title="Phase 1 Task",
             description="Initial work",
             phase=1,
         )
 
         # Add phase 2 task with no dependencies
-        p2_task = task_queue.add_task(
+        task_queue.add_task(
             title="Phase 2 Task",
             description="Can start early",
             phase=2,
@@ -363,8 +362,8 @@ class TestContinuousWorkFlow:
     def test_no_artificial_sync_points_required(self, task_queue):
         """Work should not require artificial sync points between phases."""
         # Add phase 1 and phase 2 tasks
-        p1_task = task_queue.add_task(title="P1 Task", description="Phase 1", phase=1)
-        p2_task = task_queue.add_task(
+        task_queue.add_task(title="P1 Task", description="Phase 1", phase=1)
+        task_queue.add_task(
             title="P2 Task",
             description="Phase 2",
             phase=2,

@@ -12,10 +12,11 @@ Key principle: Any terminal can use ANY subagent. Personalities inform
 approach, not limit capabilities.
 """
 
-import pytest
 from pathlib import Path
 
-from orchestrator.config import Config, TERMINALS, TerminalConfig, TerminalID
+import pytest
+
+from orchestrator.config import TERMINALS, Config, TerminalConfig, TerminalID
 from orchestrator.manager_intelligence import TerminalHeartbeat
 
 
@@ -124,10 +125,7 @@ class TestArchitectBehavior:
 
         # Service/model files indicate foundation work
         assert any("Service" in f for f in heartbeat.files_being_edited)
-        assert any(
-            f.endswith(".swift") and not "View" in f
-            for f in heartbeat.files_being_edited
-        )
+        assert any(f.endswith(".swift") and "View" not in f for f in heartbeat.files_being_edited)
 
 
 class TestNarratorBehavior:
@@ -273,7 +271,7 @@ class TestAnyTerminalAnySubagent:
         The prompts say: 'Any terminal can use any subagent.'
         """
         t1_config = TERMINALS["t1"]
-        t2_config = TERMINALS["t2"]
+        TERMINALS["t2"]
 
         # T1's default subagents are UI-focused
         assert "swiftui-crafter" in t1_config.subagents
@@ -327,9 +325,7 @@ class TestHeartbeatPersonality:
             ("t5", "skeptic"),
         ],
     )
-    def test_heartbeat_can_include_personality(
-        self, terminal_id: TerminalID, personality: str
-    ):
+    def test_heartbeat_can_include_personality(self, terminal_id: TerminalID, personality: str):
         """Heartbeats can include personality field for context."""
         heartbeat = TerminalHeartbeat(
             terminal_id=terminal_id,
@@ -402,6 +398,4 @@ class TestPromptFilesExist:
 
             if prompt_path.exists():
                 content = prompt_path.read_text()
-                assert (
-                    personality in content
-                ), f"{tid} prompt should contain '{personality}'"
+                assert personality in content, f"{tid} prompt should contain '{personality}'"

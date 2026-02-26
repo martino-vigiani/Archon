@@ -20,11 +20,11 @@ class ContractStatus(Enum):
     """Status of a contract in its lifecycle."""
 
     NEGOTIATING = "negotiating"  # Proposal made, awaiting response
-    AGREED = "agreed"            # Terms agreed, ready for implementation
+    AGREED = "agreed"  # Terms agreed, ready for implementation
     IMPLEMENTED = "implemented"  # Code written, awaiting verification
-    VERIFIED = "verified"        # Verified working correctly
-    DISPUTED = "disputed"        # Disagreement needs resolution
-    DEPRECATED = "deprecated"    # No longer in use
+    VERIFIED = "verified"  # Verified working correctly
+    DISPUTED = "disputed"  # Disagreement needs resolution
+    DEPRECATED = "deprecated"  # No longer in use
 
 
 @dataclass
@@ -33,10 +33,12 @@ class NegotiationEntry:
 
     terminal: str  # Terminal ID or "orchestrator"
     timestamp: str
-    action: Literal["proposal", "response", "counter", "resolution", "implementation", "verification", "dispute"]
+    action: Literal[
+        "proposal", "response", "counter", "resolution", "implementation", "verification", "dispute"
+    ]
     content: str
     code_block: str | None = None  # Optional code snippet
-    quality: float | None = None   # Quality score for implementations (0.0-1.0)
+    quality: float | None = None  # Quality score for implementations (0.0-1.0)
     metadata: dict = field(default_factory=dict)
 
     def to_markdown(self) -> str:
@@ -60,7 +62,9 @@ class NegotiationEntry:
         if self.code_block:
             # Detect language from content
             lang = "swift" if "struct" in self.code_block or "func" in self.code_block else ""
-            lang = lang or ("typescript" if "interface" in self.code_block or ": {" in self.code_block else "")
+            lang = lang or (
+                "typescript" if "interface" in self.code_block or ": {" in self.code_block else ""
+            )
             lang = lang or "code"
             md += f"\n```{lang}\n{self.code_block}\n```\n"
 
@@ -159,19 +163,19 @@ class Contract:
     def from_markdown(cls, content: str, file_path: Path) -> "Contract":
         """Parse a contract from markdown content."""
         # Extract header info
-        id_match = re.search(r'\*\*ID:\*\*\s*`([^`]+)`', content)
-        name_match = re.search(r'^#\s*Contract:\s*(.+)$', content, re.MULTILINE)
-        type_match = re.search(r'\*\*Type:\*\*\s*(.+)$', content, re.MULTILINE)
-        status_match = re.search(r'\*\*Status:\*\*\s*(.+)$', content, re.MULTILINE)
-        proposer_match = re.search(r'\*\*Proposer:\*\*\s*(\w+)', content)
-        implementer_match = re.search(r'\*\*Implementer:\*\*\s*(\w+)', content)
-        created_match = re.search(r'\*\*Created:\*\*\s*(.+)$', content, re.MULTILINE)
-        updated_match = re.search(r'\*\*Updated:\*\*\s*(.+)$', content, re.MULTILINE)
-        agreed_match = re.search(r'\*\*Agreed:\*\*\s*(.+)$', content, re.MULTILINE)
-        implemented_match = re.search(r'\*\*Implemented:\*\*\s*(.+)$', content, re.MULTILINE)
-        verified_match = re.search(r'\*\*Verified:\*\*\s*(.+)$', content, re.MULTILINE)
-        tags_match = re.search(r'\*\*Tags:\*\*\s*(.+)$', content, re.MULTILINE)
-        deps_match = re.search(r'\*\*Dependencies:\*\*\s*(.+)$', content, re.MULTILINE)
+        id_match = re.search(r"\*\*ID:\*\*\s*`([^`]+)`", content)
+        name_match = re.search(r"^#\s*Contract:\s*(.+)$", content, re.MULTILINE)
+        type_match = re.search(r"\*\*Type:\*\*\s*(.+)$", content, re.MULTILINE)
+        status_match = re.search(r"\*\*Status:\*\*\s*(.+)$", content, re.MULTILINE)
+        proposer_match = re.search(r"\*\*Proposer:\*\*\s*(\w+)", content)
+        implementer_match = re.search(r"\*\*Implementer:\*\*\s*(\w+)", content)
+        created_match = re.search(r"\*\*Created:\*\*\s*(.+)$", content, re.MULTILINE)
+        updated_match = re.search(r"\*\*Updated:\*\*\s*(.+)$", content, re.MULTILINE)
+        agreed_match = re.search(r"\*\*Agreed:\*\*\s*(.+)$", content, re.MULTILINE)
+        implemented_match = re.search(r"\*\*Implemented:\*\*\s*(.+)$", content, re.MULTILINE)
+        verified_match = re.search(r"\*\*Verified:\*\*\s*(.+)$", content, re.MULTILINE)
+        tags_match = re.search(r"\*\*Tags:\*\*\s*(.+)$", content, re.MULTILINE)
+        deps_match = re.search(r"\*\*Dependencies:\*\*\s*(.+)$", content, re.MULTILINE)
 
         # Parse status
         status_str = status_match.group(1).strip().lower() if status_match else "negotiating"
@@ -187,12 +191,12 @@ class Contract:
 
         # Parse history entries
         history = []
-        history_section = re.search(r'## Negotiation History\s*\n(.+)', content, re.DOTALL)
+        history_section = re.search(r"## Negotiation History\s*\n(.+)", content, re.DOTALL)
         if history_section:
             entries = re.findall(
-                r'###\s+(\w+(?:-\w+)?)\s+\((\w+)\s+@\s+(\d+:\d+)\)\s*\n\n(.*?)(?=\n###|\Z)',
+                r"###\s+(\w+(?:-\w+)?)\s+\((\w+)\s+@\s+(\d+:\d+)\)\s*\n\n(.*?)(?=\n###|\Z)",
                 history_section.group(1),
-                re.DOTALL
+                re.DOTALL,
             )
             for action_label, terminal, time, body in entries:
                 action_map = {
@@ -207,29 +211,31 @@ class Contract:
                 action = action_map.get(action_label, "response")
 
                 # Extract code block if present
-                code_match = re.search(r'```\w*\n(.*?)```', body, re.DOTALL)
+                code_match = re.search(r"```\w*\n(.*?)```", body, re.DOTALL)
                 code_block = code_match.group(1).strip() if code_match else None
 
                 # Extract quality if present
-                quality_match = re.search(r'\*\*Quality:\*\*\s*([\d.]+)%', body)
+                quality_match = re.search(r"\*\*Quality:\*\*\s*([\d.]+)%", body)
                 quality = float(quality_match.group(1)) / 100 if quality_match else None
 
                 # Clean content (remove code block and metadata)
                 content_text = body
                 if code_match:
                     content_text = content_text.replace(code_match.group(0), "")
-                content_text = re.sub(r'\*\*Quality:\*\*.*$', '', content_text, flags=re.MULTILINE)
-                content_text = re.sub(r'\*\*File:\*\*.*$', '', content_text, flags=re.MULTILINE)
+                content_text = re.sub(r"\*\*Quality:\*\*.*$", "", content_text, flags=re.MULTILINE)
+                content_text = re.sub(r"\*\*File:\*\*.*$", "", content_text, flags=re.MULTILINE)
                 content_text = content_text.strip()
 
-                history.append(NegotiationEntry(
-                    terminal=terminal.lower(),
-                    timestamp=f"2026-01-01T{time}:00",  # Placeholder date
-                    action=action,
-                    content=content_text,
-                    code_block=code_block,
-                    quality=quality,
-                ))
+                history.append(
+                    NegotiationEntry(
+                        terminal=terminal.lower(),
+                        timestamp=f"2026-01-01T{time}:00",  # Placeholder date
+                        action=action,
+                        content=content_text,
+                        code_block=code_block,
+                        quality=quality,
+                    )
+                )
 
         # Build contract
         contract_id = id_match.group(1) if id_match else file_path.stem
@@ -242,8 +248,12 @@ class Contract:
             implementer=implementer_match.group(1).lower() if implementer_match else None,  # type: ignore
             status=status,
             history=history,
-            created_at=created_match.group(1).strip() if created_match else datetime.now().isoformat(),
-            updated_at=updated_match.group(1).strip() if updated_match else datetime.now().isoformat(),
+            created_at=(
+                created_match.group(1).strip() if created_match else datetime.now().isoformat()
+            ),
+            updated_at=(
+                updated_match.group(1).strip() if updated_match else datetime.now().isoformat()
+            ),
             agreed_at=agreed_match.group(1).strip() if agreed_match else None,
             implemented_at=implemented_match.group(1).strip() if implemented_match else None,
             verified_at=verified_match.group(1).strip() if verified_match else None,
@@ -296,7 +306,7 @@ class ContractManager:
     def _generate_contract_id(self, name: str) -> str:
         """Generate a unique contract ID."""
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        safe_name = re.sub(r'[^a-zA-Z0-9]', '', name)[:20].lower()
+        safe_name = re.sub(r"[^a-zA-Z0-9]", "", name)[:20].lower()
         return f"contract_{safe_name}_{timestamp}"
 
     def _get_contract_path(self, contract_id: str) -> Path:
@@ -715,7 +725,10 @@ class ContractManager:
                     # Check if this terminal should act on this contract
                     if contract.proposer == for_terminal:
                         continue  # Proposer is waiting for response
-                    if contract.status == ContractStatus.AGREED and contract.implementer == for_terminal:
+                    if (
+                        contract.status == ContractStatus.AGREED
+                        and contract.implementer == for_terminal
+                    ):
                         pending.append(contract)  # Should implement
                     elif contract.status == ContractStatus.NEGOTIATING:
                         pending.append(contract)  # Can respond
@@ -742,11 +755,14 @@ class ContractManager:
         contracts = []
 
         for contract in self.list_contracts():
-            if role == "proposer" and contract.proposer == terminal_id:
-                contracts.append(contract)
-            elif role == "implementer" and contract.implementer == terminal_id:
-                contracts.append(contract)
-            elif role == "all" and terminal_id in [contract.proposer, contract.implementer]:
+            if (
+                role == "proposer"
+                and contract.proposer == terminal_id
+                or role == "implementer"
+                and contract.implementer == terminal_id
+                or role == "all"
+                and terminal_id in [contract.proposer, contract.implementer]
+            ):
                 contracts.append(contract)
 
         return contracts
@@ -768,9 +784,7 @@ class ContractManager:
             return "# Contract Summary\n\nNo contracts defined yet."
 
         # Group by status
-        by_status: dict[ContractStatus, list[Contract]] = {
-            status: [] for status in ContractStatus
-        }
+        by_status: dict[ContractStatus, list[Contract]] = {status: [] for status in ContractStatus}
         for contract in contracts:
             by_status[contract.status].append(contract)
 
