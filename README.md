@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="#terminals"><img src="https://img.shields.io/badge/Workers-5_or_dynamic-blue?style=flat-square" alt="5 or dynamic workers"></a>
+  <a href="#worker-rosters"><img src="https://img.shields.io/badge/Workers-5_or_dynamic-blue?style=flat-square" alt="5 or dynamic workers"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-20-green?style=flat-square" alt="20 Subagents"></a>
-  <a href="#test-suite-expansion"><img src="https://img.shields.io/badge/Tests-754_passing-brightgreen?style=flat-square" alt="754 Tests"></a>
+  <a href="#development"><img src="https://img.shields.io/badge/Tests-754_passing-brightgreen?style=flat-square" alt="754 Tests"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -22,9 +22,11 @@
 
 ## What is Archon?
 
-Archon is a **gardener of intelligence** - it cultivates parallel Claude Code workers and guides them toward creating software through organic collaboration rather than rigid command.
+Archon is a **gardener of intelligence** — it cultivates parallel Claude Code workers and guides them toward creating software through organic collaboration rather than rigid command.
 
-Workers come in two flavors: the classic **five fixed personalities** (T1-T5, below) or a **dynamic, task-shaped roster** (`--dynamic-agents`) derived from the goal — capability lanes with no fixed names or roles. Either way the orchestrator switches each worker's execution mode per task (model tier, reasoning effort, plan mode, subagents) and you can steer the run live from the dashboard.
+Give Archon an **intent** like *"Create an iOS habit tracking app"* and it seeds that intent across a team of autonomous workers. Each worker is a non-interactive `claude --print` subprocess; the orchestrator observes quality, resolves conflicts, and intervenes surgically. Work is not binary (done / not done) — it exists on a continuous **quality gradient from 0.0 to 1.0**.
+
+Workers come in two flavors: the classic **five fixed personalities** (T1–T5) or a **dynamic, task-shaped roster** (`--dynamic-agents`) derived from the goal — capability lanes with no fixed names or roles. Either way, the orchestrator composes each worker's execution mode (model tier, reasoning effort, plan mode, subagents) per task at a single chokepoint (`Config.build_llm_command`). An optional Codex runtime is also supported via `--llm-provider codex`.
 
 ```
                     ┌─────────────────┐
@@ -49,354 +51,270 @@ Workers come in two flavors: the classic **five fixed personalities** (T1-T5, be
               └───────────────────────┘
 ```
 
-Give Archon an **intent** like *"Create an iOS counter app"* and watch it:
-
-1. **Seed** - Plant the intent across all terminals
-2. **Grow** - Terminals develop their specialties organically
-3. **Negotiate** - Craftspeople exchange contracts and resolve differences
-4. **Cultivate** - The gardener observes quality and intervenes when needed
-5. **Harvest** - Complete, tested, documented application emerges
-
----
-
-## Live Control Dashboard
-
-A real-time web dashboard (`--dashboard`, http://localhost:8420) shows each worker's
-capability lane, execution mode, live output, the quality gradient, and the
-orchestrator/event feeds — and lets you **steer the run directly**: pause/resume,
-inject tasks, switch a worker's mode, and toggle model tiering / effort / dynamic
-agents on the fly.
-
----
-
-## Execution Modes & Dynamic Agents
-
-Every task is a single non-interactive `claude --print` call, and Archon switches the
-same controls a human would toggle by hand — bundled per task in an `ExecutionProfile`
-composed into CLI flags at one chokepoint (`Config.build_llm_command`):
-
-| Control | Flag | Notes |
-|---------|------|-------|
-| Model tier (cheap/standard/deep → haiku/sonnet/opus) | `--model` | `--model-tiering` (opt-in) |
-| Reasoning effort / "ultracode" (low…max) | `--effort` | on by default |
-| Plan mode | `--permission-mode plan` | per task / control plane |
-| Dynamic subagents | `--agents` | ad-hoc; curated subagents are auto-discovered |
-| Cacheable persona | `--append-system-prompt` | prompt-cache reuse |
-
-- **Dynamic agents** (`--dynamic-agents`): derive a task-shaped roster `w1..wN` with
-  capability lanes (architecture / ui / code / qa / docs / strategy) instead of the
-  fixed T1-T5 personalities — no fixed names or roles, the roster flexes with the goal.
-- **Token efficiency**: per-task model tiering and effort dial, a cacheable system
-  prompt (no inline re-send), local (LLM-free) report parsing, compact status, and
-  bounded log/output buffers.
-- **Direct access**: a file-based control plane lets the dashboard pause/resume, inject
-  tasks (with a profile), set a worker's mode, and flip config live — even while paused.
-
 ---
 
 ## Quick Start
 
 ```bash
-# Clone and setup
+# Clone and set up
 git clone https://github.com/martino-vigiani/Archon.git
 cd Archon
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Run with dashboard (recommended)
+# Run with live dashboard (recommended)
 python -m orchestrator --dashboard "Create a habit tracking iOS app"
-
-# Run with Codex runtime (Codex 5.3 team profile)
-python -m orchestrator --llm-provider codex --llm-model gpt-5.3-codex --dashboard "Create a habit tracking iOS app"
 ```
 
-### Requirements
+**Requirements**
 
-- **Python 3.11+**
+- Python 3.11+ (validated on 3.12)
 - One supported runtime in PATH:
-  - **[Claude Code CLI](https://github.com/anthropics/claude-code)** (default), or
-  - **Codex CLI** (`codex`, for `--llm-provider codex`)
+  - **[Claude Code CLI](https://github.com/anthropics/claude-code)** (default)
+  - **Codex CLI** (`codex`) for `--llm-provider codex`
 - Provider account access for the selected runtime
 
 ---
 
-## The Organic Philosophy
+## Worker Rosters
 
-Archon rejects the factory model of software development. Instead of treating AI agents as assembly line workers executing predefined tasks, Archon cultivates them as craftspeople with distinct personalities and expertise.
+`TerminalID` is a plain `str`, so both roster models are first-class citizens and can coexist in the same run.
 
-### Core Principles
+### A. Fixed Personalities (T1–T5) — Default
 
-| Traditional | Organic |
-|-------------|---------|
-| **Task** - "Do exactly this" | **Intent** - "We want to achieve this" |
-| **Phase** - "First A, then B, then C" | **Flow** - "Work naturally, negotiate as needed" |
-| **Distribution** - "Manager assigns all work" | **Observation** - "Terminals choose, manager guides" |
-| **Binary Status** - "Done or not done" | **Quality Gradient** - "0.0 to 1.0 readiness" |
+Five named craftspeople with distinct worldviews. Each can invoke any of the 20 subagents regardless of home domain.
 
-### Why Organic?
+| Terminal | Personality | Home Domain | Motto |
+|----------|-------------|-------------|-------|
+| **T1** | The Craftsman | UI/UX | "Every pixel matters" |
+| **T2** | The Architect | Backend/Systems | "Foundation that endures" |
+| **T3** | The Narrator | Documentation | "Clarity illuminates" |
+| **T4** | The Strategist | Product/Vision | "Vision guides direction" |
+| **T5** | The Skeptic | QA/Testing | "Trust but verify" |
 
-Traditional orchestration systems fail because they try to predict every dependency upfront. Real software development is emergent - the UI reveals needed APIs, tests expose edge cases, documentation clarifies requirements.
+T5 is enabled by default and can be disabled with `--no-testing` to save API limits.
 
-Archon embraces this uncertainty. Terminals work in their natural rhythm, communicating through contracts and negotiations. The manager watches quality gradients and intervenes only when the garden needs tending.
+### B. Dynamic Task-Shaped Roster (`--dynamic-agents`)
 
----
+Enable with `--dynamic-agents`. Archon derives a roster `w1..wN` from the actual goal — each worker gets a capability lane synthesized from what the task needs, with no fixed names or roles.
 
-## Terminal Personalities
+| Lane | Kind | Default execution profile |
+|------|------|--------------------------|
+| `architecture` | ARCHITECTURE | deep model, high effort |
+| `ui` | UI | standard model, medium effort |
+| `code` | CODE | standard model, high effort (always present) |
+| `qa` | QA | standard model, high effort (unless `--no-testing`) |
+| `docs` | DOCS | cheap model, low effort |
+| `strategy` | STRATEGY | standard model, medium effort |
 
-Each terminal is a craftsperson with a distinct worldview and approach:
-
-### T1 - The Craftsman
-
-*"I make things beautiful. Every pixel, every interaction, every moment of delight."*
-
-The Craftsman obsesses over user experience. They build interfaces that feel alive, creating with mock data first so nothing blocks their creative flow. They define what the user will see and touch.
-
-| Focus | Subagents |
-|-------|-----------|
-| Visual Design | `swiftui-crafter`, `react-crafter` |
-| Styling | `html-stylist`, `design-system` |
-
-### T2 - The Architect
-
-*"I make things reliable. Every foundation solid, every system resilient, every edge case handled."*
-
-The Architect builds what others depend on. They create the models, services, and tests that make software trustworthy. When T1 proposes an interface, T2 makes it real and bulletproof.
-
-| Focus | Subagents |
-|-------|-----------|
-| Architecture | `swift-architect`, `node-architect`, `python-architect` |
-| Data | `swiftdata-expert`, `database-expert` |
-| Intelligence | `ml-engineer` |
-
-### T3 - The Narrator
-
-*"I explain things clearly. Every concept accessible, every decision documented, every user guided."*
-
-The Narrator watches the system grow and captures its story. They write documentation that helps users understand, onboarding that welcomes newcomers, and technical specs that preserve knowledge.
-
-| Focus | Subagents |
-|-------|-----------|
-| Documentation | `tech-writer` |
-| Communication | `marketing-strategist` |
-
-### T4 - The Strategist
-
-*"I see the whole board. Every move connected, every decision aligned, every path leading somewhere."*
-
-The Strategist never blocks - they advise. Early on they broadcast MVP scope so everyone knows the destination. Throughout development they watch for scope creep, suggest pivots, and ensure the team builds the right thing.
-
-| Focus | Subagents |
-|-------|-----------|
-| Product | `product-thinker` |
-| Business | `monetization-expert` |
-
-### T5 - The Skeptic
-
-*"I find every flaw. Every assumption challenged, every path tested, every weakness exposed."*
-
-The Skeptic is the team's immune system. They don't wait until the end - they probe continuously, running builds, checking contracts, finding issues before they compound. When they find problems, they report to the responsible terminal.
-
-| Focus | Subagents |
-|-------|-----------|
-| Quality | `test-genius` |
-| Validation | `swift-architect`, `node-architect`, `python-architect` |
+Dynamic workers reference curated subagents by name — the Claude CLI auto-discovers `.claude/agents/*.md` lazily. Full agent bodies are not re-sent on every task call.
 
 ---
 
-## How Flow Works
+## Execution Modes
 
-Unlike rigid phase systems, Archon terminals flow naturally:
+Every task is a single non-interactive `claude --print` call. Archon switches the same controls a human would toggle by hand, bundled per task in an `ExecutionProfile` composed into CLI flags at one chokepoint — `Config.build_llm_command`.
 
-```
-GROWTH PATTERN (not a phase - terminals flow at their own pace)
+| Control | Flag | Default |
+|---------|------|---------|
+| Model tier (cheap/standard/deep → haiku/sonnet/opus) | `--model` | `INHERIT` (CLI default); opt-in with `--model-tiering` |
+| Reasoning effort low…max | `--effort` | On by default; disable with `--no-effort-dial` |
+| Plan mode | `--permission-mode plan` | Off; togglable per task or via control plane |
+| Dynamic subagents | `--agents` | Ad-hoc; curated subagents auto-discovered by name |
+| Cacheable persona | `--append-system-prompt` | Always on; prompt-cache friendly |
+| LLM report parsing | local regex | Local by default (no extra LLM call) |
 
-    T4 broadcasts intent
-           │
-           ├──────────────────────────────────────────────┐
-           │                                              │
-    T1 creates UI          T2 builds foundation          T3 watches
-    with mock data         with real logic               and documents
-           │                      │                            │
-           │                      │                            │
-           └──────── negotiate ───┘                            │
-                         │                                     │
-              contracts form organically                       │
-                         │                                     │
-           ┌─────────────┴─────────────┐                      │
-           │                           │                      │
-    T1 connects to              T2 adapts to                  │
-    real APIs                   UI needs                      │
-           │                           │                      │
-           └───────────────────────────┴──────────────────────┘
-                                │
-                         T5 validates continuously
-                         (builds every 2 min)
-                                │
-                         Quality: 0.0 → 1.0
-                                │
-                         When ready, harvest
-```
+**Note on `--bare`:** `ExecutionProfile.bare` skips hooks, LSP, auto-memory, and CLAUDE.md discovery (RAM + token saver), but it forces `ANTHROPIC_API_KEY` auth and bypasses OAuth / keychain. It is `False` by default. Enable only when an API key is explicitly configured.
 
-### Quality Gradient
+### Token & RAM Efficiency
 
-Instead of binary "done/not done", Archon tracks quality on a gradient:
-
-| Quality | Meaning |
-|---------|---------|
-| 0.0-0.3 | Early growth - structure forming |
-| 0.3-0.6 | Developing - core functionality emerging |
-| 0.6-0.8 | Maturing - integration happening |
-| 0.8-0.95 | Ripening - testing and polish |
-| 0.95-1.0 | Ready to harvest |
-
-The gardener watches this gradient and intervenes when growth stalls or quality drops.
+- **Local report parsing** (default) — worker output is parsed with regex, not an extra LLM call
+- **Cacheable system prompt** — persona sent via `--append-system-prompt`, not re-inline every call
+- **Compact prompts** — loaded from `templates/terminal_prompts_compact/` when available; disable with `--full-prompts`
+- **Output rotation** — worker stdout capped at 64 KB per task
+- **Ring-buffered event log** — 100-event ring buffer; oldest events drop silently
+- **Model tiering** — opt-in; cheap tasks run on haiku, deep reasoning reserves opus
+- **Effort dial** — on by default; low/medium effort for mechanical work
+- **Shared-state dashboard cache** — status JSON written once, read by all dashboard API endpoints
 
 ---
 
-## Manager Interventions
+## Live Control Dashboard
 
-The gardener doesn't dictate - they tend. Five types of intervention:
+Start with `--dashboard`. Opens at **http://localhost:8420**.
 
-### AMPLIFY
+**What it shows:**
+- Worker lane tags, execution mode badges (model tier, effort, plan mode)
+- Quality gradient bars (0.0–1.0) per worker
+- Live terminal output feed
+- Orchestrator event log and manager interventions timeline (AMPLIFY / REDIRECT / MEDIATE / INJECT / PRUNE)
 
-*"T2 is making great progress on the API. T1, consider connecting to their endpoints now."*
+**Control plane — POST endpoints:**
 
-When a terminal produces something valuable, the manager amplifies it - broadcasting the artifact and suggesting others leverage it.
+| Endpoint | Body | Effect |
+|----------|------|--------|
+| `POST /api/control/pause` | — | Pause all workers |
+| `POST /api/control/resume` | — | Resume workers |
+| `POST /api/control/inject` | `{title, description?, target?, priority?, ...profile}` | Inject a new task with optional execution profile |
+| `POST /api/control/mode` | `{target, ...profile}` or `{target, clear:true}` | Override (or clear) a single worker's execution mode |
+| `POST /api/control/config` | `{model_tiering?, effort_dial?, dynamic_agents?}` | Toggle config flags live |
+| `POST /api/control/cancel` | `{task_id}` | Cancel a pending task |
 
-### REDIRECT
-
-*"T1, the login screen is out of MVP scope. Focus on the main counter interface."*
-
-When a terminal drifts from intent, the manager gently redirects without killing their momentum.
-
-### MEDIATE
-
-*"T1 expects `UserProfile.avatarURL`, but T2 implemented `UserProfile.imageData`. Let's negotiate."*
-
-When contracts conflict, the manager facilitates resolution rather than dictating a solution.
-
-### INJECT
-
-*"Nobody is handling the edge case where the counter overflows. T2, consider adding bounds checking."*
-
-When the manager observes a gap, they inject a suggestion without forcing assignment.
-
-### PRUNE
-
-*"T3, the API documentation for the deprecated endpoint can be removed."*
-
-When something is no longer serving the system, the manager suggests pruning to keep the garden healthy.
+The control plane is **file-based** (`ControlChannel` writes JSON commands to `.orchestra/`). Commands are applied by the orchestrator's main loop even while execution is paused.
 
 ---
 
-## Usage
-
-### Basic Commands
+## CLI Reference
 
 ```bash
-# Simple task
+# Basic
 python -m orchestrator "Create a todo app with SwiftUI"
 
 # With dashboard (recommended)
 python -m orchestrator --dashboard "Build a REST API"
 
-# Interactive chat mode - guide the growth in real-time
-python -m orchestrator --chat "Create a meditation app"
+# Interactive chat — guide the run in real-time
+python -m orchestrator --chat --dashboard "Create a meditation app"
 
-# Continuous mode - keeps growing new features
-python -m orchestrator --dashboard --continuous
+# Dry run — see the plan without executing
+python -m orchestrator --dry-run "Build a REST API"
 
-# Dry run - see the growth plan without executing
-python -m orchestrator --dry-run "Create a meditation app"
+# Work on an existing project
+python -m orchestrator --project ./Apps/MyApp "Add dark mode"
 
-# Work on existing project
-python -m orchestrator --project ./MyApp "Add dark mode"
+# Long-running task with no timeout
+python -m orchestrator --timeout inf "Large-scale migration"
 
-# Disable T5 validation (saves API limits)
+# Disable T5 to save API limits
 python -m orchestrator --no-testing "Quick prototype"
 
-# Combine flags
-python -m orchestrator --chat --dashboard "Build a full-stack app"
+# Dynamic task-shaped roster
+python -m orchestrator --dynamic-agents --dashboard "Build a full-stack app"
+
+# Codex runtime
+python -m orchestrator --llm-provider codex --llm-model gpt-5.3-codex --dashboard "Your task"
+
+# Resume interrupted session
+python -m orchestrator --resume
 ```
 
-### CLI Options
+**All flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--chat` | Interactive Gardener Chat (guide growth in real-time) |
-| `--dashboard` | Start web UI at localhost:8420 |
-| `--continuous` | Keep running, prompt for new intents |
-| `--dry-run` | Show growth plan without executing |
-| `--project PATH` | Work on existing project |
-| `--no-testing` | Disable T5 validation (saves API limits) |
-| `--max-retries N` | Retry failed growth (default: 2) |
-| `--timeout N` | Max growth time in seconds |
-| `-v, --verbose` | Detailed output |
-| `-q, --quiet` | Minimal output |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `task` (positional) | — | High-level intent to execute |
+| `--dashboard` | off | Start web UI at localhost:8420 |
+| `--chat` | off | Interactive Manager Chat REPL |
+| `--continuous` | off | Prompt for a new task after each completion |
+| `--dry-run` | off | Show plan without executing |
+| `--project PATH` | — | Work on an existing project directory |
+| `--infer-project` / `--no-infer-project` | on | Infer project path from task text |
+| `--resume` | off | Resume the last interrupted session |
+| `--no-testing` | off | Disable T5 QA worker (saves API limits) |
+| `--parallel N` | 4 (max 10) | Number of parallel workers |
+| `--max-retries N` | 2 | Max retries for failed tasks |
+| `--timeout SECONDS\|inf` | inf | Max execution time; `inf` = no limit |
+| `--quality-threshold LEVEL` | 0.8 | Minimum quality level (0.0–1.0) |
+| `--verbose-flow` | off | Show detailed flow-state changes |
+| `--config PATH` | — | Path to a custom config JSON |
+| `--llm-provider` | claude | Runtime provider: `claude` or `codex` |
+| `--llm-command CMD` | — | Override LLM CLI command |
+| `--llm-model MODEL` | — | Model id passed to the selected provider |
+| `--dynamic-agents` | off | Derive task-shaped roster `w1..wN` (opt-in) |
+| `--model-tiering` | off | Per-task model tier selection (opt-in) |
+| `--no-effort-dial` | off | Disable per-task reasoning effort |
+| `--full-prompts` | off | Use full prompt templates (disables compact mode) |
+| `--max-system-prompt-chars N` | 4200 | Max chars per system prompt |
+| `--append-system-prompt TEXT` | — | Append cacheable text to every system prompt |
+| `-v, --verbose` | off | Detailed output |
+| `-q, --quiet` | off | Minimal output |
 
-### Gardener Chat (`--chat`)
+### Manager Chat (`--chat`)
 
-Interactive REPL to guide the organic growth:
+Interactive REPL to steer the run:
 
 ```
-> status              # Overall garden health
-> status t1           # Health of specific terminal
-> pause               # Pause growth
-> resume              # Resume growth
-> inject: Add login   # Inject new intent
-> cancel <task_id>    # Cancel pending growth
-> tasks               # List all active growth
-> reports             # Show terminal reports
-> What has T2 built?  # Natural language questions (via Claude)
-> help                # Show all commands
+> status              # Overall health
+> status t1           # Health of a specific worker
+> pause / resume      # Pause or resume execution
+> inject: Add login   # Inject a new intent
+> cancel <task_id>    # Cancel a pending task
+> tasks               # List all active tasks
+> reports             # Show worker reports
+> What has T2 built?  # Natural language query (via Claude)
+> help                # All commands
 ```
+
+---
+
+## Philosophy: The Gardener Model
+
+Archon rejects rigid phase gates and factory-line orchestration. Work **flows** naturally.
+
+| Traditional | Archon |
+|-------------|--------|
+| **Task** — "Do exactly this" | **Intent** — "We want to achieve this" |
+| **Phase** — A → B → C | **Flow** — Work naturally, negotiate as needed |
+| **Distribution** — Manager assigns all work | **Observation** — Workers choose, manager guides |
+| **Binary status** — Done or not done | **Quality gradient** — 0.0 to 1.0 |
+
+### Quality Gradient
+
+| Quality | Meaning | Action |
+|---------|---------|--------|
+| 0.0–0.2 | Sketch / concept | Needs substantial work |
+| 0.2–0.4 | Draft | Structure exists, needs refinement |
+| 0.4–0.6 | Working | Functional but rough edges |
+| 0.6–0.8 | Solid | Ready for integration |
+| 0.8–0.9 | Polished | Production-ready |
+| 0.9–1.0 | Excellent | Exceeds expectations |
+
+### Manager Interventions
+
+The gardener does not dictate — it tends. Five intervention types:
+
+| Intervention | When | Example |
+|--------------|------|---------|
+| **AMPLIFY** | Something is working well | "T1's approach is excellent — T2 adopt similar patterns" |
+| **REDIRECT** | Duplicate or wasted effort | "T2, stop — T1 already solved this better" |
+| **MEDIATE** | Workers disagree | "T1 and T2 need to align on this interface" |
+| **INJECT** | Gap nobody is filling | "Nobody is handling auth — T2, take this" |
+| **PRUNE** | Approach is not working | "Abandon this direction, try something else" |
 
 ---
 
 ## Subagents
 
-20 specialist subagents that terminals can invoke for deep expertise:
+20 specialist subagents live in `.claude/agents/`. Any worker — fixed or dynamic — can invoke any subagent. Dynamic workers reference curated ones by name; the CLI auto-discovers them.
 
-| Domain | Subagent | Specialty |
-|--------|----------|-----------|
-| iOS UI | `swiftui-crafter` | SwiftUI interfaces, animations |
-| Web UI | `react-crafter` | React/Next.js components |
-| Styling | `html-stylist` | HTML/CSS/Tailwind |
-| Design | `design-system` | Tokens, colors, typography |
-| Web Design | `web-ui-designer` | Visual design, UX, responsive |
-| Dashboards | `dashboard-architect` | Real-time dashboards, API sync |
-| iOS | `swift-architect` | MVVM, Clean Architecture |
-| Node.js | `node-architect` | TypeScript backends |
-| Python | `python-architect` | FastAPI, async patterns |
-| iOS Data | `swiftdata-expert` | SwiftData/CoreData |
-| Database | `database-expert` | SQL, PostgreSQL, Prisma |
-| ML/AI | `ml-engineer` | Machine learning features |
-| Testing | `test-genius` | Edge cases, orchestrator tests |
-| Docs | `tech-writer` | README, API docs |
-| Marketing | `marketing-strategist` | App Store, positioning |
-| Product | `product-thinker` | MVP, roadmaps |
-| Business | `monetization-expert` | Pricing, business models |
-| CLI | `cli-ux-master` | Terminal UX, argument design |
-| Tooling | `claude-code-toolsmith` | MCP servers, Claude Code integration |
-| Prompts | `prompt-craftsman` | System prompts, prompt engineering |
+| Domain | Subagent |
+|--------|----------|
+| iOS UI | `swiftui-crafter` |
+| Web UI | `react-crafter` |
+| Styling | `html-stylist` |
+| Design tokens | `design-system` |
+| Web design | `web-ui-designer` |
+| Dashboards | `dashboard-architect` |
+| iOS architecture | `swift-architect` |
+| Node.js architecture | `node-architect` |
+| Python architecture | `python-architect` |
+| iOS data | `swiftdata-expert` |
+| Database | `database-expert` |
+| ML/AI | `ml-engineer` |
+| Testing | `test-genius` |
+| Documentation | `tech-writer` |
+| Marketing | `marketing-strategist` |
+| Product | `product-thinker` |
+| Business model | `monetization-expert` |
+| CLI UX | `cli-ux-master` |
+| Claude Code tooling | `claude-code-toolsmith` |
+| Prompt engineering | `prompt-craftsman` |
 
 ---
 
-## Documentation
-
-| Guide | Purpose |
-|-------|---------|
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System architecture and organic model |
-| **[API_REFERENCE.md](docs/API_REFERENCE.md)** | Dashboard API endpoints |
-| **[DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)** | Key architectural decisions and rationale |
-| **[SETUP.md](docs/SETUP.md)** | Detailed setup and configuration guide |
-| **[PRD.md](docs/PRD.md)** | Product requirements document |
-| **[diagrams.md](docs/diagrams.md)** | Visual diagrams for the architecture |
-| **[CODEX_SPECIALIST_TEAM.md](docs/CODEX_SPECIALIST_TEAM.md)** | Codex 5.3 specialist roles (`high/xhigh`), handoffs, autonomy workflow |
-
 ## Codex Mode
 
-Archon now supports provider selection via CLI:
+Pass `--llm-provider codex` to run workers through the Codex CLI instead of Claude Code:
 
 ```bash
 python -m orchestrator \
@@ -405,11 +323,11 @@ python -m orchestrator \
   --dashboard "Your task"
 ```
 
-Useful flags:
-- `--full-prompts` to disable compact prompts
-- `--max-system-prompt-chars N` to control system-prompt token budget
+See [CODEX_SPECIALIST_TEAM.md](docs/CODEX_SPECIALIST_TEAM.md) for Codex 5.3 specialist roles (`high`/`xhigh` reasoning), handoff patterns, and autonomy workflow.
 
-Compact prompts are enabled by default and loaded from `templates/terminal_prompts_compact/` when available.
+Useful flags for Codex runs:
+- `--full-prompts` — disable compact prompts
+- `--max-system-prompt-chars N` — control system-prompt token budget
 
 ---
 
@@ -418,196 +336,96 @@ Compact prompts are enabled by default and loaded from `templates/terminal_promp
 ```
 Archon/
 ├── orchestrator/                # Core Python package
-│   ├── orchestrator.py          # The Gardener
-│   ├── planner.py               # Intent interpretation
-│   ├── terminal.py              # Terminal personality wrapper
-│   ├── task_queue.py            # Organic growth management
-│   ├── message_bus.py           # Inter-terminal negotiation
-│   ├── report_manager.py        # Artifact tracking
-│   │
-│   │── # Organic Collaboration Components
-│   ├── sync_manager.py          # Quality gradient tracking
-│   ├── contract_manager.py      # Negotiation contracts
+│   ├── orchestrator.py          # The Gardener — main coordinator loop
+│   ├── planner.py               # Intent interpretation and task seeding
+│   ├── terminal.py              # Claude Code subprocess wrapper
+│   ├── task_queue.py            # Flow-based work management
+│   ├── execution.py             # ExecutionProfile, ModelTier, Effort, PermissionMode
+│   ├── dynamic_agents.py        # Dynamic roster derivation (w1..wN, capability lanes)
+│   ├── control.py               # ControlChannel — file-based command bus
+│   ├── session.py               # Session load/resume/dry-run helpers
+│   ├── config.py                # Config + build_llm_command chokepoint
+│   ├── message_bus.py           # Inter-worker negotiation
+│   ├── report_manager.py        # Artifact and quality gradient tracking
+│   ├── sync_manager.py          # Heartbeat coordination
+│   ├── contract_manager.py      # Interface negotiation contracts
 │   ├── manager_intelligence.py  # Intervention decisions
 │   ├── validator.py             # Continuous validation
-│   │
-│   ├── manager_chat.py          # Gardener chat REPL
-│   └── dashboard.py             # Growth visualization UI
+│   ├── logger.py                # Event logging (ring-buffered, 100 events)
+│   ├── manager_chat.py          # Interactive chat REPL
+│   ├── dashboard.py             # FastAPI web UI at localhost:8420
+│   ├── cli_display.py           # Colors, badges, quality bars, display utilities
+│   ├── live_api.py              # Live API helpers
+│   ├── api_client.py            # Provider API client
+│   ├── auth/                    # Authentication modules
+│   └── static/                  # Dashboard HTML, CSS, JS assets
 │
 ├── templates/
-│   └── terminal_prompts/        # Terminal personality definitions
-│       ├── t1_uiux.md           # The Craftsman
-│       ├── t2_features.md       # The Architect
-│       ├── t3_docs.md           # The Narrator
-│       ├── t4_ideas.md          # The Strategist
-│       └── t5_qa.md             # The Skeptic
+│   ├── terminal_prompts/        # Full personality templates (T1–T5)
+│   └── terminal_prompts_compact/# Compact variants (token-efficient)
 │
 ├── .claude/
 │   └── agents/                  # 20 subagent definitions
 │
-├── .orchestra/                  # Runtime state (gitignored)
-│   ├── state/                   # Terminal heartbeats
-│   ├── contracts/               # Negotiation contracts
-│   ├── reports/                 # Terminal artifacts
-│   ├── messages/                # Inter-terminal messages
-│   ├── tasks/                   # Growth queue
-│   └── qa/                      # T5 validation data
+├── docs/                        # Documentation (see Docs section)
 │
-└── Apps/                        # Generated projects (gitignored)
+├── tests/                       # 24 backend test files, 754 passing
+│
+├── .orchestra/                  # Runtime state — gitignored
+│   ├── state/                   # Worker heartbeats
+│   ├── contracts/               # Negotiation contracts
+│   ├── reports/                 # Worker artifacts
+│   ├── messages/                # Inter-worker messages
+│   ├── tasks/                   # Task queue
+│   └── qa/                      # QA validation data
+│
+└── Apps/                        # Generated projects — gitignored
 ```
 
 ---
 
-## Example: Growing a Counter App
+## Development
 
-**Intent:** *"Create a simple iOS counter app"*
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
 
-**How Archon grows it:**
+# Install frontend dependencies (dashboard)
+npm install
 
-```
-1. The Strategist (T4) broadcasts: "MVP = increment, decrement, display"
+# Run backend tests (754 tests, 24 files)
+pytest
 
-2. The Craftsman (T1) begins:
-   - Creates CounterView.swift with mock data
-   - Proposes contract: CounterViewModel with count, increment(), decrement()
+# Run frontend tests (6 tests, 2 files)
+npx vitest
 
-3. The Architect (T2) simultaneously:
-   - Builds Counter.swift model with bounds checking
-   - Creates CounterViewModel matching T1's contract
-   - Writes unit tests
+# Format and lint
+black orchestrator/
+ruff check orchestrator/
 
-4. The Narrator (T3) watches and documents:
-   - Creates README.md describing the app
-   - Documents the Counter model API
-
-5. The Skeptic (T5) validates continuously:
-   - Runs swift build every 2 minutes
-   - Verifies T1's contract matches T2's implementation
-   - Reports quality gradient: 0.4 → 0.7 → 0.95
-
-6. Integration flows naturally:
-   - T1 connects to T2's real ViewModel
-   - T2 adjusts API based on T1's needs
-   - Quality reaches 0.95+
-
-7. Harvest: Complete, tested, documented app
+# Available make targets
+make help
 ```
 
-**What emerges:**
-
-```
-Apps/CounterApp/
-├── Package.swift
-├── README.md
-├── CounterApp/
-│   ├── CounterAppApp.swift
-│   ├── Models/Counter.swift
-│   ├── ViewModels/CounterViewModel.swift
-│   └── Views/CounterView.swift
-└── CounterAppTests/
-    ├── CounterTests.swift
-    └── CounterViewModelTests.swift
-```
+Python 3.11+ required; validated on 3.12. The frontend test suite (6 tests) covers dashboard interaction modules; passing count is noted in prose rather than a badge because the frontend suite is separate from the main pytest run.
 
 ---
 
-## Code Review Results (Feb 2026)
+## Docs
 
-A team of 5 specialist agents performed a full codebase review, identifying critical bugs and delivering substantial improvements:
-
-### Critical Bugs Fixed
-
-| Bug | Impact |
-|-----|--------|
-| `validator.py` used non-existent Contract attributes | Runtime crash on every validation |
-| `manager_chat.py` compared ContractStatus with strings instead of enums | Wrong status grouping in chat |
-| `sync_manager.py` `all_ready` flag silently ignored missing terminals | Heartbeat sync unreliable |
-| `dashboard.py` attempted to read non-existent `failed.json` | Dashboard error on load |
-| `index.html` imported two non-existent JS files | All dashboard interactions silently broken |
-| `--verbose` flag defaulted to True | Flag was a no-op |
-| T5 (The Skeptic) missing from 6 hardcoded dicts across 3 files | T5 invisible in CLI/chat output |
-
-### Dashboard Redesign
-
-- Quality gradient bars on every terminal card (0.0-1.0 visual)
-- Manager interventions timeline (AMPLIFY/REDIRECT/MEDIATE/INJECT/PRUNE chips)
-- Full ARIA accessibility (roles, keyboard navigation, `prefers-reduced-motion`)
-- Responsive layout: 3-column (1400px), 2-column (960px), 1-column (600px)
-- Terminology aligned to organic philosophy ("Quality Flow" not "Phase 1")
-- Rewritten `dashboard-interactions.js` with toast notifications and staggered animations
-
-### CLI Improvements
-
-- Centralized display utilities in `cli_display.py` (`strip_ansi()`, `print_box()`, `format_duration()`, `get_terminal_name()`, `get_terminal_color()`)
-- Removed redundant `ChatColors` class from `manager_chat.py`
-- Actionable error messages with example commands
-- Improved `--help` output with terminal personality table
-
-### Test Suite Expansion
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Total tests | 213 | 484 |
-| Test files | 6 | 14 |
-| Execution time | 0.19s | 0.90s |
-
-New test coverage for: `message_bus`, `sync_manager`, `terminal`, `validator`, `report_manager`, `logger`, `planner`, `cli_display`.
-
----
-
-## Roadmap: Revolutionary Ideas
-
-These ideas represent the next evolution of Archon, moving from static orchestration to a living, learning system. Full details in [`docs/REVOLUTIONARY_IDEAS.md`](docs/REVOLUTIONARY_IDEAS.md).
-
-### The Three Transformative Visions
-
-#### 1. Terminal Memory and Reputation
-
-Terminals develop persistent memory across sessions via `~/.archon/memory/{terminal_id}.json`. Each terminal records patterns that worked, quality outcomes, and coordination preferences. A reputation score enables smarter task routing.
-
-> T2 has a 0.91 reputation for database tasks but 0.65 for API design -- route the API to T1.
-
-**Impact:** Terminals evolve from stateless executors into entities with accumulated wisdom.
-
-#### 2. Amplified Contract Negotiation
-
-The `contract_manager.py` is Archon's hidden gem -- visible, persistent, structured negotiation between autonomous agents. The plan is to make it the **primary coordination mechanism**: every significant decision flows through a contract, surfaced on the dashboard as a "negotiation theater" where users watch agents think together in real time.
-
-**Impact:** Makes collaborative thinking visible, learnable, and improvable.
-
-#### 3. Adaptive Tempo and Resonance
-
-Replace the fixed 5-second manager loop with a living rhythm that responds to the project's energy:
-
-| Flow State | Tempo | Behavior |
-|------------|-------|----------|
-| FLOURISHING | 8-12s | Let them work undisturbed |
-| FLOWING | 4-6s | Gentle monitoring |
-| STALLED | 2-3s | Active attention |
-| BLOCKED | 0.5-1s | Crisis response |
-| CONVERGING | 2s | Precise alignment |
-
-Each terminal develops a natural "resonance frequency" that the orchestrator learns and respects.
-
-**Impact:** The system breathes -- organic means alive.
-
-### Additional Ideas
-
-| Idea | Concept |
-|------|---------|
-| **Creative Tension Engine** | Terminals can disagree and propose alternatives; productive conflict surfaces better solutions |
-| **Silence Detector** | Monitor what terminals are NOT producing to reveal documentation debt, missing tests |
-| **Quality Momentum** | Track the slope of quality over time, not just absolute values; positive momentum = leave alone, negative = intervene |
-| **Spontaneous Sub-Teams** | Terminals form temporary pairings for cross-domain tasks |
-| **Project Personality** | Archon develops self-awareness of its tendencies across sessions |
-
-### Cross-Domain Inspirations
-
-- **Music** (adaptive tempo from conductor behavior)
-- **Ecology** (mycorrhizal resource flow toward need)
-- **Neuroscience** (synaptic strengthening of successful coordination pathways)
-- **Game Design** (emergent difficulty adapting to terminal performance)
-- **Theater** (fast rehearsal cycles instead of sequential phases)
+| Guide | Purpose |
+|-------|---------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and organic model |
+| [API_REFERENCE.md](docs/API_REFERENCE.md) | Dashboard API endpoints |
+| [ARCHITECTURE_AND_SECURITY.md](docs/ARCHITECTURE_AND_SECURITY.md) | Security architecture |
+| [AUTH_GUIDE.md](docs/AUTH_GUIDE.md) | Authentication setup |
+| [DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) | Key architectural decisions and rationale |
+| [GETTING_STARTED.md](docs/GETTING_STARTED.md) | Detailed setup guide |
+| [SETUP.md](docs/SETUP.md) | Configuration reference |
+| [PRD.md](docs/PRD.md) | Product requirements document |
+| [diagrams.md](docs/diagrams.md) | Visual architecture diagrams |
+| [CODEX_SPECIALIST_TEAM.md](docs/CODEX_SPECIALIST_TEAM.md) | Codex 5.3 specialist roles, handoffs, autonomy workflow |
+| [REVOLUTIONARY_IDEAS.md](docs/REVOLUTIONARY_IDEAS.md) | Next-evolution roadmap |
 
 ---
 
@@ -616,11 +434,11 @@ Each terminal develops a natural "resonance frequency" that the orchestrator lea
 | Problem | Solution |
 |---------|----------|
 | `claude: command not found` | Install [Claude Code CLI](https://github.com/anthropics/claude-code) |
-| Rate limit hit | Use Max 5x subscription or use `--no-testing` |
+| Rate limit hit | Use a Max 5x subscription or pass `--no-testing` |
 | Dashboard not loading | Check if port 8420 is free: `lsof -i :8420` |
-| Growth stalled | Check `.orchestra/state/` for terminal heartbeats |
-| Quality not improving | T5 will report issues to responsible terminal |
-| Contract mismatch | Manager will facilitate mediation |
+| Run stalled | Check `.orchestra/state/` for worker heartbeats |
+| Quality not improving | T5 reports issues to the responsible worker |
+| Contract mismatch | The manager mediates; see MEDIATE interventions in the dashboard |
 
 ---
 
@@ -630,25 +448,28 @@ Each terminal develops a natural "resonance frequency" that the orchestrator lea
 # Fork and clone
 git clone https://github.com/YOUR_USERNAME/Archon.git
 
-# Create feature branch
+# Create a feature branch
 git checkout -b feature/my-feature
 
 # Make changes, then format
 black orchestrator/
 ruff check orchestrator/
 
+# Run tests
+pytest
+
 # Commit and push
 git commit -m "Add my feature"
 git push origin feature/my-feature
 ```
 
-PRs welcome! Please follow existing code style (Black + Ruff for Python).
+PRs welcome. Follow existing code style (Black + Ruff for Python, TypeScript for dashboard JS).
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
