@@ -20,10 +20,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-<<<<<<< ours
 from unittest.mock import patch, MagicMock, AsyncMock
-=======
->>>>>>> theirs
 
 from orchestrator.config import Config
 from orchestrator.planner import (
@@ -35,8 +32,12 @@ from orchestrator.planner import (
 
 
 def _run(coro):
-    """Helper to run async coroutines in sync tests."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Helper to run async coroutines in sync tests.
+
+    Uses asyncio.run() (a fresh loop per call) rather than get_event_loop(), which
+    raises on modern Python once pytest-asyncio has closed the thread's loop.
+    """
+    return asyncio.run(coro)
 
 
 class TestPlannedTaskDataclass:
@@ -331,11 +332,6 @@ class TestLegacyPlanning:
 
     def test_timeout_falls_back(self, config: Config) -> None:
         """Claude timeout should produce fallback plan."""
-<<<<<<< ours
-=======
-        import subprocess as sp
-
->>>>>>> theirs
         planner = Planner(config)
 
         mock_proc = AsyncMock()

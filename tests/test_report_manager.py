@@ -183,7 +183,8 @@ class TestParseOutputToReport:
         assert report.error == "Timeout"
 
     def test_successful_parse_with_mocked_claude(self, config: Config) -> None:
-        """Successful Claude parsing should populate all fields."""
+        """Successful Claude parsing should populate all fields (LLM-parse path)."""
+        config.llm_report_parsing = True  # opt into the LLM parser this test exercises
         rm = ReportManager(config)
         parsed_json = json.dumps(
             {
@@ -212,6 +213,21 @@ class TestParseOutputToReport:
         assert report.summary == "Built login screen"
         assert "Login.swift" in report.files_created
         assert "LoginView" in report.components_created
+
+    def test_default_parse_is_local_no_subprocess(self, config: Config) -> None:
+        """By default (llm_report_parsing off) parsing is local — no LLM subprocess,
+        so a successful task is never blocked or failed by a parser timeout."""
+        assert config.llm_report_parsing is False
+        rm = ReportManager(config)
+        with patch("subprocess.run") as mock_run:
+            report = rm.parse_output_to_report(
+                output="## Summary\nBuilt the thing.\n\nFiles Created:\n- foo.py\n",
+                task_id="task_x",
+                task_title="Build",
+                terminal_id="w1",
+            )
+        mock_run.assert_not_called()  # critical: no blocking per-task LLM call
+        assert report.success is True
 
     def test_fallback_parse_on_claude_failure(self, config: Config) -> None:
         """Should use fallback parsing when Claude fails."""

@@ -5,13 +5,13 @@ Provides:
 - Real-time status queries
 - Execution control (pause/resume)
 - Task injection
-- Natural language Q&A via Claude
+- Natural language Q&A via configured model runtime
 - Organic flow commands (quality, contracts, flow, intervene)
 """
 
 import asyncio
+import contextlib
 import json
-import subprocess
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -29,6 +29,7 @@ from .cli_display import (
     quality_label,
 )
 from .config import Config
+from .execution import utility_profile
 
 # =============================================================================
 # Chat History
@@ -92,7 +93,7 @@ class ManagerChat:
     Interactive chat interface for the orchestrator.
 
     Handles user input, executes commands, and provides intelligent
-    responses about execution state via Claude.
+    responses about execution state via the configured model runtime.
     """
 
     # Built-in commands - organized by category
@@ -332,8 +333,16 @@ class ManagerChat:
         if not task_description:
             return "Please provide a task description. Example: inject: Add dark mode support"
 
-        # Determine which terminal should handle this task
-        terminal_id = self.config.route_task_to_terminal(task_description)
+        # Determine which worker should handle this task. In dynamic-agents mode the
+        # live roster is w1..wN (no t* ids), so route onto it; otherwise use the legacy
+        # keyword router. (Mirrors the control-plane inject path.)
+        roster = getattr(self.orchestrator, "agent_roster", None)
+        if roster:
+            from .dynamic_agents import route_to_agent
+
+            terminal_id = route_to_agent(task_description, roster)
+        else:
+            terminal_id = self.config.route_task_to_terminal(task_description)
 
         # Add the task
         task = await self.orchestrator.inject_task(
@@ -790,22 +799,23 @@ class ManagerChat:
 
     async def ask_claude(self, query: str) -> str:
         """
-        Use Claude to answer natural language questions about execution.
+        Use the configured model runtime to answer natural language questions.
 
         Args:
             query: User's natural language question
 
         Returns:
-            Claude's response
+            Model response
         """
         # Gather context
         status = self.orchestrator.get_detailed_status()
         reports = self.orchestrator.report_manager.get_all_components()
         recent_history = self.history.get_recent(5)
 
-        status_payload = json.dumps(status, indent=2)[:4000]
-        reports_payload = json.dumps(reports, indent=2)[:3000]
-        history_payload = json.dumps(recent_history, indent=2)[:1500]
+        # Compact context (separators, not indent) to cut prompt tokens.
+        status_payload = json.dumps(status, separators=(",", ":"), default=str)[:3500]
+        reports_payload = json.dumps(reports, separators=(",", ":"), default=str)[:2500]
+        history_payload = json.dumps(recent_history, separators=(",", ":"), default=str)[:1200]
 
         # Build prompt
         prompt = f"""You are the Manager Assistant for Archon, a multi-terminal orchestration system.
@@ -815,7 +825,7 @@ Answer the user's question concisely based on the current execution state.
 
 {status_payload}
 
-## Terminal Components Created
+## Worker Components Created
 
 {reports_payload}
 
@@ -830,42 +840,51 @@ Answer the user's question concisely based on the current execution state.
 ## Instructions
 
 - Be concise (2-4 sentences max)
-- Reference specific terminals (T1=UI/UX, T2=Features, T3=Docs, T4=Strategy)
+- Reference workers by the ids present in the state above
 - If you don't have enough information, say so
 - Provide actionable insights when possible
 - Avoid repeating context verbatim.
 """
 
+        # Chat Q&A is a cheap utility call: run it on the cheap tier with low effort so
+        # it never spends top-tier tokens. config.gate_profile honors the
+        # --model-tiering / --no-effort-dial switches uniformly.
+        chat_profile = self.config.gate_profile(utility_profile())
+
+        proc: asyncio.subprocess.Process | None = None
         try:
-            # Use configured model runtime for quick response
-            command = self.config.build_llm_command(prompt, allow_unsafe=False)
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=30,
+            # Async subprocess so the chat/orchestrator event loop is not blocked.
+            command = self.config.build_llm_command(prompt, profile=chat_profile)
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.config.base_dir),
             )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            out = (stdout or b"").decode("utf-8", "replace").strip()
+            err = (stderr or b"").decode("utf-8", "replace").strip()
 
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-            if result.returncode == 0 and result.stderr.strip():
-                return result.stderr.strip()
-            else:
-                return "I couldn't process that question. Try rephrasing or use a specific command like 'status'."
+            if proc.returncode == 0 and out:
+                return out
+            if proc.returncode == 0 and err:
+                return err
+            return "I couldn't process that question. Try rephrasing or use a specific command like 'status'."
 
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             return "Response timed out. Try a simpler question or use 'status' for quick info."
         except FileNotFoundError:
-<<<<<<< ours
             return "Configured model CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
-=======
-            return (
-                "Claude CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
-            )
->>>>>>> theirs
         except Exception as e:
             return f"Error: {str(e)}"
+        finally:
+            # wait_for cancels communicate() but does NOT kill the child; reap it so a
+            # timed-out/aborted chat query never leaks an orphaned CLI subprocess.
+            if proc is not None and proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                with contextlib.suppress(Exception):
+                    await proc.wait()
 
     # =========================================================================
     # Main Processing
@@ -917,7 +936,7 @@ Answer the user's question concisely based on the current execution state.
             self._running = False
             response = "Exiting chat. Orchestrator continues in background."
         elif cmd == "query":
-            # Natural language - use Claude
+            # Natural language - use configured model runtime
             response = await self.ask_claude(args)
         else:
             response = f"Unknown command: {cmd}. Type 'help' for available commands."

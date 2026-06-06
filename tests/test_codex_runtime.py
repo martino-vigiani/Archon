@@ -85,6 +85,7 @@ def test_build_llm_command_codex() -> None:
     cmd = cfg.build_llm_command("implement feature", allow_unsafe=True)
 
     assert cmd[:2] == ["codex", "exec"]
+    assert "-a" not in cmd
     assert "--dangerously-bypass-approvals-and-sandbox" in cmd
     assert "-m" in cmd
     assert "gpt-5.3-codex" in cmd

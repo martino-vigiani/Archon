@@ -6,6 +6,7 @@ Extracted from __main__.py to keep the CLI entry point thin.
 
 import asyncio
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -91,6 +92,51 @@ def validate_project_directory(project_arg: str) -> tuple[Path | None, str | Non
     project_path = project_path.resolve()
 
     return project_path, None
+
+
+def infer_project_path_from_task(task: str, cwd: Path | None = None) -> Path | None:
+    """
+    Infer an existing project directory from a natural language task.
+
+    We only return paths that already exist and are directories, so this
+    remains a conservative "continue existing project" helper.
+    """
+    base_dir = (cwd or Path.cwd()).resolve()
+    if not task.strip():
+        return None
+
+    candidates: list[str] = []
+
+    # Quoted fragments often contain explicit paths.
+    for quoted in re.findall(r"[\"'`]{1}([^\"'`]+)[\"'`]{1}", task):
+        candidates.append(quoted.strip())
+
+    # Generic path-like tokens, e.g. Apps/FocusSprint.
+    for token in re.findall(r"(?:[A-Za-z0-9._~\-]+[/\\])+[A-Za-z0-9._~\-]+", task):
+        candidates.append(token.strip())
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = candidate.strip(" \t\n\r,.;:()[]{}<>")
+        if not normalized or "://" in normalized:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+
+        path = Path(normalized).expanduser()
+        if not path.is_absolute():
+            path = base_dir / path
+
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+
+        if resolved.exists() and resolved.is_dir():
+            return resolved
+
+    return None
 
 
 def detect_project_type(project_path: Path) -> str | None:
@@ -285,8 +331,9 @@ def print_plan(plan) -> None:
     print_separator("-", 40, Colors.DIM, indent=2)
 
     for i, task in enumerate(plan.tasks, 1):
+        dep_text = ", ".join(task.dependencies)
         deps = (
-            f" {c(f'(depends on: {', '.join(task.dependencies)})', Colors.DIM)}"
+            f" {c(f'(depends on: {dep_text})', Colors.DIM)}"
             if task.dependencies else ""
         )
         term_color = get_terminal_color(task.terminal)
@@ -503,7 +550,7 @@ async def run_orchestrator(
     task: str,
     config: Config,
     verbose: bool,
-    timeout: int,
+    timeout: int | None,
     max_retries: int = 2,
     project_path: Path | None = None,
 ) -> tuple[int, dict]:
@@ -520,10 +567,13 @@ async def run_orchestrator(
         project_context = get_project_context_for_planner(project_path)
 
     try:
-        result = await asyncio.wait_for(
-            orchestrator.run(task, project_context=project_context),
-            timeout=timeout,
-        )
+        if timeout is None:
+            result = await orchestrator.run(task, project_context=project_context)
+        else:
+            result = await asyncio.wait_for(
+                orchestrator.run(task, project_context=project_context),
+                timeout=timeout,
+            )
 
         if project_path:
             status = result.get("status", "unknown")
@@ -538,9 +588,11 @@ async def run_orchestrator(
 
     except asyncio.TimeoutError:
         print()
-        time_str = format_duration(timeout)
+        timeout_seconds = timeout if timeout is not None else 0
+        time_str = format_duration(timeout_seconds)
         print(c(f"  Error: Execution timed out after {time_str}.", Colors.BRIGHT_RED, Colors.BOLD))
-        print(c(f"  Increase with --timeout <seconds> (current: {timeout}s).", Colors.DIM))
+        if timeout is not None:
+            print(c(f"  Increase with --timeout <seconds> (current: {timeout}s).", Colors.DIM))
         if project_path:
             update_project_status(config, "timeout")
         await orchestrator.shutdown()
@@ -558,7 +610,7 @@ async def run_with_chat(
     task: str,
     config: Config,
     verbose: bool,
-    timeout: int,
+    timeout: int | None,
     max_retries: int = 2,
     project_path: Path | None = None,
 ) -> tuple[int, dict]:
@@ -577,6 +629,8 @@ async def run_with_chat(
 
     async def run_orchestrator_task():
         try:
+            if timeout is None:
+                return await orchestrator.run(task, project_context=project_context)
             return await asyncio.wait_for(
                 orchestrator.run(task, project_context=project_context),
                 timeout=timeout,
@@ -631,7 +685,7 @@ async def run_with_chat(
 async def retry_failed_tasks(
     config: Config,
     verbose: bool,
-    timeout: int,
+    timeout: int | None,
     last_result: dict,
     project_path: Path | None = None,
 ) -> tuple[int, dict]:

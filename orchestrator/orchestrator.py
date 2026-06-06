@@ -2,7 +2,7 @@
 Main Orchestrator - Coordinates all terminals and manages the workflow.
 
 This is the central controller that:
-- Manages 5 Claude Code terminal workers (T1-T5)
+- Manages 5 model-backed terminal workers (T1-T5)
 - Distributes tasks via the TaskQueue
 - Handles inter-terminal communication via MessageBus
 - Monitors progress and handles failures
@@ -23,6 +23,9 @@ from datetime import datetime
 from .cli_display import Colors
 from .config import Config, TerminalID
 from .contract_manager import ContractManager
+from .control import ControlChannel
+from .execution import ExecutionProfile, classify_task, profile_for_kind
+from .dynamic_agents import AgentSpec, derive_agents, route_to_agent
 from .logger import EventLogger
 from .manager_intelligence import ActionType, ManagerAction, ManagerIntelligence, TerminalHeartbeat
 from .message_bus import MessageBus
@@ -31,12 +34,8 @@ from .report_manager import Report, ReportManager
 from .sync_manager import SyncManager
 from .task_queue import FlowState, Task, TaskPriority, TaskQueue, TaskStatus
 from .terminal import Terminal, TerminalState
-<<<<<<< ours
 from .sync_manager import SyncManager
 from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType, TerminalHeartbeat
-=======
-from .validator import Validator
->>>>>>> theirs
 
 # =============================================================================
 # Progress Bar (optional tqdm integration)
@@ -177,6 +176,9 @@ class Orchestrator:
         self._manager_loop_task: asyncio.Task | None = None
         self._manager_loop_interval = 15.0  # Check every 15 seconds (was 5s)
 
+        # Control-plane loop (dashboard commands)
+        self._control_loop_task: asyncio.Task | None = None
+
         # Terminal instances
         self.terminals: dict[TerminalID, Terminal] = {}
 
@@ -206,6 +208,18 @@ class Orchestrator:
 
         # Status dedup (skip writes when unchanged)
         self._last_status_hash: int = 0
+
+        # Per-terminal active execution mode badge (for the dashboard / status snapshot)
+        self._terminal_modes: dict[TerminalID, str] = {}
+
+        # Dynamic agent roster (populated only when config.dynamic_agents is on).
+        self.agent_roster: list[AgentSpec] = []
+        self._dynamic_specs: dict[TerminalID, AgentSpec] = {}
+
+        # Control plane: file-based command bus driven by the dashboard.
+        self.control = ControlChannel(self.config.orchestra_dir)
+        # Per-worker mode overrides set live via the control plane (set_mode command).
+        self._mode_overrides: dict[TerminalID, dict] = {}
 
         # Rate limit tracking
         self._rate_limited = False
@@ -262,15 +276,9 @@ class Orchestrator:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                 f.write(entries)
                 f.flush()
-<<<<<<< ours
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except (IOError, OSError):
             pass
-=======
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
-        except OSError:
-            pass  # Ignore write errors
->>>>>>> theirs
 
     def _log_success(self, message: str):
         """Log a success message (green)."""
@@ -319,6 +327,14 @@ class Orchestrator:
         try:
             with open(output_file, "a") as f:
                 f.write(entry)
+            # Rotate: keep only the tail so the file (which the dashboard reads into
+            # memory) cannot grow without bound over a long run. Decode with
+            # errors="ignore" before rewriting so a byte-slice never leaves a partial
+            # UTF-8 sequence at the head (which would crash the dashboard's read_text).
+            max_bytes = 64 * 1024
+            if output_file.stat().st_size > max_bytes:
+                tail = output_file.read_bytes()[-max_bytes:].decode("utf-8", "ignore")
+                output_file.write_text(tail)
         except OSError:
             pass
 
@@ -334,26 +350,7 @@ class Orchestrator:
 
     def _detect_subagent_usage(self, terminal_id: str, task_title: str, output: str):
         """Detect and log subagent usage from task output."""
-<<<<<<< ours
         subagents = self.config.get_all_subagents()
-=======
-        subagents = [
-            "swiftui-crafter",
-            "react-crafter",
-            "html-stylist",
-            "design-system",
-            "swift-architect",
-            "node-architect",
-            "python-architect",
-            "swiftdata-expert",
-            "database-expert",
-            "ml-engineer",
-            "tech-writer",
-            "marketing-strategist",
-            "product-thinker",
-            "monetization-expert",
-        ]
->>>>>>> theirs
         output_lower = output.lower()
         for subagent in subagents:
             if subagent in output_lower or subagent.replace("-", " ") in output_lower:
@@ -408,8 +405,12 @@ class Orchestrator:
         self._log_success("Orchestrator initialized")
 
     def _update_status(self, status: dict) -> None:
-        """Update the status file only if the state has changed."""
-        data = json.dumps(status, indent=2)
+        """Update the status file only if the state has changed.
+
+        Serialized compactly (no indent) — it is machine state polled by the dashboard,
+        so smaller payloads mean less IO/RAM each tick.
+        """
+        data = json.dumps(status, separators=(",", ":"), default=str)
         data_hash = hash(data)
         if data_hash != self._last_status_hash:
             self._last_status_hash = data_hash
@@ -525,6 +526,73 @@ class Orchestrator:
 
         return False
 
+    async def _apply_control_commands(self) -> None:
+        """Drain and apply control-plane commands from the dashboard (once per tick).
+
+        This is the orchestrator side of the "direct access" surface: pause/resume,
+        live task injection (with an optional execution profile), per-worker mode
+        overrides (model/effort/plan/agents), and live config toggles.
+        """
+        for cmd in self.control.drain():
+            ctype = cmd.get("type")
+            try:
+                if ctype == "pause":
+                    await self.pause()
+                elif ctype == "resume":
+                    await self.resume()
+                elif ctype == "cancel":
+                    await self.cancel_task(cmd.get("task_id", ""))
+                elif ctype == "inject":
+                    target = cmd.get("target")
+                    if not target or target not in self.terminals:
+                        # Route onto the dynamic roster, else fall back to keyword routing.
+                        if self.agent_roster:
+                            target = route_to_agent(
+                                f"{cmd.get('title','')}\n{cmd.get('description','')}",
+                                self.agent_roster,
+                            )
+                        else:
+                            target = self.config.route_task_to_terminal(
+                                f"{cmd.get('title','')} {cmd.get('description','')}"
+                            )
+                    metadata = {"profile": cmd["profile"]} if cmd.get("profile") else None
+                    task = self.task_queue.add_task(
+                        title=cmd.get("title", "Injected task"),
+                        description=cmd.get("description", ""),
+                        priority=TaskPriority(cmd.get("priority", "high")),
+                        assigned_to=target,
+                        phase=1 if self.use_organic_model else self.task_queue.get_current_phase(),
+                        metadata={**(metadata or {}), "injected": True},
+                    )
+                    self._log_info(f"[control] Injected task -> {target}: {task.title}")
+                    if self._progress:
+                        self._progress.total += 1
+                elif ctype == "set_mode":
+                    target = cmd.get("target")
+                    if target and cmd.get("clear"):
+                        self._mode_overrides.pop(target, None)
+                        self._log_info(f"[control] Mode override cleared for {target}")
+                    elif target and isinstance(cmd.get("profile"), dict):
+                        self._mode_overrides[target] = cmd["profile"]
+                        self._log_info(f"[control] Mode override for {target}: {cmd['profile']}")
+                elif ctype == "set_config":
+                    for key in ("model_tiering", "effort_dial", "dynamic_agents"):
+                        if key in cmd:
+                            setattr(self.config, key, bool(cmd[key]))
+                    self._log_info(f"[control] Config updated: {cmd}")
+            except Exception as e:  # never let a bad command crash the loop
+                self._log_warning(f"[control] Failed to apply {ctype}: {e}")
+
+    async def _run_control_loop(self) -> None:
+        """Background loop that applies dashboard control commands ~1x/sec.
+
+        Runs independently of the main task loop so pause/resume/inject work even while
+        the main loop is paused (it would otherwise be blocked on the pause event).
+        """
+        while self.is_running and not self._shutdown_requested:
+            await self._apply_control_commands()
+            await asyncio.sleep(1.0)
+
     def get_detailed_status(self) -> dict:
         """
         Get detailed status for the Manager Chat.
@@ -556,6 +624,8 @@ class Orchestrator:
                 "model": runtime_profile["model"],
                 "reasoning_profile": runtime_profile["reasoning"],
                 "specialization": runtime_profile["specialization"],
+                "mode": self._terminal_modes.get(tid, "auto"),
+                **self._dynamic_meta(tid),
             }
 
         # Calculate duration
@@ -583,8 +653,18 @@ class Orchestrator:
     # Terminal Management
     # =========================================================================
 
-    async def spawn_terminals(self) -> None:
-        """Create all terminal workers."""
+    async def spawn_terminals(self, goal: str = "") -> None:
+        """Create worker terminals.
+
+        When ``config.dynamic_agents`` is on and a ``goal`` is provided, a task-shaped
+        roster of dynamic workers (w1, w2, ...) is derived — no fixed personalities.
+        Otherwise the legacy fixed T1..T5 roster is used.
+        """
+        self._ensure_project_subagents()
+        if self.config.dynamic_agents and goal.strip():
+            await self._spawn_dynamic_roster(goal)
+            return
+
         self._log_info("Creating terminal workers...")
 
         terminal_list = ["t1", "t2", "t3", "t4"]
@@ -598,6 +678,64 @@ class Orchestrator:
             await self._spawn_terminal(terminal_id)
 
         self._log_success(f"All {len(self.terminals)} terminals ready")
+
+    def _ensure_project_subagents(self) -> None:
+        """Make Archon's subagent pool discoverable to workers running in a separate
+        project directory by symlinking ``<project>/.claude/agents`` -> the Archon
+        agents dir. Without this, workers cd'd into a fresh project can't invoke any
+        subagents (Claude Code only auto-discovers ``.claude/agents`` from the cwd and
+        the home dir). No-op when the working dir already contains the agents."""
+        try:
+            agents_src = self.config.agents_dir
+            if not agents_src.exists():
+                return
+            target_claude = self.config.base_dir / ".claude"
+            target_agents = target_claude / "agents"
+            if target_agents.resolve() == agents_src.resolve():
+                return  # already the same (running inside Archon itself)
+            if target_agents.exists() or target_agents.is_symlink():
+                return  # project already provides agents — don't clobber
+            target_claude.mkdir(parents=True, exist_ok=True)
+            target_agents.symlink_to(agents_src, target_is_directory=True)
+            self._log_info(f"Linked subagent pool into project: {target_agents}")
+        except OSError as e:
+            self._log_warning(f"Could not link subagents into project: {e}")
+
+    async def _spawn_dynamic_roster(self, goal: str) -> None:
+        """Derive and spawn a dynamic, task-shaped worker roster."""
+        self._log_info("Deriving dynamic agent roster from goal...")
+        # Always derive full lane profiles (model tier + effort); the global gates
+        # (model_tiering / effort_dial) are applied centrally by config.gate_profile so
+        # the effort dial still shows even when model tiering is off.
+        roster = derive_agents(
+            goal,
+            available_subagents=self.config.get_all_subagents(),
+            max_agents=self.config.max_terminals,
+            include_testing=not self.config.disable_testing,
+            tiering=True,
+        )
+        self.agent_roster = roster
+        self._dynamic_specs = {spec.id: spec for spec in roster}
+
+        for spec in roster:
+            gated = self.config.gate_profile(spec.profile)
+            terminal = Terminal(
+                terminal_id=spec.id,
+                working_dir=self.config.base_dir,
+                system_prompt=spec.system_prompt(),
+                runtime_config=self.config,
+                verbose=self.verbose,
+                default_profile=gated,
+            )
+            await terminal.start()
+            self.terminals[spec.id] = terminal
+            self._terminal_modes[spec.id] = gated.badge()
+            self._log_terminal(spec.id, f"Ready ({spec.focus})", Colors.GREEN)
+
+        self._log_success(
+            f"Dynamic roster ready: {len(roster)} workers "
+            f"({', '.join(f'{s.id}:{s.lane}' for s in roster)})"
+        )
 
     async def _spawn_terminal(self, terminal_id: TerminalID) -> Terminal | None:
         """Spawn a single terminal."""
@@ -660,14 +798,22 @@ class Orchestrator:
         self._log_success(f"Plan created: {plan.summary}")
         self._log_info(f"Total tasks: {len(plan.tasks)}")
 
-        # Add tasks to queue with phase information
+        # Add tasks to queue with phase information. In dynamic mode the planner still
+        # emits legacy t1..t5 targets, so remap each task onto the best-matching
+        # dynamic worker by capability.
         for planned_task in plan.tasks:
+            assigned_to = planned_task.terminal
+            if self.agent_roster:
+                assigned_to = route_to_agent(
+                    f"{planned_task.title}\n{planned_task.description}",
+                    self.agent_roster,
+                )
             self.task_queue.add_task(
                 title=planned_task.title,
                 description=planned_task.description,
                 priority=TaskPriority(planned_task.priority),
                 dependencies=planned_task.dependencies,
-                assigned_to=planned_task.terminal,
+                assigned_to=assigned_to,
                 phase=planned_task.phase,
                 metadata={"from_plan": True, "phase": planned_task.phase},
             )
@@ -699,6 +845,51 @@ class Orchestrator:
     # =========================================================================
     # Task Execution with Retry Logic
     # =========================================================================
+
+    def _dynamic_meta(self, terminal_id: TerminalID) -> dict:
+        """Extra status fields for a dynamic worker: its capability lane, focus, and
+        curated subagents. Empty for the legacy roster."""
+        spec = self._dynamic_specs.get(terminal_id)
+        if spec is None:
+            return {}
+        return {
+            "lane": spec.lane,
+            "focus": spec.focus,
+            "specialization": spec.focus,  # override the generic "dynamic agent"
+            "subagents": list(spec.subagents),
+        }
+
+    def _build_task_profile(
+        self, task: Task, terminal_id: TerminalID | None = None
+    ) -> ExecutionProfile:
+        """Derive the per-task execution mode (model tier + effort).
+
+        Precedence:
+        1. an explicit per-task override in ``task.metadata['profile']`` (control plane);
+        2. a live per-worker mode override set via the control plane (set_mode);
+        3. the assigned dynamic worker's lane profile (when running a dynamic roster);
+        4. the task kind classified from its text.
+
+        Respects the ``effort_dial`` and ``model_tiering`` config switches:
+        - effort is applied when ``effort_dial`` is on (safe, OAuth-friendly);
+        - model tier is applied only when ``model_tiering`` is on (may request a model
+          the plan lacks, so opt-in).
+        """
+        override = (task.metadata or {}).get("profile") if hasattr(task, "metadata") else None
+        if override:
+            return ExecutionProfile.from_dict(override)
+
+        if terminal_id and terminal_id in self._mode_overrides:
+            return ExecutionProfile.from_dict(self._mode_overrides[terminal_id])
+
+        spec = self._dynamic_specs.get(terminal_id) if terminal_id else None
+        if spec is not None:
+            profile = spec.profile
+        else:
+            kind = classify_task(task.title, task.description)
+            profile = profile_for_kind(kind, tiering=True)  # both model + effort
+
+        return self.config.gate_profile(profile)
 
     async def _execute_task_on_terminal(
         self,
@@ -759,11 +950,18 @@ This helps the orchestrator coordinate with other terminals.
 
         self.event_logger.task_started(terminal_id, task.id, task.title)
 
+        # Derive the per-task execution mode (model tier + effort) and record its badge
+        # so the dashboard can show live mode switching.
+        profile = self._build_task_profile(task, terminal_id)
+        self._terminal_modes[terminal_id] = profile.badge()
+        task_timeout = profile.timeout or self.config.terminal_timeout
+
         try:
             output = await terminal.execute_task(
                 prompt=prompt,
                 task_id=task.id,
-                timeout=self.config.terminal_timeout,
+                timeout=task_timeout,
+                profile=profile,
             )
 
             # Save terminal output for dashboard
@@ -775,7 +973,8 @@ This helps the orchestrator coordinate with other terminals.
             # Check for rate limit
             if output.is_error and output.content.startswith("RATE_LIMIT:"):
                 reset_time = output.content.replace("RATE_LIMIT:", "").strip()
-                self._log_error(f"Claude rate limit reached! Resets: {reset_time}")
+                provider_label = self.config.llm_provider.upper()
+                self._log_error(f"{provider_label} rate limit reached! Resets: {reset_time}")
                 self._log_warning("Stopping orchestrator - please wait for rate limit to reset")
 
                 # Mark rate limited state
@@ -799,21 +998,22 @@ This helps the orchestrator coordinate with other terminals.
                     terminal_id, task, "Task failed or timed out"
                 )
             else:
-                # Parse output into structured report (Manager Intelligence)
-                report = self.report_manager.parse_output_to_report(
-                    output=output.content,
-                    task_id=task.id,
-                    task_title=task.title,
-                    terminal_id=terminal_id,
-                    success=True,
-                )
-
-                # Save the report
-                self.report_manager.save_report(report)
-                self._log_info(f"Report saved: {report.summary[:60]}...")
-
-                # Notify other terminals of relevant info
-                self._notify_terminals_of_completion(terminal_id, task, report)
+                # The worker succeeded — its files are already written. Report parsing
+                # and cross-terminal notification are METADATA: a failure there must
+                # never discard successful work or trigger a (quota-wasting) retry.
+                try:
+                    report = self.report_manager.parse_output_to_report(
+                        output=output.content,
+                        task_id=task.id,
+                        task_title=task.title,
+                        terminal_id=terminal_id,
+                        success=True,
+                    )
+                    self.report_manager.save_report(report)
+                    self._log_info(f"Report saved: {report.summary[:60]}...")
+                    self._notify_terminals_of_completion(terminal_id, task, report)
+                except Exception as report_err:  # non-fatal: keep the success
+                    self._log_warning(f"Report post-processing failed (non-fatal): {report_err}")
 
                 # Mark task complete
                 self.task_queue.complete_task(
@@ -920,32 +1120,34 @@ This helps the orchestrator coordinate with other terminals.
                 message_parts.append(f"- `{f}`")
             message_parts.append("")
 
-        # Determine who to notify
+        # Determine who to notify. Drive recipients off the live roster so dynamic
+        # workers (w1, w2, ...) and a --no-testing run (no t5) are handled correctly.
+        all_ids: set[TerminalID] = set(self.terminals.keys())
         recipients: set[TerminalID] = set()
 
         # Check explicit provides_to_others
         for provides in report.provides_to_others:
             target = provides.get("to", "all")
             if target == "all":
-                recipients = {"t1", "t2", "t3", "t4", "t5"}
+                recipients = set(all_ids)
                 break
-            elif target in ["t1", "t2", "t3", "t4", "t5"]:
-                recipients.add(target)  # type: ignore
+            elif target in all_ids:
+                recipients.add(target)
 
-        # If nothing explicit, notify based on task type
+        # If nothing explicit, notify based on task type (legacy role heuristics for the
+        # fixed roster; dynamic workers simply share with everyone else).
         if not recipients:
-            # UI completion -> notify Features
             if completed_terminal == "t1":
                 recipients.add("t2")
-            # Features completion -> notify UI and Docs
             elif completed_terminal == "t2":
-                recipients.add("t1")
-                recipients.add("t3")
-            # Strategy completion -> notify everyone
+                recipients.update({"t1", "t3"})
             elif completed_terminal == "t4":
-                recipients = {"t1", "t2", "t3"}
+                recipients.update({"t1", "t2", "t3"})
+            else:
+                recipients = set(all_ids)
 
-        # Remove self
+        # Only notify terminals that actually exist, and never self.
+        recipients &= all_ids
         recipients.discard(completed_terminal)
 
         # Send notifications
@@ -973,9 +1175,9 @@ This helps the orchestrator coordinate with other terminals.
 
         context_parts = ["## Current Project State", ""]
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
-            terminal_config = self.config.get_terminal_config(tid)  # type: ignore
-            components = all_components.get(tid, [])  # type: ignore
+        for tid in self.terminals.keys():
+            terminal_config = self.config.get_terminal_config(tid)
+            components = all_components.get(tid, [])
 
             context_parts.append(f"### {tid.upper()} ({terminal_config.role})")
             if components:
@@ -1010,9 +1212,9 @@ This helps the orchestrator coordinate with other terminals.
                         is_blocked=(terminal.state.value == "blocked"),
                     )
 
-                # Get contracts for context
+                # Get contracts for context (live roster, dynamic-aware)
                 contracts = {}
-                for tid in ["t1", "t2", "t3", "t4", "t5"]:
+                for tid in self.terminals.keys():
                     contracts[tid] = self.report_manager.get_reports_for_terminal(tid)
 
                 # Get current phase
@@ -1042,25 +1244,12 @@ This helps the orchestrator coordinate with other terminals.
         Handles the 5 intervention types: AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE
         """
         self._log_info(f"Manager action: {action.action_type.value} - {action.reason}")
-<<<<<<< ours
         self.event_logger.log_event("manager_action", {
             "type": action.action_type.value,
             "reason": action.reason,
             "priority": action.priority,
             "flow_state_before": action.flow_state_before,
         })
-=======
-        self.event_logger.log_event(
-            "manager_action",
-            {
-                "type": action.action_type.value,
-                "reason": action.reason,
-                "priority": action.priority,
-                "flow_state_before": action.flow_state_before,
-                "expected_flow_state_after": action.expected_flow_state_after,
-            },
-        )
->>>>>>> theirs
 
         # ORGANIC FLOW INTERVENTIONS (v2.0)
 
@@ -1429,7 +1618,6 @@ If the task is not critical, you may skip it with an explanation.
 
             # Update status with phase/flow info
             flow_state_data = self.task_queue.get_flow_state() if self.use_organic_model else {}
-<<<<<<< ours
             terminal_snapshot = {}
             for tid, terminal in self.terminals.items():
                 runtime_profile = self.config.get_terminal_runtime_profile(tid)
@@ -1440,6 +1628,8 @@ If the task is not critical, you may skip it with an explanation.
                     "model": runtime_profile["model"],
                     "reasoning_profile": runtime_profile["reasoning"],
                     "specialization": runtime_profile["specialization"],
+                    "mode": self._terminal_modes.get(tid, "auto"),
+                    **self._dynamic_meta(tid),
                 }
 
             self._update_status({
@@ -1450,24 +1640,6 @@ If the task is not critical, you may skip it with an explanation.
                 "terminals": terminal_snapshot,
                 "tasks": self.task_queue.get_status_summary(),
             })
-=======
-            self._update_status(
-                {
-                    "state": "running",
-                    "current_phase": current_phase,
-                    "use_organic_model": self.use_organic_model,
-                    "flow_state": flow_state_data if self.use_organic_model else None,
-                    "terminals": {
-                        tid: {
-                            "state": t.state.value,
-                            "current_task": t.current_task_id,
-                        }
-                        for tid, t in self.terminals.items()
-                    },
-                    "tasks": self.task_queue.get_status_summary(),
-                }
-            )
->>>>>>> theirs
 
             # Brief pause before next iteration
             await asyncio.sleep(self.config.poll_interval)
@@ -1526,11 +1698,15 @@ If the task is not critical, you may skip it with an explanation.
             # Initialize
             await self.initialize()
 
-            # Create terminals
-            await self.spawn_terminals()
+            # Create terminals (dynamic roster derives from the goal when enabled)
+            await self.spawn_terminals(goal=task)
 
             # Start manager intelligence loop
             self._manager_loop_task = asyncio.create_task(self._run_manager_loop())
+
+            # Start control-plane loop (applies dashboard commands)
+            self.control.reset()
+            self._control_loop_task = asyncio.create_task(self._run_control_loop())
 
             if not self.terminals:
                 return {"error": "No terminals created"}
@@ -1582,6 +1758,13 @@ If the task is not critical, you may skip it with an explanation.
             self._manager_loop_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._manager_loop_task
+
+        # Stop control-plane loop
+        control_task = getattr(self, "_control_loop_task", None)
+        if control_task:
+            control_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await control_task
 
         # Close progress tracker
         if self._progress:
@@ -1667,9 +1850,10 @@ If the task is not critical, you may skip it with an explanation.
 
         if self._rate_limited:
             print(f"Status: {Colors.RED}RATE LIMITED{Colors.RESET}")
-            print(f"{Colors.YELLOW}Claude rate limit reached!{Colors.RESET}")
+            provider_label = self.config.llm_provider.upper()
+            print(f"{Colors.YELLOW}{provider_label} rate limit reached!{Colors.RESET}")
             print(
-                f"Reset time: {Colors.CYAN}{self._rate_limit_reset_time or 'Check Claude dashboard'}{Colors.RESET}"
+                f"Reset time: {Colors.CYAN}{self._rate_limit_reset_time or 'Check provider dashboard'}{Colors.RESET}"
             )
             print()
             print(f"{Colors.DIM}Re-run this command after the rate limit resets.{Colors.RESET}")
@@ -1697,84 +1881,3 @@ If the task is not critical, you may skip it with an explanation.
         print()
 
         return report
-<<<<<<< ours
-=======
-
-
-# =============================================================================
-# CLI Entry Point
-# =============================================================================
-
-
-def main():
-    """CLI entry point for the orchestrator."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Archon Orchestrator - Multi-terminal task coordination"
-    )
-    parser.add_argument("task", nargs="?", help="The task to execute (will prompt if not provided)")
-    parser.add_argument(
-        "--continuous",
-        action="store_true",
-        help="Run in continuous mode (don't exit after completion)",
-    )
-    parser.add_argument(
-        "--no-quality-check",
-        action="store_true",
-        help="Disable quality check after task completion",
-    )
-    parser.add_argument("--no-colors", action="store_true", help="Disable colored output")
-    parser.add_argument("--no-progress", action="store_true", help="Disable progress bar")
-    parser.add_argument(
-        "--max-retries", type=int, default=2, help="Maximum retries per failed task (default: 2)"
-    )
-    parser.add_argument(
-        "--retry-delay",
-        type=float,
-        default=2.0,
-        help="Delay between retries in seconds (default: 2.0)",
-    )
-    parser.add_argument(
-        "-q", "--quiet", action="store_true", help="Quiet mode (less verbose output)"
-    )
-    parser.add_argument(
-        "--organic",
-        action="store_true",
-        help="Use organic flow model (v2.0) instead of phase-based execution",
-    )
-
-    args = parser.parse_args()
-
-    # Get task from argument or prompt
-    task = args.task
-    if not task:
-        if not args.no_colors:
-            print(f"{Colors.CYAN}Archon Orchestrator{Colors.RESET}")
-            print()
-        task = input("Enter your task: ").strip()
-        if not task:
-            print("No task provided. Exiting.")
-            return
-
-    # Create orchestrator
-    orchestrator = Orchestrator(
-        verbose=not args.quiet,
-        retry_config=RetryConfig(
-            max_retries=args.max_retries,
-            retry_delay=args.retry_delay,
-        ),
-        continuous_mode=args.continuous,
-        enable_quality_check=not args.no_quality_check,
-        use_colors=not args.no_colors,
-        use_progress_bar=not args.no_progress,
-        use_organic_model=args.organic,
-    )
-
-    # Run
-    asyncio.run(orchestrator.run(task))
-
-
-if __name__ == "__main__":
-    main()
->>>>>>> theirs

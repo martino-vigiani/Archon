@@ -11,46 +11,61 @@
 #   make build         - Verify build
 #   make clean         - Clean generated files
 
-.PHONY: all test test-quick test-unit test-integration coverage lint format types quality build clean help install dev-install
+.PHONY: all test test-backend test-frontend test-all test-quick test-unit test-integration test-critical coverage coverage-report coverage-html coverage-frontend lint lint-fix format types quality quality-quick quality-strict build build-check clean clean-all ci ci-quick monitor verify help install dev-install
 
 # Default target
 all: quality
+
+# Tooling
+PYTHON ?= .venv/bin/python
+ifeq ($(wildcard $(PYTHON)),)
+PYTHON := python
+endif
+NPM ?= npm
 
 # =============================================================================
 # Installation
 # =============================================================================
 
 install:
-	pip install -r requirements.txt
+	$(PYTHON) -m pip install -r requirements.txt
 
 dev-install:
-	pip install -e ".[dev]"
+	$(PYTHON) -m pip install -r requirements-dev.txt
+	$(NPM) install
 
 # =============================================================================
 # Testing
 # =============================================================================
 
-test:
-	python -m pytest tests/ -v --tb=short
+test: test-backend
+
+test-backend:
+	$(PYTHON) -m pytest tests/ -v --tb=short
+
+test-frontend:
+	$(NPM) run test:frontend
+
+test-all: test-backend test-frontend
 
 test-quick:
-	python -m pytest tests/ -v --tb=line -x -m "smoke or not slow" -q
+	$(PYTHON) -m pytest tests/ -v --tb=line -x -m "smoke or not slow" -q
 
 test-unit:
-	python -m pytest tests/ -v --tb=short -m "unit or not integration"
+	$(PYTHON) -m pytest tests/ -v --tb=short -m "unit or not integration"
 
 test-integration:
-	python -m pytest tests/ -v --tb=short -m "integration"
+	$(PYTHON) -m pytest tests/ -v --tb=short -m "integration"
 
 test-critical:
-	python -m pytest tests/ -v --tb=short -m "critical"
+	$(PYTHON) -m pytest tests/ -v --tb=short -m "critical"
 
 # =============================================================================
 # Coverage
 # =============================================================================
 
 coverage:
-	python -m pytest tests/ \
+	$(PYTHON) -m pytest tests/ \
 		--cov=orchestrator \
 		--cov-report=term-missing \
 		--cov-report=html:.orchestra/qa/coverage/html \
@@ -58,45 +73,48 @@ coverage:
 		--cov-fail-under=80
 
 coverage-report:
-	python -m pytest tests/ \
+	$(PYTHON) -m pytest tests/ \
 		--cov=orchestrator \
 		--cov-report=term-missing
 
 coverage-html:
-	python -m pytest tests/ \
+	$(PYTHON) -m pytest tests/ \
 		--cov=orchestrator \
 		--cov-report=html:.orchestra/qa/coverage/html
 	@echo "Coverage report: .orchestra/qa/coverage/html/index.html"
+
+coverage-frontend:
+	$(NPM) run coverage:frontend
 
 # =============================================================================
 # Linting and Formatting
 # =============================================================================
 
 lint:
-	python -m ruff check orchestrator/ tests/
-	python -m black --check orchestrator/ tests/
+	$(PYTHON) -m ruff check orchestrator/ tests/
+	$(PYTHON) -m black --check orchestrator/ tests/
 
 lint-fix:
-	python -m ruff check --fix orchestrator/ tests/
+	$(PYTHON) -m ruff check --fix orchestrator/ tests/
 
 format:
-	python -m black orchestrator/ tests/
+	$(PYTHON) -m black orchestrator/ tests/
 
 types:
-	python -m mypy orchestrator/ --ignore-missing-imports
+	$(PYTHON) -m mypy orchestrator/ --ignore-missing-imports
 
 # =============================================================================
 # Quality Gates
 # =============================================================================
 
 quality:
-	python scripts/quality_gates.py
+	$(PYTHON) scripts/quality_gates.py
 
 quality-quick:
-	python scripts/quality_gates.py --quick
+	$(PYTHON) scripts/quality_gates.py --quick
 
 quality-strict:
-	python scripts/quality_gates.py --threshold 80
+	$(PYTHON) scripts/quality_gates.py --threshold 80
 
 # =============================================================================
 # Build Verification
@@ -104,16 +122,16 @@ quality-strict:
 
 build:
 	@echo "Verifying build..."
-	@python -c "from orchestrator import config, task_queue, terminal" && echo "Build OK"
+	@$(PYTHON) -c "from orchestrator import config, task_queue, terminal" && echo "Build OK"
 
 build-check:
 	@echo "Running syntax check..."
-	@python -m py_compile orchestrator/__init__.py
-	@python -m py_compile orchestrator/config.py
-	@python -m py_compile orchestrator/task_queue.py
-	@python -m py_compile orchestrator/terminal.py
-	@python -m py_compile orchestrator/orchestrator.py
-	@python -m py_compile orchestrator/planner.py
+	@$(PYTHON) -m py_compile orchestrator/__init__.py
+	@$(PYTHON) -m py_compile orchestrator/config.py
+	@$(PYTHON) -m py_compile orchestrator/task_queue.py
+	@$(PYTHON) -m py_compile orchestrator/terminal.py
+	@$(PYTHON) -m py_compile orchestrator/orchestrator.py
+	@$(PYTHON) -m py_compile orchestrator/planner.py
 	@echo "Syntax check passed"
 
 # =============================================================================
@@ -143,9 +161,9 @@ clean-all: clean
 # CI/CD Targets
 # =============================================================================
 
-ci: lint types test coverage
+ci: lint types test-backend coverage test-frontend
 
-ci-quick: lint-fix test-quick
+ci-quick: lint-fix test-quick test-frontend
 
 # =============================================================================
 # Continuous Monitoring (T5 Skeptic)
@@ -183,7 +201,10 @@ help:
 	@echo "===================="
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test           - Run all tests"
+	@echo "  make test           - Run backend tests"
+	@echo "  make test-backend   - Run backend tests (pytest)"
+	@echo "  make test-frontend  - Run frontend tests (vitest)"
+	@echo "  make test-all       - Run backend + frontend tests"
 	@echo "  make test-quick     - Run quick smoke tests"
 	@echo "  make test-unit      - Run unit tests only"
 	@echo "  make test-integration - Run integration tests"
@@ -193,6 +214,7 @@ help:
 	@echo "  make coverage       - Run tests with coverage (fail under 80%)"
 	@echo "  make coverage-report - Show coverage in terminal"
 	@echo "  make coverage-html  - Generate HTML coverage report"
+	@echo "  make coverage-frontend - Frontend coverage with Vitest"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint           - Run linting checks"
@@ -215,6 +237,6 @@ help:
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make install        - Install dependencies"
-	@echo "  make dev-install    - Install dev dependencies"
+	@echo "  make dev-install    - Install backend+frontend dev dependencies"
 	@echo "  make clean          - Clean generated files"
 	@echo "  make ci             - Full CI pipeline"

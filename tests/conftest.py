@@ -13,22 +13,15 @@ Provides common setup for:
 """
 
 import tempfile
-<<<<<<< ours
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Generator
-=======
-from collections.abc import Generator
-from datetime import datetime
-from pathlib import Path
->>>>>>> theirs
 from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-<<<<<<< ours
 from orchestrator.auth.config import AuthConfig
 from orchestrator.auth.database import UserDatabase
 from orchestrator.auth.models import Role, User
@@ -37,10 +30,6 @@ from orchestrator.auth.tokens import TokenService
 from orchestrator.config import Config, TerminalConfig, TerminalID
 from orchestrator.contract_manager import Contract, ContractManager, ContractStatus
 from orchestrator.dashboard import app as dashboard_app
-=======
-from orchestrator.config import Config, TerminalID
-from orchestrator.contract_manager import Contract, ContractManager
->>>>>>> theirs
 from orchestrator.manager_intelligence import (
     ManagerIntelligence,
     TerminalHeartbeat,

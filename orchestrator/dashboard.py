@@ -12,14 +12,43 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import Config
+from .control import ControlChannel
 
-app = FastAPI(title="Archon Dashboard", version="0.3.0")
+app = FastAPI(title="Archon Dashboard", version="0.4.0")
 config = Config()
+control = ControlChannel(config.orchestra_dir)
+
+
+def _known_terminal_ids() -> list[str]:
+    """Terminal ids present in the live status (dynamic-aware), falling back to the
+    legacy roster."""
+    status = read_json_file(config.status_file) or {}
+    ids = list((status.get("terminals") or {}).keys())
+    return ids or ["t1", "t2", "t3", "t4", "t5"]
+
+
+_LEGACY_IDS = ("t1", "t2", "t3", "t4", "t5")
+
+
+def _valid_terminal_id(terminal_id: str) -> bool:
+    """A terminal id is valid if it is the legacy roster (always) OR a dynamic w-id
+    currently present in the live status. Used by read endpoints. Independent of which
+    roster the current run happens to use, so it never rejects a legitimate id."""
+    if not terminal_id:
+        return False
+    return terminal_id in _LEGACY_IDS or terminal_id in _known_terminal_ids()
+
+
+def _well_formed_worker_id(terminal_id: str) -> bool:
+    """Format check for control targets (e.g. t1, w3). Membership is NOT required here:
+    the dynamic roster may not be in the status file yet, and the orchestrator only
+    applies a control command to a worker that actually exists at apply time."""
+    return bool(re.fullmatch(r"[a-z]+\d+", terminal_id or ""))
 
 # Serve static files
 static_dir = Path(__file__).parent / "static"
@@ -44,12 +73,14 @@ def read_text_file(path: Path, max_lines: int | None = None) -> str:
     """Safely read a text file, optionally limiting to last N lines."""
     try:
         if path.exists():
-            content = path.read_text()
+            # errors="replace": a log file rotated on a byte boundary can begin with a
+            # partial UTF-8 sequence; never let that crash the dashboard read.
+            content = path.read_text(errors="replace")
             if max_lines:
                 lines = content.strip().split("\n")
                 return "\n".join(lines[-max_lines:])
             return content
-    except (FileNotFoundError, PermissionError) as e:
+    except (FileNotFoundError, PermissionError, ValueError) as e:
         print(f"[Dashboard] Error reading {path}: {e}")
     return ""
 
@@ -257,7 +288,7 @@ async def get_messages():
     """Get messages from all inboxes."""
     try:
         messages = {}
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        for tid in _known_terminal_ids():
             inbox_path = config.messages_dir / f"{tid}_inbox.md"
             if inbox_path.exists():
                 messages[tid] = inbox_path.read_text()
@@ -299,11 +330,8 @@ async def get_terminals():
 @app.get("/api/terminal-output/{terminal_id}")
 async def get_terminal_output_endpoint(terminal_id: str, max_lines: int = 100):
     """Get the last output from a specific terminal."""
-    valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
-    if terminal_id not in valid_terminals:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
-        )
+    if not _valid_terminal_id(terminal_id):
+        raise HTTPException(status_code=400, detail="Invalid terminal_id.")
 
     try:
         output = get_terminal_output(terminal_id, max_lines)
@@ -444,11 +472,8 @@ async def get_events():
 @app.post("/api/terminal-output/{terminal_id}")
 async def post_terminal_output(terminal_id: str, output: dict):
     """Save terminal output."""
-    valid_terminals = ["t1", "t2", "t3", "t4", "t5"]
-    if terminal_id not in valid_terminals:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid terminal_id. Must be one of: {valid_terminals}"
-        )
+    if not _valid_terminal_id(terminal_id):
+        raise HTTPException(status_code=400, detail="Invalid terminal_id.")
 
     try:
         content = output.get("content", "")
@@ -497,7 +522,7 @@ async def gather_full_state() -> dict:
     tasks = await get_tasks()
 
     terminal_outputs = {}
-    for tid in ["t1", "t2", "t3", "t4", "t5"]:
+    for tid in _known_terminal_ids():
         terminal_outputs[tid] = get_terminal_output(tid, max_lines=50)
 
     orchestrator_log = get_orchestrator_thoughts(max_entries=20)
@@ -521,18 +546,50 @@ async def gather_full_state() -> dict:
     }
 
 
+# Shared state cache: many WS connections read the SAME state each tick, so gather
+# once per interval and share it instead of re-reading every file per connection.
+_shared_state: dict[str, Any] = {"hash": 0, "payload": None, "at": 0.0}
+_shared_lock = asyncio.Lock()
+
+
+def _state_hash(payload: dict) -> int:
+    """Hash the payload for change detection, EXCLUDING the wall-clock timestamps that
+    change every tick (top-level and status.timestamp) — otherwise the hash always
+    differs and the 'send only when state changes' guard never skips."""
+    stable = {k: v for k, v in payload.items() if k != "timestamp"}
+    status = stable.get("status")
+    if isinstance(status, dict) and "timestamp" in status:
+        status = {k: v for k, v in status.items() if k != "timestamp"}
+        stable["status"] = status
+    return hash(json.dumps(stable, sort_keys=True, default=str))
+
+
+async def get_shared_state(min_interval: float = 1.5) -> tuple[int, dict]:
+    """Return (hash, payload), recomputing at most once per ``min_interval`` seconds."""
+    import time
+
+    now = time.monotonic()
+    async with _shared_lock:
+        if _shared_state["payload"] is None or (now - _shared_state["at"]) >= min_interval:
+            payload = await gather_full_state()
+            _shared_state["payload"] = payload
+            _shared_state["hash"] = _state_hash(payload)
+            _shared_state["at"] = now
+        return _shared_state["hash"], _shared_state["payload"]
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates.
 
-    Sends consolidated 'update' messages only when state changes.
+    Sends consolidated 'update' messages only when state changes. State is gathered
+    once per tick and shared across all connections.
     """
     await manager.connect(websocket)
     last_hash = 0
     try:
         while True:
-            full_state = await gather_full_state()
-            state_hash = hash(json.dumps(full_state, sort_keys=True, default=str))
+            state_hash, full_state = await get_shared_state()
             if state_hash != last_hash:
                 last_hash = state_hash
                 await websocket.send_json(full_state)
@@ -541,6 +598,97 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     except Exception:
         manager.disconnect(websocket)
+
+
+# ---------------------------------------------------------------------------
+# Control plane — direct steering of a running orchestrator (via ControlChannel).
+# ---------------------------------------------------------------------------
+def _build_profile_dict(body: dict) -> dict | None:
+    """Translate a UI mode body into an ExecutionProfile dict.
+
+    Accepts: model_tier (cheap/standard/deep), effort (low..max),
+    plan (bool -> permission_mode), agents (dict). Returns None if nothing set.
+    """
+    profile: dict[str, Any] = {}
+    if body.get("model_tier"):
+        profile["model_tier"] = body["model_tier"]
+    if body.get("model_override"):
+        profile["model_override"] = body["model_override"]
+    if body.get("effort"):
+        profile["effort"] = body["effort"]
+    if body.get("plan"):
+        profile["permission_mode"] = "plan"
+    elif body.get("permission_mode"):
+        profile["permission_mode"] = body["permission_mode"]
+    if body.get("agents"):
+        profile["agents"] = body["agents"]
+    return profile or None
+
+
+@app.post("/api/control/pause")
+async def control_pause():
+    control.submit({"type": "pause"})
+    return {"ok": True, "action": "pause"}
+
+
+@app.post("/api/control/resume")
+async def control_resume():
+    control.submit({"type": "resume"})
+    return {"ok": True, "action": "resume"}
+
+
+@app.post("/api/control/inject")
+async def control_inject(body: dict = Body(...)):
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    command = {
+        "type": "inject",
+        "title": title,
+        "description": body.get("description", ""),
+        "target": body.get("target"),
+        "priority": body.get("priority", "high"),
+    }
+    profile = _build_profile_dict(body)
+    if profile:
+        command["profile"] = profile
+    control.submit(command)
+    return {"ok": True, "action": "inject", "target": command["target"]}
+
+
+@app.post("/api/control/mode")
+async def control_mode(body: dict = Body(...)):
+    target = body.get("target")
+    if not target or not _well_formed_worker_id(target):
+        raise HTTPException(status_code=400, detail="valid target worker id required")
+    # clear=true removes any standing per-worker mode override (back to lane/auto).
+    if body.get("clear"):
+        control.submit({"type": "set_mode", "target": target, "clear": True})
+        return {"ok": True, "action": "clear_mode", "target": target}
+    profile = _build_profile_dict(body)
+    if not profile:
+        raise HTTPException(status_code=400, detail="no mode fields provided")
+    control.submit({"type": "set_mode", "target": target, "profile": profile})
+    return {"ok": True, "action": "set_mode", "target": target, "profile": profile}
+
+
+@app.post("/api/control/config")
+async def control_config(body: dict = Body(...)):
+    command = {"type": "set_config"}
+    for key in ("model_tiering", "effort_dial", "dynamic_agents"):
+        if key in body:
+            command[key] = bool(body[key])
+    control.submit(command)
+    return {"ok": True, "action": "set_config", "config": command}
+
+
+@app.post("/api/control/cancel")
+async def control_cancel(body: dict = Body(...)):
+    task_id = body.get("task_id")
+    if not task_id:
+        raise HTTPException(status_code=400, detail="task_id required")
+    control.submit({"type": "cancel", "task_id": task_id})
+    return {"ok": True, "action": "cancel", "task_id": task_id}
 
 
 # Utility function to be used by orchestrator

@@ -92,7 +92,7 @@ def run_pytest(
     markers: str | None = None,
 ) -> tuple[int, str, str, float]:
     """Run pytest and return exit code, stdout, stderr, duration."""
-    cmd = ["python", "-m", "pytest", "tests/"]
+    cmd = [sys.executable, "-m", "pytest", "tests/"]
 
     if quick:
         cmd.extend(["-x", "-q", "--tb=line", "-m", "smoke or not slow"])
@@ -131,7 +131,7 @@ def run_pytest(
 
 def run_pytest_simple(quick: bool = False) -> tuple[int, str, str, float]:
     """Run pytest without json plugin (fallback)."""
-    cmd = ["python", "-m", "pytest", "tests/"]
+    cmd = [sys.executable, "-m", "pytest", "tests/"]
 
     if quick:
         cmd.extend(["-x", "-q", "--tb=line", "-m", "smoke or not slow"])

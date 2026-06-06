@@ -39,6 +39,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 ORCHESTRA_QA = PROJECT_ROOT / ".orchestra" / "qa"
 TESTS_DIR = PROJECT_ROOT / "tests"
 ORCHESTRATOR_DIR = PROJECT_ROOT / "orchestrator"
+PYTHON = sys.executable
 
 
 @dataclass
@@ -111,7 +112,7 @@ def check_build() -> GateResult:
 
     # Check Python syntax
     code, stdout, stderr = run_command(
-        ["python", "-m", "py_compile", str(ORCHESTRATOR_DIR / "__init__.py")]
+        [PYTHON, "-m", "py_compile", str(ORCHESTRATOR_DIR / "__init__.py")]
     )
 
     if code != 0:
@@ -136,7 +137,7 @@ except ImportError as e:
     sys.exit(1)
 """
 
-    code, stdout, stderr = run_command(["python", "-c", import_check])
+    code, stdout, stderr = run_command([PYTHON, "-c", import_check])
 
     passed = code == 0 and "OK" in stdout
     return GateResult(
@@ -152,7 +153,7 @@ def check_tests(quick: bool = False) -> GateResult:
     start = time.time()
 
     # Build pytest command
-    cmd = ["python", "-m", "pytest"]
+    cmd = [PYTHON, "-m", "pytest"]
 
     if quick:
         cmd.extend(["-m", "smoke or not slow", "-x", "--tb=line"])
@@ -209,7 +210,7 @@ def check_coverage(threshold: float = 80.0) -> GateResult:
     start = time.time()
 
     # Check if pytest-cov is available
-    check_code, _, _ = run_command(["python", "-c", "import pytest_cov"])
+    check_code, _, _ = run_command([PYTHON, "-c", "import pytest_cov"])
     if check_code != 0:
         return GateResult(
             name="Test Coverage",
@@ -221,7 +222,7 @@ def check_coverage(threshold: float = 80.0) -> GateResult:
         )
 
     cmd = [
-        "python",
+        PYTHON,
         "-m",
         "pytest",
         "--cov=orchestrator",
@@ -274,12 +275,12 @@ def check_lint() -> GateResult:
 
     # Ruff check
     ruff_code, ruff_out, ruff_err = run_command(
-        ["python", "-m", "ruff", "check", "orchestrator/", "tests/"]
+        [PYTHON, "-m", "ruff", "check", "orchestrator/", "tests/"]
     )
 
     # Black check
     black_code, black_out, black_err = run_command(
-        ["python", "-m", "black", "--check", "--diff", "orchestrator/", "tests/"]
+        [PYTHON, "-m", "black", "--check", "--diff", "orchestrator/", "tests/"]
     )
 
     if ruff_code != 0:
@@ -308,7 +309,7 @@ def check_types() -> GateResult:
     start = time.time()
 
     code, stdout, stderr = run_command(
-        ["python", "-m", "mypy", "orchestrator/", "--ignore-missing-imports"]
+        [PYTHON, "-m", "mypy", "orchestrator/", "--ignore-missing-imports"]
     )
 
     # Count errors

@@ -400,18 +400,15 @@ class ManagerIntelligence:
                     priority="high",
                     affected_terminals=list(heartbeats.keys()),
                     flow_state_before=flow_state["overall_flow"],
-<<<<<<< ours
-                ))
-                self._triggered_sync_points.add(current_phase)
-=======
-                    expected_flow_state_after=FlowState.CONVERGING.value,
                 )
             )
             self._triggered_sync_points.add(current_phase)
->>>>>>> theirs
 
-        # Store actions in history
+        # Store actions in history (ring-buffered to bound RAM over long runs).
         self._action_history.extend(actions)
+        max_history = 200
+        if len(self._action_history) > max_history:
+            self._action_history = self._action_history[-max_history:]
         self._last_decision_time = datetime.now()
 
         return actions
@@ -441,7 +438,6 @@ class ManagerIntelligence:
 
             if task.quality_level >= self.quality_flourishing_threshold:
                 # This task is doing well - amplify it
-<<<<<<< ours
                 actions.append(ManagerAction(
                     action_type=ActionType.AMPLIFY,
                     reason=f"Task '{task.title}' flourishing at {task.quality_level:.0%} quality",
@@ -450,21 +446,6 @@ class ManagerIntelligence:
                     flow_state_before=flow_state["overall_flow"],
                     broadcast_message=f"Great progress on '{task.title}'! Keep the momentum.",
                 ))
-=======
-                actions.append(
-                    ManagerAction(
-                        action_type=ActionType.AMPLIFY,
-                        reason=f"Task '{task.title}' flourishing at {task.quality_level:.0%} quality",
-                        priority="medium",
-                        target_terminal=task.assigned_to,
-                        quality_boost=0.1,  # Aim for 10% more quality
-                        resource_increase=f"Prioritize completion of {task.title}",
-                        flow_state_before=flow_state["overall_flow"],
-                        expected_flow_state_after=FlowState.CONVERGING.value,
-                        broadcast_message=f"Great progress on '{task.title}'! Keep the momentum.",
-                    )
-                )
->>>>>>> theirs
                 self._amplified_tasks.add(task.id)
 
         return actions
@@ -494,7 +475,6 @@ class ManagerIntelligence:
                     start_time = datetime.fromisoformat(task.started_at)
                     elapsed = (datetime.now() - start_time).total_seconds()
 
-<<<<<<< ours
                     # Stalled: low quality AND long time elapsed (15min threshold)
                     if task.quality_level < self.quality_stalled_threshold and elapsed > 900:
                         actions.append(ManagerAction(
@@ -505,23 +485,6 @@ class ManagerIntelligence:
                             flow_state_before=FlowState.STALLED.value,
                             broadcast_message=f"Consider simplifying '{task.title}' - breaking it down may help.",
                         ))
-=======
-                    # Stalled: low quality AND long time elapsed
-                    if task.quality_level < self.quality_stalled_threshold and elapsed > 300:
-                        actions.append(
-                            ManagerAction(
-                                action_type=ActionType.REDIRECT,
-                                reason=f"Task '{task.title}' stalled at {task.quality_level:.0%} for {elapsed/60:.1f}m",
-                                priority="high",
-                                target_terminal=task.assigned_to,
-                                new_direction="Simplify approach or break into smaller pieces",
-                                redirect_reason=f"Low progress after {elapsed/60:.1f} minutes",
-                                flow_state_before=FlowState.STALLED.value,
-                                expected_flow_state_after=FlowState.FLOWING.value,
-                                broadcast_message=f"Consider simplifying '{task.title}' - breaking it down may help.",
-                            )
-                        )
->>>>>>> theirs
                         self._redirected_tasks.add(task.id)
                 except (ValueError, TypeError):
                     pass
@@ -545,7 +508,6 @@ class ManagerIntelligence:
         mismatches = self.detect_interface_mismatches(contracts)
         if len(mismatches) > 2:
             # Multiple mismatches suggest T1/T2 are not aligned
-<<<<<<< ours
             actions.append(ManagerAction(
                 action_type=ActionType.MEDIATE,
                 reason=f"Multiple interface mismatches ({len(mismatches)}) between T1 and T2",
@@ -558,23 +520,6 @@ class ManagerIntelligence:
                     "Check .orchestra/contracts/ for the latest expectations."
                 ),
             ))
-=======
-            actions.append(
-                ManagerAction(
-                    action_type=ActionType.MEDIATE,
-                    reason=f"Multiple interface mismatches ({len(mismatches)}) between T1 and T2",
-                    priority="high",
-                    conflict_parties=["t1", "t2"],
-                    resolution_approach="Schedule alignment check - T1 and T2 should review each other's contracts",
-                    flow_state_before=FlowState.BLOCKED.value,
-                    expected_flow_state_after=FlowState.FLOWING.value,
-                    broadcast_message=(
-                        "T1 and T2: Please pause and align your interfaces. "
-                        "Check .orchestra/contracts/ for the latest expectations."
-                    ),
-                )
-            )
->>>>>>> theirs
 
         return actions
 
@@ -609,7 +554,6 @@ class ManagerIntelligence:
             if len(low_priority_pending) > 3:
                 # Too many low priority tasks - suggest pruning
                 task_ids = [t.id for t in low_priority_pending[:2]]
-<<<<<<< ours
                 actions.append(ManagerAction(
                     action_type=ActionType.PRUNE,
                     reason=f"High-priority work blocked while {len(low_priority_pending)} low-priority tasks pending",
@@ -618,19 +562,6 @@ class ManagerIntelligence:
                     prune_reason="Deprioritize to focus on blocked high-priority work",
                     flow_state_before=flow_state["overall_flow"],
                 ))
-=======
-                actions.append(
-                    ManagerAction(
-                        action_type=ActionType.PRUNE,
-                        reason=f"High-priority work blocked while {len(low_priority_pending)} low-priority tasks pending",
-                        priority="medium",
-                        task_ids_to_prune=task_ids,
-                        prune_reason="Deprioritize to focus on blocked high-priority work",
-                        flow_state_before=flow_state["overall_flow"],
-                        expected_flow_state_after=FlowState.FLOWING.value,
-                    )
-                )
->>>>>>> theirs
 
         return actions
 

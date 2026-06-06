@@ -1,0 +1,19 @@
+{
+  "name": "archon-test-infra",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:backend": ".venv/bin/python -m pytest tests/ -v --tb=short",
+    "test:backend:quick": ".venv/bin/python -m pytest tests/ -q --tb=line -x -m \"smoke or not slow\"",
+    "test:frontend": "vitest run",
+    "test:frontend:watch": "vitest",
+    "coverage:frontend": "vitest run --coverage",
+    "test:all": "npm run test:backend && npm run test:frontend"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4",
+    "jsdom": "^27.0.0",
+    "vitest": "^3.2.4"
+  }
+}

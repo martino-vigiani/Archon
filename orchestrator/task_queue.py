@@ -694,18 +694,8 @@ class TaskQueue:
             "done_count": len(c),
             "total_count": len(p) + len(ip) + len(c),
             "in_progress_tasks": [
-<<<<<<< ours
                 {"id": t.id, "title": t.title, "assigned_to": t.assigned_to, "quality_level": t.quality_level}
                 for t in ip
-=======
-                {
-                    "id": t.id,
-                    "title": t.title,
-                    "assigned_to": t.assigned_to,
-                    "quality_level": t.quality_level,
-                }
-                for t in in_progress
->>>>>>> theirs
             ],
             "pending_tasks": [{"id": t.id, "title": t.title} for t in p[:5]],
             "flow_state": flow_state,

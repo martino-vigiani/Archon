@@ -289,3 +289,4 @@ const wsIntegration = new WebSocketIntegrationLayer();
 window.wsIntegration = wsIntegration;
 
 export default wsIntegration;
+export { WebSocketIntegrationLayer };

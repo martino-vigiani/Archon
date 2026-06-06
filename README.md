@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="#terminals"><img src="https://img.shields.io/badge/Terminals-5-blue?style=flat-square" alt="5 Terminals"></a>
+  <a href="#terminals"><img src="https://img.shields.io/badge/Workers-5_or_dynamic-blue?style=flat-square" alt="5 or dynamic workers"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-20-green?style=flat-square" alt="20 Subagents"></a>
-  <a href="#test-suite-expansion"><img src="https://img.shields.io/badge/Tests-484_passing-brightgreen?style=flat-square" alt="484 Tests"></a>
+  <a href="#test-suite-expansion"><img src="https://img.shields.io/badge/Tests-754_passing-brightgreen?style=flat-square" alt="754 Tests"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -54,6 +54,45 @@ Give Archon an **intent** like *"Create an iOS counter app"* and watch it:
 3. **Negotiate** - Craftspeople exchange contracts and resolve differences
 4. **Cultivate** - The gardener observes quality and intervenes when needed
 5. **Harvest** - Complete, tested, documented application emerges
+
+---
+
+## Live Control Dashboard
+
+<p align="center">
+  <img src="assets/dashboard.png" alt="Archon dashboard" width="900">
+</p>
+
+A real-time web dashboard (`--dashboard`, http://localhost:8420) shows each worker's
+capability lane, execution mode, live output, the quality gradient, and the
+orchestrator/event feeds — and lets you **steer the run directly**: pause/resume,
+inject tasks, switch a worker's mode, and toggle model tiering / effort / dynamic
+agents on the fly.
+
+---
+
+## Execution Modes & Dynamic Agents
+
+Every task is a single non-interactive `claude --print` call, and Archon switches the
+same controls a human would toggle by hand — bundled per task in an `ExecutionProfile`
+composed into CLI flags at one chokepoint (`Config.build_llm_command`):
+
+| Control | Flag | Notes |
+|---------|------|-------|
+| Model tier (cheap/standard/deep → haiku/sonnet/opus) | `--model` | `--model-tiering` (opt-in) |
+| Reasoning effort / "ultracode" (low…max) | `--effort` | on by default |
+| Plan mode | `--permission-mode plan` | per task / control plane |
+| Dynamic subagents | `--agents` | ad-hoc; curated subagents are auto-discovered |
+| Cacheable persona | `--append-system-prompt` | prompt-cache reuse |
+
+- **Dynamic agents** (`--dynamic-agents`): derive a task-shaped roster `w1..wN` with
+  capability lanes (architecture / ui / code / qa / docs / strategy) instead of the
+  fixed T1-T5 personalities — no fixed names or roles, the roster flexes with the goal.
+- **Token efficiency**: per-task model tiering and effort dial, a cacheable system
+  prompt (no inline re-send), local (LLM-free) report parsing, compact status, and
+  bounded log/output buffers.
+- **Direct access**: a file-based control plane lets the dashboard pause/resume, inject
+  tasks (with a profile), set a worker's mode, and flip config live — even while paused.
 
 ---
 
@@ -356,7 +395,6 @@ Interactive REPL to guide the organic growth:
 | **[PRD.md](docs/PRD.md)** | Product requirements document |
 | **[diagrams.md](docs/diagrams.md)** | Visual diagrams for the architecture |
 | **[CODEX_SPECIALIST_TEAM.md](docs/CODEX_SPECIALIST_TEAM.md)** | Codex 5.3 specialist roles (`high/xhigh`), handoffs, autonomy workflow |
-| **[ZEROBOT_NANOBOT_CLAWDBOT_OPENCLAW_ASSESSMENT.md](docs/ZEROBOT_NANOBOT_CLAWDBOT_OPENCLAW_ASSESSMENT.md)** | Feasibility and rollout plan for Zerobot/Nanobot/Clawdbot/OpenClaw |
 
 ## Codex Mode
 

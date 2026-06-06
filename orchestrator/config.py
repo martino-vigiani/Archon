@@ -10,7 +10,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, TypedDict
 
-TerminalID = Literal["t1", "t2", "t3", "t4", "t5"]
+from .execution import (
+    Effort,
+    ExecutionProfile,
+    ModelTier,
+    PermissionMode,
+    agents_json_str,
+)
+
+# Terminal identity. Historically a fixed Literal["t1".."t5"]; widened to a plain
+# string so dynamically derived agents (w1, w2, ...) are first-class without breaking
+# any of the literal "t1".."t5" values still used by the legacy roster.
+TerminalID = str
+LegacyTerminalID = Literal["t1", "t2", "t3", "t4", "t5"]
 LLMProvider = Literal["claude", "codex"]
 ReasoningProfile = Literal["high", "xhigh"]
 
@@ -43,7 +55,7 @@ class TerminalConfig:
 
     @property
     def prompt_file(self) -> str:
-        """Return the prompt template filename."""
+        """Return the prompt template filename (legacy roster only)."""
         role_map = {
             "t1": "t1_uiux.md",
             "t2": "t2_features.md",
@@ -51,7 +63,9 @@ class TerminalConfig:
             "t4": "t4_ideas.md",
             "t5": "t5_qa.md",
         }
-        return role_map[self.id]
+        # Dynamic workers (w1, w2, ...) carry no template file; the orchestrator
+        # supplies their persona directly, so fall back to the features template.
+        return role_map.get(self.id, "t2_features.md")
 
 
 # Terminal configurations
@@ -367,7 +381,6 @@ TEMP_FILE_PATTERNS = [
 class Config:
     """Main orchestrator configuration."""
 
-<<<<<<< ours
     # Paths - relative to project root (portable)
     base_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent)
     orchestra_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".orchestra")
@@ -375,20 +388,6 @@ class Config:
     compact_templates_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "templates" / "terminal_prompts_compact")
     agents_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".claude" / "agents")
     apps_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "Apps")
-=======
-    # Paths
-    base_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon")
-    orchestra_dir: Path = field(
-        default_factory=lambda: Path.home() / "Tech" / "Archon" / ".orchestra"
-    )
-    templates_dir: Path = field(
-        default_factory=lambda: Path.home() / "Tech" / "Archon" / "templates" / "terminal_prompts"
-    )
-    agents_dir: Path = field(
-        default_factory=lambda: Path.home() / "Tech" / "Archon" / ".claude" / "agents"
-    )
-    apps_dir: Path = field(default_factory=lambda: Path.home() / "Tech" / "Archon" / "Apps")
->>>>>>> theirs
 
     # Terminal settings
     terminals: dict[TerminalID, TerminalConfig] = field(default_factory=lambda: TERMINALS)
@@ -411,6 +410,21 @@ class Config:
     llm_command: str = "claude"
     llm_model: str | None = None
     codex_default_model: str = "gpt-5.3-codex"
+
+    # Per-task execution modes (see orchestrator.execution.ExecutionProfile)
+    # effort_dial: apply per-task reasoning effort (safe, OAuth-friendly token saver).
+    effort_dial: bool = True
+    # model_tiering: also pick a per-task model tier (cheap/standard/deep). Opt-in:
+    # may request a model your plan lacks (e.g. opus), so default off for safety.
+    model_tiering: bool = False
+    # dynamic_agents: derive a task-shaped worker roster (w1, w2, ...) instead of the
+    # fixed T1..T5 personalities. Opt-in; legacy roster is the default.
+    dynamic_agents: bool = False
+    # llm_report_parsing: use a SECOND LLM call per task to convert worker output into a
+    # structured report. Off by default — workers already emit the structured 6-point
+    # format, which the local regex parser reads. Avoids a blocking per-task subprocess
+    # (event-loop stall + timeouts) and a full extra LLM round-trip (token cost).
+    llm_report_parsing: bool = False
 
     def __post_init__(self) -> None:
         """Normalize derived paths/settings when custom roots are injected."""
@@ -454,8 +468,23 @@ class Config:
         self.apps_dir.mkdir(parents=True, exist_ok=True)
 
     def get_terminal_config(self, terminal_id: TerminalID) -> TerminalConfig:
-        """Get configuration for a specific terminal."""
-        return self.terminals[terminal_id]
+        """Get configuration for a terminal.
+
+        Tolerant of dynamically derived agent ids (w1, w2, ...) that are not in the
+        fixed roster: returns a generic synthesized config so status snapshots and
+        runtime-profile lookups never raise.
+        """
+        cfg = self.terminals.get(terminal_id)
+        if cfg is not None:
+            return cfg
+        return TerminalConfig(
+            id=terminal_id,
+            role="dynamic",
+            description="Dynamically derived worker",
+            subagents=[],
+            keywords=[],
+            specialization="dynamic agent",
+        )
 
     def get_terminal_system_prompt_path(self, terminal_id: TerminalID) -> Path:
         """Resolve the prompt path, preferring compact prompts when enabled."""
@@ -501,38 +530,144 @@ class Config:
             "specialization": terminal.specialization or terminal.role,
         }
 
-    def build_llm_command(self, prompt: str, allow_unsafe: bool = False) -> list[str]:
+    def build_llm_command(
+        self,
+        prompt: str,
+        allow_unsafe: bool = False,
+        *,
+        profile: ExecutionProfile | None = None,
+        system_prompt: str | None = None,
+    ) -> list[str]:
         """
         Build the subprocess command for the active LLM provider.
 
-        `allow_unsafe` enables compatibility flags previously used for autonomous runs.
+        This is the single chokepoint where every "switchable mode" becomes CLI flags.
+
+        Args:
+            prompt: the user prompt (passed via ``-p``).
+            allow_unsafe: legacy flag — when no ``profile`` is given, adds the
+                permission-bypass flag (back-compat with pre-profile callers).
+            profile: an :class:`ExecutionProfile` selecting model tier, effort,
+                permission/plan mode, dynamic ``--agents``, tool allow/deny, and
+                token/RAM-saving flags. When None, behavior matches the legacy path.
+            system_prompt: persona/context passed via ``--append-system-prompt`` so it
+                can be prompt-cached across a worker's many tasks instead of being
+                re-sent inline in every ``-p`` body.
         """
         if self.llm_provider == "codex":
-            model = self.llm_model or self.codex_default_model
-            cmd = [
-                self.llm_command,
-                "exec",
-                "--color",
-                "never",
-                "-a",
-                "never",
-                "-s",
-                "workspace-write",
-            ]
-            if allow_unsafe:
-                cmd.append("--dangerously-bypass-approvals-and-sandbox")
-            if model:
-                cmd.extend(["-m", model])
-            cmd.append(prompt)
-            return cmd
+            return self._build_codex_command(prompt, allow_unsafe, profile, system_prompt)
 
         cmd = [self.llm_command, "--print"]
-        if self.llm_model:
-            cmd.extend(["--model", self.llm_model])
-        if allow_unsafe:
-            cmd.append("--dangerously-skip-permissions")
+
+        # --- model (per-task tier wins over the global default) ---------------
+        model = (
+            profile.resolved_model(self.llm_model)
+            if profile is not None
+            else self.llm_model
+        )
+        if model:
+            cmd.extend(["--model", model])
+
+        if profile is None:
+            # Legacy path: permission controlled solely by allow_unsafe.
+            if allow_unsafe:
+                cmd.append("--dangerously-skip-permissions")
+        else:
+            # --- permission / plan mode --------------------------------------
+            if profile.permission_mode is PermissionMode.BYPASS:
+                cmd.append("--dangerously-skip-permissions")
+            elif profile.permission_mode is not PermissionMode.DEFAULT:
+                cmd.extend(["--permission-mode", profile.permission_mode.value])
+
+            # --- effort / ultracode dial -------------------------------------
+            from .execution import Effort  # local import: avoid top-level churn
+
+            if profile.effort is not Effort.INHERIT:
+                cmd.extend(["--effort", profile.effort.value])
+
+            # --- dynamic subagents -------------------------------------------
+            agents = agents_json_str(profile)
+            if agents:
+                cmd.extend(["--agents", agents])
+
+            # --- tool allow / deny -------------------------------------------
+            if profile.allowed_tools:
+                cmd.extend(["--allowedTools", *profile.allowed_tools])
+            if profile.disallowed_tools:
+                cmd.extend(["--disallowedTools", *profile.disallowed_tools])
+
+            # --- extra readable dirs -----------------------------------------
+            if profile.add_dirs:
+                cmd.extend(["--add-dir", *profile.add_dirs])
+
+            # --- token / RAM savers ------------------------------------------
+            if profile.bare:
+                # WARNING: forces ANTHROPIC_API_KEY auth (no OAuth). Opt-in only.
+                cmd.append("--bare")
+            if profile.cache_friendly:
+                cmd.append("--exclude-dynamic-system-prompt-sections")
+            if profile.max_turns is not None:
+                cmd.extend(["--max-turns", str(profile.max_turns)])
+            if profile.fallback_model:
+                cmd.extend(["--fallback-model", profile.fallback_model])
+
+        # --- cacheable system prompt -----------------------------------------
+        extra_system = profile.append_system_prompt if profile else None
+        combined_system = "\n\n".join(p for p in (system_prompt, extra_system) if p)
+        if combined_system:
+            cmd.extend(["--append-system-prompt", combined_system])
+
         cmd.extend(["-p", prompt])
         return cmd
+
+    def _build_codex_command(
+        self,
+        prompt: str,
+        allow_unsafe: bool,
+        profile: ExecutionProfile | None,
+        system_prompt: str | None = None,
+    ) -> list[str]:
+        """Build the ``codex exec`` command. Codex lacks most claude flags; we map the
+        model and approval bypass only. Claude model-tier aliases are ignored here —
+        only an explicit ``model_override`` is honored. Codex has no
+        ``--append-system-prompt`` equivalent, so the persona/system prompt (and any
+        ``profile.append_system_prompt``) is inlined into the prompt body."""
+        model = self.llm_model or self.codex_default_model
+        if profile is not None and profile.model_override:
+            model = profile.model_override
+        cmd = [self.llm_command, "exec", "--color", "never", "-s", "workspace-write"]
+        bypass = (
+            (profile.permission_mode is PermissionMode.BYPASS)
+            if profile is not None
+            else allow_unsafe
+        )
+        if bypass:
+            cmd.append("--dangerously-bypass-approvals-and-sandbox")
+        if model:
+            cmd.extend(["-m", model])
+
+        extra_system = profile.append_system_prompt if profile else None
+        combined_system = "\n\n".join(p for p in (system_prompt, extra_system) if p)
+        full_prompt = f"{combined_system}\n\n---\n\n{prompt}" if combined_system else prompt
+        cmd.append(full_prompt)
+        return cmd
+
+    def gate_profile(self, profile: ExecutionProfile) -> ExecutionProfile:
+        """Apply the global runtime gates to a profile, in one place:
+
+        - drop the model tier unless ``model_tiering`` is on (forcing e.g. opus could
+          exceed the user's plan), and
+        - drop the reasoning effort unless ``effort_dial`` is on.
+
+        Used by every profile-building call site (worker tasks, planner, report parser,
+        manager chat) so the ``--model-tiering`` / ``--no-effort-dial`` switches are
+        honored uniformly.
+        """
+        if not self.model_tiering:
+            profile = profile.merged(model_tier=ModelTier.INHERIT, model_override=None)
+        if not self.effort_dial:
+            profile = profile.merged(effort=Effort.INHERIT)
+        return profile
 
     def get_all_subagents(self) -> list[str]:
         """Collect configured subagent names from terminal config and local definitions."""

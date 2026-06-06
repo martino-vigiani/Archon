@@ -37,7 +37,7 @@ class TestTerminalState:
     def test_start_sets_idle(self, tmp_path: Path) -> None:
         """start() should set state to IDLE."""
         terminal = Terminal("t1", tmp_path)
-        result = asyncio.get_event_loop().run_until_complete(terminal.start())
+        result = asyncio.run(terminal.start())
         assert result is True
         assert terminal.state == TerminalState.IDLE
 
@@ -156,7 +156,7 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 terminal.execute_task("Build the login UI", task_id="task_001")
             )
 
@@ -174,14 +174,15 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 terminal.execute_task("test", task_id="my_task_123")
             )
 
         assert terminal.current_task_id == "my_task_123"
 
-    def test_system_prompt_prepended(self, tmp_path: Path) -> None:
-        """System prompt should be prepended to the task prompt."""
+    def test_system_prompt_passed_as_append_flag(self, tmp_path: Path) -> None:
+        """System prompt should be passed via --append-system-prompt (cacheable),
+        while the task prompt goes in the -p body."""
         terminal = Terminal("t1", tmp_path, system_prompt="You are the Craftsman.", verbose=False)
 
         mock_process = AsyncMock()
@@ -189,13 +190,19 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
-            asyncio.get_event_loop().run_until_complete(terminal.execute_task("Build UI"))
+            asyncio.run(terminal.execute_task("Build UI"))
 
-            # The prompt argument should contain both system prompt and task
-            call_args = mock_exec.call_args
-            prompt_arg = call_args[0][4]  # -p is at index 3, value at 4
-            assert "You are the Craftsman." in prompt_arg
-            assert "Build UI" in prompt_arg
+            args = list(mock_exec.call_args[0])
+            # Persona is sent via --append-system-prompt, not inline in -p.
+            assert "--append-system-prompt" in args
+            sys_idx = args.index("--append-system-prompt")
+            assert args[sys_idx + 1] == "You are the Craftsman."
+            # Task prompt is the value after -p.
+            assert "-p" in args
+            p_idx = args.index("-p")
+            assert args[p_idx + 1] == "Build UI"
+            # The task prompt must NOT be polluted with the persona text anymore.
+            assert "You are the Craftsman." not in args[p_idx + 1]
 
     def test_failed_execution_returns_error(self, tmp_path: Path) -> None:
         """Failed execution should return error output."""
@@ -206,7 +213,7 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 1
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = asyncio.get_event_loop().run_until_complete(terminal.execute_task("bad task"))
+            result = asyncio.run(terminal.execute_task("bad task"))
 
         assert result.is_error is True
         assert terminal.state == TerminalState.ERROR
@@ -222,7 +229,7 @@ class TestExecuteTaskMocked:
         mock_process.returncode = 0
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            result = asyncio.get_event_loop().run_until_complete(terminal.execute_task("test"))
+            result = asyncio.run(terminal.execute_task("test"))
 
         assert result.is_error is True
         assert "RATE_LIMIT" in result.content
@@ -235,7 +242,7 @@ class TestTerminalStop:
     def test_stop_sets_stopped_state(self, tmp_path: Path) -> None:
         """stop() should set state to STOPPED."""
         terminal = Terminal("t1", tmp_path, verbose=False)
-        asyncio.get_event_loop().run_until_complete(terminal.stop())
+        asyncio.run(terminal.stop())
         assert terminal.state == TerminalState.STOPPED
 
     def test_stop_terminates_running_process(self, tmp_path: Path) -> None:
@@ -249,7 +256,7 @@ class TestTerminalStop:
 
         terminal._process = mock_process
 
-        asyncio.get_event_loop().run_until_complete(terminal.stop())
+        asyncio.run(terminal.stop())
 
         mock_process.terminate.assert_called_once()
         assert terminal._process is None
@@ -265,7 +272,7 @@ class TestTerminalStop:
         terminal._process = mock_process
 
         # Should not raise
-        asyncio.get_event_loop().run_until_complete(terminal.stop())
+        asyncio.run(terminal.stop())
         assert terminal.state == TerminalState.STOPPED
 
 

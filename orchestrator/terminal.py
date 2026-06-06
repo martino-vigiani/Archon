@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 
 from .config import Config
+from .execution import ExecutionProfile
 
 
 class TerminalState(str, Enum):
@@ -41,7 +42,7 @@ class TerminalError(Exception):
 
 
 class RateLimitError(Exception):
-    """Exception raised when Claude rate limit is hit."""
+    """Exception raised when provider rate limit is hit."""
 
     def __init__(self, message: str, reset_time: str | None = None):
         super().__init__(message)
@@ -104,12 +105,15 @@ class Terminal:
         system_prompt: str | None = None,
         runtime_config: Config | None = None,
         verbose: bool = True,
+        default_profile: ExecutionProfile | None = None,
     ):
         self.terminal_id = terminal_id
         self.working_dir = working_dir
         self.system_prompt = system_prompt
         self.runtime_config = runtime_config or Config()
         self.verbose = verbose
+        # Default execution profile for this worker; per-task profiles override it.
+        self.default_profile = default_profile
 
         self.state = TerminalState.IDLE
         self.current_task_id: str | None = None
@@ -129,17 +133,22 @@ class Terminal:
 
     async def _execute_single_attempt(
         self,
-        full_prompt: str,
+        prompt: str,
         timeout: float,
         attempt: int,
+        profile: ExecutionProfile | None = None,
     ) -> TerminalOutput:
         """
         Execute a single attempt of a task.
 
         Args:
-            full_prompt: The complete prompt including system context
+            prompt: The task prompt (the persona/system prompt is passed separately to
+                ``build_llm_command`` as ``--append-system-prompt`` so it can be
+                prompt-cached across tasks instead of being re-sent inline).
             timeout: Maximum time to wait for response
             attempt: Current attempt number (1-based)
+            profile: optional per-task :class:`ExecutionProfile` selecting model tier,
+                effort, plan mode, dynamic agents, etc.
 
         Returns:
             TerminalOutput with the result
@@ -155,21 +164,15 @@ class Terminal:
         env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
         command = self.runtime_config.build_llm_command(
-            full_prompt,
+            prompt,
             allow_unsafe=True,
+            profile=profile,
+            system_prompt=self.system_prompt,
         )
 
         # Use asyncio subprocess for non-blocking execution
         self._process = await asyncio.create_subprocess_exec(
-<<<<<<< ours
             *command,
-=======
-            "claude",
-            "--print",
-            "--dangerously-skip-permissions",
-            "-p",
-            full_prompt,
->>>>>>> theirs
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(self.working_dir),
@@ -231,6 +234,7 @@ class Terminal:
         prompt: str,
         task_id: str | None = None,
         timeout: float = 300,
+        profile: ExecutionProfile | None = None,
     ) -> TerminalOutput:
         """
         Execute a task using the configured model CLI (single attempt).
@@ -238,9 +242,11 @@ class Terminal:
         Retry logic is handled by the orchestrator, not here.
 
         Args:
-            prompt: The task prompt to send to Claude
+            prompt: The task prompt to send to the configured model runtime
             task_id: Optional task ID for tracking
-            timeout: Maximum time to wait for response
+            timeout: Maximum time to wait for response (a profile timeout overrides it)
+            profile: optional per-task :class:`ExecutionProfile`; falls back to this
+                terminal's ``default_profile``.
 
         Returns:
             TerminalOutput with the result
@@ -248,21 +254,20 @@ class Terminal:
         self.current_task_id = task_id
         self.state = TerminalState.BUSY
 
-        # Build full prompt with system context if provided
-        full_prompt = prompt
-        if self.system_prompt:
-            full_prompt = f"{self.system_prompt}\n\n---\n\n{prompt}"
+        effective_profile = profile or self.default_profile
+        if effective_profile is not None and effective_profile.timeout:
+            timeout = effective_profile.timeout
 
         self._log(f"Executing task: {prompt[:60]}...")
 
         try:
             result = await self._execute_single_attempt(
-                full_prompt=full_prompt,
+                prompt=prompt,
                 timeout=timeout,
                 attempt=1,
+                profile=effective_profile,
             )
 
-<<<<<<< ours
             self.state = TerminalState.IDLE
             self._log(f"Task complete: {len(result.content)} chars output")
             return result
@@ -288,94 +293,6 @@ class Terminal:
                 is_complete=True,
                 is_error=True,
             )
-=======
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                result = await self._execute_single_attempt(
-                    full_prompt=full_prompt,
-                    timeout=timeout,
-                    attempt=attempt,
-                )
-
-                self.state = TerminalState.IDLE
-                self._log(f"Task complete: {len(result.content)} chars output")
-                return result
-
-            except TimeoutError:
-                self._log(f"Attempt {attempt}/{self.max_retries} timed out")
-                last_error = TimeoutError(f"Task timed out after {timeout}s")
-
-                # Clean up the timed-out process
-                if self._process:
-                    try:
-                        self._process.terminate()
-                        # Give it a moment to terminate gracefully
-                        await asyncio.sleep(0.5)
-                        if self._process.returncode is None:
-                            self._process.kill()
-                    except ProcessLookupError:
-                        pass  # Process already terminated
-                    finally:
-                        self._process = None
-
-                # Don't retry on timeout - it's likely a persistent issue
-                if attempt >= self.max_retries:
-                    break
-
-                # Wait before retry
-                retry_delay = 2**attempt  # Exponential backoff: 2s, 4s, 8s...
-                self._log(f"Retrying in {retry_delay}s...")
-                await asyncio.sleep(retry_delay)
-
-            except RateLimitError as e:
-                # Rate limit - don't retry, return immediately with clear message
-                self._log(f"Rate limit hit! Resets: {e.reset_time or 'check Claude dashboard'}")
-                self.state = TerminalState.ERROR
-
-                return TerminalOutput(
-                    content=f"RATE_LIMIT: {e.reset_time or 'Check Claude dashboard for reset time'}",
-                    is_complete=True,
-                    is_error=True,
-                    attempt=attempt,
-                )
-
-            except TerminalError as e:
-                self._log(f"Attempt {attempt}/{self.max_retries} failed: {e}")
-                last_error = e
-
-                if attempt >= self.max_retries:
-                    break
-
-                # Wait before retry with exponential backoff
-                retry_delay = 2**attempt
-                self._log(f"Retrying in {retry_delay}s...")
-                await asyncio.sleep(retry_delay)
-
-            except Exception as e:
-                self._log(f"Attempt {attempt}/{self.max_retries} unexpected error: {e}")
-                last_error = e
-
-                # Clean up process if it exists
-                if self._process:
-                    try:
-                        self._process.terminate()
-                    except ProcessLookupError:
-                        pass
-                    finally:
-                        self._process = None
-
-                if attempt >= self.max_retries:
-                    break
-
-                retry_delay = 2**attempt
-                self._log(f"Retrying in {retry_delay}s...")
-                await asyncio.sleep(retry_delay)
-
-        # All retries exhausted
-        self.state = TerminalState.ERROR
-        error_message = str(last_error) if last_error else "Unknown error after all retries"
-        self._log(f"Task failed after {self.max_retries} attempts: {error_message}")
->>>>>>> theirs
 
         except RateLimitError as e:
             self._log(f"Rate limit hit! Resets: {e.reset_time or 'check provider dashboard'}")

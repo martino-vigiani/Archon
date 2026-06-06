@@ -59,6 +59,9 @@ python -m orchestrator --resume
 | `--dry-run` | Show plan without executing |
 | `--project PATH` | Work on existing project |
 | `--no-testing` | Disable T5 QA terminal (saves API limits) |
+| `--dynamic-agents` | Derive a task-shaped roster (w1, w2, …) instead of fixed T1-T5 |
+| `--model-tiering` | Pick a per-task model tier (cheap/standard/deep) — opt-in |
+| `--no-effort-dial` | Disable per-task reasoning effort (effort dial is on by default) |
 | `--max-retries N` | Retry failed tasks (default: 2) |
 | `--timeout N` | Max execution time in seconds |
 | `-v, --verbose` | Detailed output |
@@ -162,11 +165,52 @@ Terminals report quality levels. Manager decides when to **AMPLIFY** (push highe
 
 ---
 
+## Execution Modes & Token Policy
+
+Every task is a single non-interactive `claude --print` subprocess. The orchestrator
+switches, per task, the same modes a human would toggle interactively — bundled in an
+`ExecutionProfile` (`execution.py`) and composed into CLI flags by the **single
+chokepoint** `Config.build_llm_command`:
+
+| Mode | CLI flag | Source |
+|------|----------|--------|
+| Model tier (cheap/standard/deep → haiku/sonnet/opus) | `--model` | `model_tiering` (opt-in) |
+| Reasoning effort / "ultracode" (low…max) | `--effort` | `effort_dial` (on by default) |
+| Plan mode | `--permission-mode plan` | per-task / control plane |
+| Dynamic subagents | `--agents <json>` | ad-hoc only (curated subagents are named in the system prompt, auto-discovered — cheaper) |
+| Cacheable persona | `--append-system-prompt` | always (replaces inline concatenation → prompt caching) |
+| Prompt-cache reuse | `--exclude-dynamic-system-prompt-sections` | utility calls |
+
+**Token rules:**
+- Cheap kinds (docs, parsing, chat, planning) → cheap tier + low effort. Worker tasks
+  classified by `classify_task`; dynamic workers carry a lane-tiered profile.
+- The report parser and manager-chat Q&A are internal *utility* calls → `utility_profile()`
+  (cheap, low effort, cache-friendly), never top-tier.
+- `--bare` is available but **OFF by default**: it forces `ANTHROPIC_API_KEY` auth and
+  breaks OAuth/subscription auth. Enable only with an API key.
+- Model tiering is opt-in (`--model-tiering`) because forcing `opus` can exceed a plan;
+  the effort dial is on by default (OAuth-safe, always-valid).
+
+**Dynamic agents** (`--dynamic-agents`): `dynamic_agents.derive_agents(goal)` builds a
+1–N worker roster (ids `w1..wN`, capability-derived focus, no fixed personality). Legacy
+T1–T5 is the default; `TerminalID` is a plain `str` and `Config.get_terminal_config`
+tolerates unknown ids, so both rosters coexist.
+
+**Control plane** (`control.py`, dashboard `POST /api/control/*`): a file-based command
+bus (`.orchestra/control/commands.jsonl`) drained by a background loop, so the dashboard
+can pause/resume, inject tasks (with a profile), set per-worker mode, and toggle config
+live — even while the main loop is paused.
+
+---
+
 ## Key Components (`orchestrator/`)
 
 | File | Purpose |
 |------|---------|
 | `orchestrator.py` | Main coordinator - observes and intervenes |
+| `execution.py` | `ExecutionProfile` — per-task switchable modes (model tier, effort, plan mode, dynamic `--agents`, tool allow/deny); the single source of CLI-flag composition policy |
+| `dynamic_agents.py` | Derives a task-shaped worker roster (w1, w2, …) with no fixed personalities; capability lanes + tiered profiles |
+| `control.py` | File-based control bus — dashboard steers a running orchestrator (pause/resume/inject/set_mode/set_config) |
 | `planner.py` | Intent broadcasting, not task assignment |
 | `terminal.py` | Claude Code subprocess wrapper |
 | `task_queue.py` | Flow-based work management |

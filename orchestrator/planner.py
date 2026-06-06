@@ -21,6 +21,7 @@ import re
 from dataclasses import dataclass, field
 
 from .config import Config, TerminalID
+from .execution import PermissionMode, TaskKind, profile_for_kind
 
 
 @dataclass
@@ -81,14 +82,9 @@ class TaskPlan:
     planning_mode: str = "legacy"  # "legacy" or "organic"
 
 
-<<<<<<< ours
 # New parallel-first planner prompt (compact to reduce token overhead)
 PLANNER_PROMPT = """You are a parallel planner for 5 terminals:
 T1 UI/UX, T2 Features/Python/Core, T3 Docs, T4 Ideas/Research, T5 QA.
-=======
-# New parallel-first planner prompt
-PLANNER_PROMPT = """You are a PARALLEL task planner. All 5 terminals work SIMULTANEOUSLY.
->>>>>>> theirs
 
 Rules:
 - No blocking dependencies in phase 1.
@@ -122,42 +118,13 @@ Create 8-12 tasks."""
 PLANNER_PROMPT_WITH_PROJECT = """You are a parallel planner for an existing codebase.
 Terminals: T1 UI/UX, T2 Features/Python/Core, T3 Docs, T4 Ideas/Research, T5 QA.
 
-<<<<<<< ours
 Rules:
 - Respect existing architecture and conventions.
 - Prefer edits over rewrites.
+- Do not create duplicate scaffolds/new project roots unless explicitly requested.
+- First tasks should inspect current files and then apply incremental changes.
 - Include phases 0,1,2,3 and at least one T5 phase-3 validation task.
 - Keep descriptions short and specific.
-=======
-PHASE 3 (Final - testing, validation, polish):
-- T5: "Run all tests and verify build" (priority: critical, phase: 3)
-- T5: "Validate output quality and completeness" (priority: high, phase: 3)
-- T1: "Verify UI compilation and previews" (phase: 3)
-- T3: "Finalize documentation" (phase: 3)
-
-Return 8-14 tasks covering all phases. JSON only."""
-
-
-PLANNER_PROMPT_WITH_PROJECT = """You are a PARALLEL task planner for an EXISTING PROJECT.
-
-## Terminals (All Start Immediately)
-
-T1 - UI/UX: Creates UI with mock data, defines interfaces for T2
-T2 - Features: Builds architecture, exposes APIs, writes unit tests
-T3 - Docs: Updates documentation progressively
-T4 - Strategy: Provides direction fast, refines based on codebase
-T5 - QA/Testing: Validates code, runs tests, verifies builds, checks quality
-
-## CRITICAL: Parallel Execution Rules
-
-1. Phase 0 tasks run first (2-5 minutes) - planning and contracts
-2. ALL terminals start in Phase 1 after Phase 0 - NO BLOCKING DEPENDENCIES
-3. Terminals read existing code and work with it
-4. Phase 2 tasks integrate new code with existing
-5. Phase 3 is final testing and validation by T5
-
-## Existing Project
->>>>>>> theirs
 
 Existing project context:
 {project_context}
@@ -165,41 +132,7 @@ Existing project context:
 Task:
 {task}
 
-<<<<<<< ours
 Return JSON only using keys: summary, tasks[], execution_order[]."""
-=======
-## Guidelines for Existing Projects
-
-1. RESPECT existing architecture - enhance, don't replace
-2. Read existing files before modifying
-3. Follow existing patterns and naming conventions
-4. Update existing tests, don't just add new ones
-5. T5 MUST validate all changes compile and tests pass
-
-## Output Format
-
-Return ONLY JSON (no markdown):
-
-{{
-  "summary": "Brief plan summary",
-  "tasks": [
-    {{
-      "title": "Task title",
-      "description": "Specific changes to make, files to modify",
-      "terminal": "t1|t2|t3|t4|t5",
-      "priority": "critical|high|medium|low",
-      "phase": 0,
-      "dependencies": [],
-      "required_subagents": ["subagent-name"]
-    }}
-  ],
-  "execution_order": ["task1", "task2"]
-}}
-
-IMPORTANT: Always include Phase 0 tasks and at least one T5 task in Phase 3 to validate the build.
-
-Return 6-12 tasks. JSON only."""
->>>>>>> theirs
 
 
 class Planner:
@@ -260,7 +193,12 @@ class Planner:
             import os
             env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-            command = self.config.build_llm_command(prompt, allow_unsafe=False)
+            # Planning runs on a balanced tier (gated by config for plan-safety).
+            # It only generates text, so it needs no permission bypass.
+            plan_profile = self.config.gate_profile(
+                profile_for_kind(TaskKind.PLANNING, permission_mode=PermissionMode.DEFAULT)
+            )
+            command = self.config.build_llm_command(prompt, profile=plan_profile)
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,

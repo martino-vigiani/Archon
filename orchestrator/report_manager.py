@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import Config, TerminalID
+from .execution import utility_profile
 
 
 @dataclass
@@ -254,6 +255,12 @@ class ReportManager:
                 error=error,
             )
 
+        # Default path: parse locally (no LLM). Workers already emit the structured
+        # 6-point format, so the regex parser is enough — and it avoids a blocking
+        # per-task subprocess (event-loop stall + 60s timeouts) and an extra LLM call.
+        if not getattr(self.config, "llm_report_parsing", False):
+            return self._fallback_parse(output, report_id, task_id, terminal_id)
+
         # Get terminal role for context
         terminal_config = self.config.get_terminal_config(terminal_id)
 
@@ -266,7 +273,11 @@ class ReportManager:
         )
 
         try:
-            command = self.config.build_llm_command(prompt, allow_unsafe=False)
+            # The report parser is an internal utility call (text -> JSON), so run it
+            # on the cheap tier with low effort to avoid a full-price LLM round-trip per
+            # task. config.gate_profile honors --model-tiering / --no-effort-dial.
+            parse_profile = self.config.gate_profile(utility_profile())
+            command = self.config.build_llm_command(prompt, profile=parse_profile)
             result = subprocess.run(
                 command,
                 capture_output=True,
