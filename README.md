@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/archon-cli.png" alt="Archon CLI" width="700">
+  <img src="assets/dashboard.png" alt="Archon live control dashboard" width="900">
 </p>
 
 <h1 align="center">ARCHON</h1>
@@ -22,7 +22,9 @@
 
 ## What is Archon?
 
-Archon is a **gardener of intelligence** - it cultivates 5 parallel Claude Code terminals, each with a distinct personality, and guides them toward creating software through organic collaboration rather than rigid command.
+Archon is a **gardener of intelligence** - it cultivates parallel Claude Code workers and guides them toward creating software through organic collaboration rather than rigid command.
+
+Workers come in two flavors: the classic **five fixed personalities** (T1-T5, below) or a **dynamic, task-shaped roster** (`--dynamic-agents`) derived from the goal — capability lanes with no fixed names or roles. Either way the orchestrator switches each worker's execution mode per task (model tier, reasoning effort, plan mode, subagents) and you can steer the run live from the dashboard.
 
 ```
                     ┌─────────────────┐
@@ -58,10 +60,6 @@ Give Archon an **intent** like *"Create an iOS counter app"* and watch it:
 ---
 
 ## Live Control Dashboard
-
-<p align="center">
-  <img src="assets/dashboard.png" alt="Archon dashboard" width="900">
-</p>
 
 A real-time web dashboard (`--dashboard`, http://localhost:8420) shows each worker's
 capability lane, execution mode, live output, the quality gradient, and the
