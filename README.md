@@ -12,7 +12,7 @@
 <p align="center">
   <a href="#worker-rosters"><img src="https://img.shields.io/badge/Workers-5_or_dynamic-blue?style=flat-square" alt="5 or dynamic workers"></a>
   <a href="#subagents"><img src="https://img.shields.io/badge/Subagents-20-green?style=flat-square" alt="20 Subagents"></a>
-  <a href="#development"><img src="https://img.shields.io/badge/Tests-754_passing-brightgreen?style=flat-square" alt="754 Tests"></a>
+  <a href="#development"><img src="https://img.shields.io/badge/Tests-778_passing-brightgreen?style=flat-square" alt="778 Tests"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Powered_by-Claude_Code-orange?style=flat-square" alt="Claude Code"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="MIT License"></a>
@@ -50,6 +50,21 @@ Workers come in two flavors: the classic **five fixed personalities** (T1–T5) 
               │   Contracts & Flow    │
               └───────────────────────┘
 ```
+
+---
+
+## See it in action
+
+Give Archon an intent, get working software. Asked to *"create a minimalist iOS water-tracking app"*, a dynamic worker roster produced a **compiling, unit-tested SwiftUI app** — 26 Swift files, a full Xcode project, onboarding, reminders, a design system and tests — autonomously, with zero failed tasks.
+
+<p align="center">
+  <img src="assets/example-watertracker-home.png" alt="Water Tracker — home screen with hydration ring and quick-add" width="250">
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/example-watertracker-onboarding.png" alt="Water Tracker — onboarding unit selection" width="250">
+</p>
+<p align="center">
+  <sub>An iOS app built end-to-end by Archon, running in the iOS Simulator. The control dashboard at the top of this page is how you watch it happen, live.</sub>
+</p>
 
 ---
 
@@ -141,13 +156,16 @@ Every task is a single non-interactive `claude --print` call. Archon switches th
 
 ## Live Control Dashboard
 
-Start with `--dashboard`. Opens at **http://localhost:8420**.
+Start with `--dashboard`. Opens at **http://localhost:8420** — a multi-route single-page app (the "MONO" control plane: neutral monochrome surfaces, one accent, status carried by color only where it means something, dark + light).
 
-**What it shows:**
-- Worker lane tags, execution mode badges (model tier, effort, plan mode)
-- Quality gradient bars (0.0–1.0) per worker
-- Live terminal output feed
-- Orchestrator event log and manager interventions timeline (AMPLIFY / REDIRECT / MEDIATE / INJECT / PRUNE)
+**Routes:** Dashboard (live agents, metrics, quality, feeds) · New Run (launch + configure a run, pick a working directory, preview the roster) · Sessions (every run, switch between them) · Chat (talk to the orchestrator, with session memory) · Files (what each agent created) · Workspace (agent / file / contract graph).
+
+**The Dashboard route shows:**
+- Per-agent runtime chip: provider · model · effort · prompt-adherence (so you always know *which model* each agent is running)
+- Execution mode badges (model tier, effort, plan mode) and quality gradient bars (0.0–1.0) per agent
+- Live terminal output and a tabbed Orchestrator / Events / Subagents feed
+- Manager interventions timeline (AMPLIFY / REDIRECT / MEDIATE / INJECT / PRUNE)
+- Stuck / needs-input detection with an inline reply, instructive empty + skeleton states, WCAG AA contrast
 
 **Control plane — POST endpoints:**
 
@@ -159,6 +177,9 @@ Start with `--dashboard`. Opens at **http://localhost:8420**.
 | `POST /api/control/mode` | `{target, ...profile}` or `{target, clear:true}` | Override (or clear) a single worker's execution mode |
 | `POST /api/control/config` | `{model_tiering?, effort_dial?, dynamic_agents?}` | Toggle config flags live |
 | `POST /api/control/cancel` | `{task_id}` | Cancel a pending task |
+| `POST /api/control/spawn` | `{...profile}` | Spawn an extra agent mid-run |
+| `POST /api/control/chat` | `{message, session?}` | Ask the orchestrator a question (reply via `GET /api/chat/replies`) |
+| `POST /api/runs` | `{goal, ...flags}` | Launch a new run from the UI (New Run route) |
 
 The control plane is **file-based** (`ControlChannel` writes JSON commands to `.orchestra/`). Commands are applied by the orchestrator's main loop even while execution is paused.
 
@@ -463,7 +484,7 @@ git commit -m "Add my feature"
 git push origin feature/my-feature
 ```
 
-PRs welcome. Follow existing code style (Black + Ruff for Python, TypeScript for dashboard JS).
+PRs welcome. Follow existing code style (Black + Ruff for Python, TypeScript for dashboard JS). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full setup, workflow, and pre-PR checklist.
 
 ---
 
