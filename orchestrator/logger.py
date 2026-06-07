@@ -27,6 +27,8 @@ EventType = Literal[
     "plan_created",
     "execution_paused",
     "execution_resumed",
+    "file_created",
+    "file_modified",
 ]
 
 
@@ -158,6 +160,8 @@ class EventLogger:
                 "plan_created",
                 "execution_paused",
                 "execution_resumed",
+                "file_created",
+                "file_modified",
             ]
             else "message_sent"
         )  # Fallback to a valid type

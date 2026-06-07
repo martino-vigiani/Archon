@@ -236,6 +236,57 @@ class InterfaceMismatch:
 
 
 # =============================================================================
+# Stuck Detection (F15)
+# =============================================================================
+
+
+@dataclass
+class StuckSignal:
+    """A run-level "stuck, please advise" recommendation from the watchdog.
+
+    F15: when no worker has made progress for a conservative amount of time, the
+    manager surfaces a *question* for the human/CEO rather than auto-intervening
+    destructively (no PRUNE/REDIRECT). The orchestrator rides this into
+    ``status.json`` as ``stuck``/``needs_input`` so the dashboard can prompt.
+
+    The serialized shape (:meth:`needs_input`) matches the contract's
+    ``needs_input: {"worker": wid|null, "question": str} | null`` exactly.
+
+    Attributes:
+        worker: The most-stalled worker id, or ``None`` if the whole run is idle.
+        question: A human-readable question asking how to proceed.
+        idle_seconds: Seconds since the last observed progress across the run.
+        threshold_seconds: The threshold that was exceeded to raise this signal.
+        created_at: ISO8601 timestamp of when the signal was produced.
+    """
+
+    worker: TerminalID | None
+    question: str
+    idle_seconds: float = 0.0
+    threshold_seconds: float = 0.0
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def needs_input(self) -> dict:
+        """Return the ``needs_input`` payload shape for ``status.json``.
+
+        Returns:
+            ``{"worker": wid|null, "question": str}`` — the exact shape the
+            orchestrator/dashboard expect for the F15 stuck prompt.
+        """
+        return {"worker": self.worker, "question": self.question}
+
+    def to_dict(self) -> dict:
+        """Return the full signal as a JSON-serializable dict."""
+        return {
+            "worker": self.worker,
+            "question": self.question,
+            "idle_seconds": round(self.idle_seconds, 1),
+            "threshold_seconds": self.threshold_seconds,
+            "created_at": self.created_at,
+        }
+
+
+# =============================================================================
 # Manager Intelligence
 # =============================================================================
 
@@ -270,9 +321,20 @@ class ManagerIntelligence:
         self.task_queue = task_queue
 
         # Thresholds for detection (all configurable)
-        self.stall_threshold_seconds = 180  # 3 minutes without heartbeat = stalled
+        # 600s, not 180s: a long, quiet ``claude --print`` task (MAX effort buffers
+        # all output until it finishes) routinely emits no heartbeat for minutes, so
+        # a 3-minute threshold false-alarms on healthy work.
+        self.stall_threshold_seconds = 600  # 10 minutes without heartbeat = stalled
         self.blocked_threshold_seconds = 120  # 2 minutes blocked = intervention needed
         self.file_conflict_threshold = 2  # Number of terminals editing same file
+        # Debounce: terminals already escalated for the current stall episode, so we
+        # don't re-escalate (and flood the feed) on every observation cycle.
+        self._escalated_stalls: set = set()
+
+        # Run-level watchdog threshold (F15). Conservative on purpose: the watchdog
+        # only ASKS for input (surfaces a question), it never auto-PRUNEs/REDIRECTs.
+        # Much longer than ``stall_threshold_seconds`` so we don't nag on every tick.
+        self.watchdog_no_progress_seconds = 600  # 10 minutes with zero progress = ask
 
         # Organic flow thresholds (v2.0)
         self.quality_flourishing_threshold = 0.7  # Quality level to consider flourishing
@@ -345,9 +407,14 @@ class ManagerIntelligence:
 
         # LEGACY CHECKS (backward compatibility)
 
-        # 1. Check for stalled terminals
+        # 1. Check for stalled terminals — escalate ONCE per stall episode (debounced)
+        #    so a persistent stall doesn't re-escalate on every cycle and flood the feed.
         stalled = self.detect_stalled_terminals(heartbeats)
+        stalled_set = set(stalled)
         for terminal_id in stalled:
+            if terminal_id in self._escalated_stalls:
+                continue  # already escalated this episode
+            self._escalated_stalls.add(terminal_id)
             actions.append(
                 ManagerAction(
                     action_type=ActionType.ESCALATE,
@@ -357,6 +424,8 @@ class ManagerIntelligence:
                     flow_state_before=flow_state["overall_flow"],
                 )
             )
+        # Re-arm terminals that recovered (no longer stalled) for future escalation.
+        self._escalated_stalls &= stalled_set
 
         # 2. Check for blocked terminals
         blocked = self.detect_blocked_terminals(heartbeats)
@@ -593,6 +662,126 @@ class ManagerIntelligence:
                 stalled.append(terminal_id)
 
         return stalled
+
+    # =========================================================================
+    # Run-Level Watchdog (F15) — ASK, never auto-act destructively
+    # =========================================================================
+
+    @staticmethod
+    def _idle_seconds_since(iso_timestamp: str | None) -> float | None:
+        """Compute seconds elapsed since an ISO8601 timestamp.
+
+        Args:
+            iso_timestamp: An ISO8601 timestamp string, or ``None``.
+
+        Returns:
+            Elapsed seconds (>= 0.0), or ``None`` if the timestamp is missing or
+            unparseable. ``None`` means "no progress signal available", which the
+            watchdog treats as *not* a basis for raising a stuck signal.
+        """
+        if not iso_timestamp:
+            return None
+        try:
+            ts = datetime.fromisoformat(iso_timestamp)
+        except (ValueError, TypeError):
+            return None
+        return max(0.0, (datetime.now() - ts).total_seconds())
+
+    def run_watchdog(
+        self,
+        heartbeats: dict[TerminalID, TerminalHeartbeat],
+        last_progress_at: dict[TerminalID, str] | None = None,
+        threshold_seconds: float | None = None,
+    ) -> StuckSignal | None:
+        """Detect a run-wide stall and recommend asking the human for input (F15).
+
+        This is a *conservative*, non-destructive watchdog. When no worker has
+        made progress for longer than ``threshold_seconds`` it returns a
+        :class:`StuckSignal` that the orchestrator can ride into ``status.json``
+        as ``stuck``/``needs_input``. It deliberately ASKS (surfaces a question)
+        rather than auto-PRUNEing or REDIRECTing — those interventions stay in
+        :meth:`analyze_and_decide` and are unchanged.
+
+        The run is considered stuck only when *every* tracked worker has been
+        idle past the threshold (a single busy worker keeps the run "alive").
+        This avoids false positives while still catching whole-run hangs.
+
+        Args:
+            heartbeats: Current heartbeat per worker. Used to identify the live
+                roster and as a fallback progress signal when ``last_progress_at``
+                lacks an entry for a worker.
+            last_progress_at: Optional ground-truth map of worker id → ISO8601
+                timestamp of last real progress (assign / output-save /
+                completion). When provided it takes precedence over heartbeat
+                timestamps. This is the source the orchestrator owner populates
+                once heartbeat timestamps are real.
+            threshold_seconds: Override the default
+                ``watchdog_no_progress_seconds`` threshold.
+
+        Returns:
+            A :class:`StuckSignal` if the run appears stuck, else ``None``.
+        """
+        last_progress_at = last_progress_at or {}
+        threshold = (
+            threshold_seconds
+            if threshold_seconds is not None
+            else self.watchdog_no_progress_seconds
+        )
+
+        # Determine the set of workers to evaluate: anything we have a progress
+        # signal for (heartbeat or explicit last_progress_at).
+        worker_ids: set[TerminalID] = set(heartbeats.keys()) | set(last_progress_at.keys())
+        if not worker_ids:
+            return None  # Nothing running yet — never raise a stuck signal.
+
+        # Per-worker idle seconds, preferring explicit last_progress_at, then
+        # the worker's heartbeat timestamp.
+        idle_by_worker: dict[TerminalID, float] = {}
+        for wid in worker_ids:
+            idle = self._idle_seconds_since(last_progress_at.get(wid))
+            if idle is None:
+                hb = heartbeats.get(wid)
+                idle = self._idle_seconds_since(hb.timestamp) if hb else None
+            if idle is not None:
+                idle_by_worker[wid] = idle
+
+        if not idle_by_worker:
+            return None  # No usable progress signal — stay silent.
+
+        # The run is only "stuck" if EVERY worker with a signal is past threshold.
+        if any(idle < threshold for idle in idle_by_worker.values()):
+            return None
+
+        # Identify the most-stalled worker to attribute the question to.
+        worst_worker = max(idle_by_worker, key=lambda w: idle_by_worker[w])
+        worst_idle = idle_by_worker[worst_worker]
+
+        # If the whole roster is uniformly idle, attribute to the run (worker=None).
+        all_idle = all(
+            (hb.current_task_id is None) for hb in heartbeats.values()
+        ) if heartbeats else False
+        attributed: TerminalID | None = None if all_idle else worst_worker
+
+        minutes = worst_idle / 60.0
+        if attributed is None:
+            question = (
+                f"No worker has made progress in ~{minutes:.0f} min and all "
+                "terminals are idle. How should we proceed — provide guidance, "
+                "inject a task, or stop the run?"
+            )
+        else:
+            question = (
+                f"Worker {attributed} (and the rest of the run) has shown no "
+                f"progress for ~{minutes:.0f} min. It may be stuck or waiting on "
+                "something. What should it do next?"
+            )
+
+        return StuckSignal(
+            worker=attributed,
+            question=question,
+            idle_seconds=worst_idle,
+            threshold_seconds=threshold,
+        )
 
     # =========================================================================
     # Detection: Blocked Terminals

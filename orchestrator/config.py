@@ -5,6 +5,7 @@ Defines terminal roles, subagent mappings, system paths, and project management.
 """
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -381,9 +382,19 @@ TEMP_FILE_PATTERNS = [
 class Config:
     """Main orchestrator configuration."""
 
+    # Session identity (multi-session support). When None we run in legacy
+    # single-session mode against the default ``.orchestra`` tree. Populated either
+    # explicitly (``Config.for_session``) or from the ``ARCHON_SESSION_ID`` env var
+    # set by the dashboard when it spawns an orchestrator process.
+    session_id: str | None = None
+
     # Paths - relative to project root (portable)
     base_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent)
-    orchestra_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".orchestra")
+    # Sentinel default: distinguishes "caller passed nothing" (apply env fallback /
+    # legacy ``.orchestra``) from "caller passed an explicit path" (e.g.
+    # ``for_session``), which must NOT be silently overridden by the ambient
+    # ``ARCHON_ORCHESTRA_DIR``. ``__post_init__`` resolves this to a real path.
+    orchestra_dir: Path | None = None
     templates_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "templates" / "terminal_prompts")
     compact_templates_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / "templates" / "terminal_prompts_compact")
     agents_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent / ".claude" / "agents")
@@ -426,13 +437,79 @@ class Config:
     # (event-loop stall + timeouts) and a full extra LLM round-trip (token cost).
     llm_report_parsing: bool = False
 
+    # Per-model base reasoning effort (F6). When ``effort_dial`` is on AND a task's
+    # resolved profile effort is ``Effort.INHERIT``, the effort is derived from the
+    # resolved model/tier via ``execution.base_effort_for`` using this table. The
+    # special value ``"inherit"`` means "emit no --effort flag" (legacy behavior).
+    # Tunable live through the control plane's ``set_config``.
+    base_effort_opus: str = "inherit"
+    base_effort_sonnet: str = "inherit"
+    base_effort_haiku: str = "inherit"
+
     def __post_init__(self) -> None:
-        """Normalize derived paths/settings when custom roots are injected."""
+        """Normalize derived paths/settings when custom roots are injected.
+
+        Resolves ``orchestra_dir`` (a sentinel ``None`` until now) using a strict
+        precedence so the dashboard's long-lived process can resolve many sessions
+        without collapsing them onto one tree:
+
+        1. An EXPLICIT ``orchestra_dir`` (e.g. from :meth:`for_session`) always wins —
+           the ambient ``ARCHON_ORCHESTRA_DIR`` must never override it, otherwise every
+           ``for_session`` in a process that has that env set would return the same dir.
+        2. Otherwise fall back to ``ARCHON_ORCHESTRA_DIR`` when set (the spawned
+           single-session orchestrator case the dashboard sets up on launch).
+        3. Otherwise the legacy default ``base_dir/.orchestra`` (single-session mode).
+
+        ``ARCHON_SESSION_ID`` is likewise a fallback: an explicit ``session_id`` wins.
+        This runs BEFORE any derived-path use so ``orchestra_dir`` (and everything
+        computed from it) points at the right tree.
+        """
+        # Session plumbing from the environment (dashboard sets these on spawn).
+        # Env is only a FALLBACK: an explicit orchestra_dir (sentinel resolved away)
+        # takes precedence so per-session configs stay isolated.
+        if self.orchestra_dir is None:
+            env_dir = os.environ.get("ARCHON_ORCHESTRA_DIR")
+            self.orchestra_dir = Path(env_dir) if env_dir else self.base_dir / ".orchestra"
+        env_session = os.environ.get("ARCHON_SESSION_ID")
+        if env_session and self.session_id is None:
+            self.session_id = env_session
+
         default_templates_dir = Path(__file__).parent.parent / "templates" / "terminal_prompts"
         default_compact_dir = Path(__file__).parent.parent / "templates" / "terminal_prompts_compact"
 
         if self.templates_dir != default_templates_dir and self.compact_templates_dir == default_compact_dir:
             self.compact_templates_dir = self.templates_dir.parent / "terminal_prompts_compact"
+
+    @classmethod
+    def for_session(
+        cls,
+        session_id: str,
+        *,
+        base_dir: Path | None = None,
+        **kw: object,
+    ) -> "Config":
+        """Build a Config scoped to a specific session's namespaced directory.
+
+        The per-session tree lives at ``<base>/.orchestra/runs/<session_id>/`` so
+        concurrent orchestrator processes never collide.
+
+        Args:
+            session_id: The session identifier (``YYYYMMDD-HHMMSS-<slug>``).
+            base_dir: Repo/base root containing ``.orchestra``. Defaults to the
+                package's project root (same default as the ``base_dir`` field).
+            **kw: Any additional ``Config`` field overrides.
+
+        Returns:
+            A ``Config`` whose ``orchestra_dir`` and ``session_id`` are pre-wired.
+        """
+        root = Path(base_dir) if base_dir is not None else Path(__file__).parent.parent
+        orchestra_dir = root / ".orchestra" / "runs" / session_id
+        return cls(
+            base_dir=root,
+            orchestra_dir=orchestra_dir,
+            session_id=session_id,
+            **kw,  # type: ignore[arg-type]
+        )
 
     @property
     def messages_dir(self) -> Path:
@@ -584,6 +661,14 @@ class Config:
 
             if profile.effort is not Effort.INHERIT:
                 cmd.extend(["--effort", profile.effort.value])
+            elif self.effort_dial:
+                # F6: derive a per-model base effort when the task left it to
+                # inherit. Only the claude path, only when the effort dial is on.
+                # A "default"/unknown model maps to INHERIT, which emits nothing
+                # (legacy behavior preserved). Best-effort: never crash the run.
+                derived = self._base_effort_for_model(model)
+                if derived is not None and derived is not Effort.INHERIT:
+                    cmd.extend(["--effort", derived.value])
 
             # --- dynamic subagents -------------------------------------------
             agents = agents_json_str(profile)
@@ -652,12 +737,55 @@ class Config:
         cmd.append(full_prompt)
         return cmd
 
+    def _base_effort_table(self) -> dict[str, str]:
+        """Per-model base-effort overrides consumed by ``base_effort_for`` (F6).
+
+        Only non-``"inherit"`` entries are returned: an ``"inherit"`` field means
+        "no explicit override", letting ``base_effort_for`` fall back to its built-in
+        default table (opus→high, sonnet→medium, haiku→low). A concrete value (set via
+        the control plane's ``set_config``) overrides that default for one model, and
+        an explicit ``"inherit"`` value disables the dial for that model.
+        """
+        overrides = {
+            "opus": self.base_effort_opus,
+            "sonnet": self.base_effort_sonnet,
+            "haiku": self.base_effort_haiku,
+        }
+        return {k: v for k, v in overrides.items() if v and v != "inherit"}
+
+    def _base_effort_for_model(self, model: str | None):
+        """Resolve the base reasoning effort for a model/tier name (F6).
+
+        Lazily imports ``execution.base_effort_for`` to avoid any import-time
+        coupling and tolerates an older ``execution`` that lacks the helper.
+
+        Args:
+            model: The resolved ``--model`` value (alias or id), or None.
+
+        Returns:
+            An ``Effort`` (possibly ``Effort.INHERIT``) or None when the helper is
+            unavailable / the lookup fails. Callers treat None/INHERIT as "emit no
+            ``--effort`` flag".
+        """
+        try:
+            from .execution import Effort, base_effort_for
+        except ImportError:
+            return None
+        if not model:
+            return Effort.INHERIT
+        try:
+            return base_effort_for(model, self._base_effort_table())
+        except Exception:
+            return Effort.INHERIT
+
     def gate_profile(self, profile: ExecutionProfile) -> ExecutionProfile:
         """Apply the global runtime gates to a profile, in one place:
 
         - drop the model tier unless ``model_tiering`` is on (forcing e.g. opus could
-          exceed the user's plan), and
-        - drop the reasoning effort unless ``effort_dial`` is on.
+          exceed the user's plan),
+        - drop the reasoning effort unless ``effort_dial`` is on, and
+        - (F7, claude only) deny skill/MCP *creation* tools while allowing installed
+          MCP tools to pass the permission gate.
 
         Used by every profile-building call site (worker tasks, planner, report parser,
         manager chat) so the ``--model-tiering`` / ``--no-effort-dial`` switches are
@@ -667,7 +795,44 @@ class Config:
             profile = profile.merged(model_tier=ModelTier.INHERIT, model_override=None)
         if not self.effort_dial:
             profile = profile.merged(effort=Effort.INHERIT)
+        if self.llm_provider == "claude":
+            profile = self._apply_tool_policy(profile)
         return profile
+
+    def _apply_tool_policy(self, profile: ExecutionProfile) -> ExecutionProfile:
+        """Merge the F7 skill/MCP tool policy into a profile (claude provider only).
+
+        Adds the skill/MCP *creation* deny-set to ``disallowed_tools`` and the
+        installed-MCP *use* allow-patterns to ``allowed_tools``, deduped while
+        preserving order (profile entries first). Best-effort: tolerates an older
+        ``execution`` lacking the helpers and never raises to the caller.
+
+        Note: never emits ``--disable-slash-commands`` / ``--strict-mcp-config``.
+        """
+        try:
+            from .execution import SKILL_MCP_DENY_TOOLS, mcp_allow_patterns
+        except ImportError:
+            return profile
+
+        def _merge(existing: list[str], extra: list[str]) -> list[str]:
+            seen: set[str] = set()
+            merged: list[str] = []
+            for item in (*existing, *extra):
+                if item not in seen:
+                    seen.add(item)
+                    merged.append(item)
+            return merged
+
+        try:
+            deny = list(SKILL_MCP_DENY_TOOLS)
+            allow = list(mcp_allow_patterns())
+        except Exception:
+            return profile
+
+        return profile.merged(
+            disallowed_tools=_merge(profile.disallowed_tools, deny),
+            allowed_tools=_merge(profile.allowed_tools, allow),
+        )
 
     def get_all_subagents(self) -> list[str]:
         """Collect configured subagent names from terminal config and local definitions."""

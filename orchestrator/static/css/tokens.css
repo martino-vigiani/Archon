@@ -1,0 +1,170 @@
+/* ============================================================
+   ARCHON DASHBOARD — DESIGN TOKENS · "MONO"
+   Modern minimalist control plane: true-neutral grey ladder,
+   ONE vivid indigo accent, vivid semantic status colors.
+   Color is signal, never decoration. Everything rounded.
+   Dark (default) + light themes. WCAG AA on each surface.
+
+   ── COMPATIBILITY CONTRACT ──────────────────────────────────
+   Every token NAME below is FROZEN (app.css + every view module
+   reads them via var(--…), and 5 sibling agents depend on these
+   names by contract). Only the VALUES changed to the MONO system;
+   nothing was renamed. New names were ADDED (notably --r-pill).
+   Legacy → MONO role map:
+
+     --bg / --bg-1/2/3   → neutral near-black surface ladder
+     --bg-sunk           → recessed wells (logs / output)
+     --text-0..3         → neutral ink ladder (primary → faint)
+     --border-dim/-/-hi  → neutral hairlines (white|black @ %)
+     --accent (+deep/soft/line/fg)
+                         → ONE vivid indigo; -deep = pill fill
+     --ok/--err/--warn/--info/--route (+ -bg soft, -line edge)
+                         → vivid semantic status hues
+     --track / --fill    → recessed track / solid fill
+     --hdr-bg            → translucent sticky header
+     --fill-hover        → subtle hover tint
+     --q-bar-start       → quality-bar gradient start (= accent)
+     --accent-fg         → on-accent text / native input accent
+     --grain-opacity     → body::after film-grain opacity (≤0.04)
+     --scrollbar-thumb   → scrollbar thumb
+     --mono / --sans / --serif
+                         → Geist Mono / Hanken Grotesk /
+                           Bricolage Grotesque (name kept for compat;
+                           --serif is now the display grotesque)
+     --r-sm / --r / --r-lg / --r-pill   → 10 / 16 / 24 / 999
+     --shadow-sm/-md/-lg/-accent        → soft NEUTRAL shadows
+     --glow-live                        → live-state ring glow
+     --surface-grad                     → hero-tile gradient backdrop
+   ─────────────────────────────────────────────────────────── */
+
+/* ── DARK THEME (default): true-neutral near-black, never #000 ── */
+:root,
+[data-theme="dark"] {
+  /* Surface ladder — neutral greys */
+  --bg:          #0b0b0d;   /* page — near-black            */
+  --bg-1:        #141417;   /* card base                    */
+  --bg-2:        #1c1c20;   /* raised / hover               */
+  --bg-3:        #26262b;   /* chips, controls              */
+  --bg-sunk:     #08080a;   /* recessed wells (logs/output) */
+
+  /* Hairlines — white @ 6 / 10 / 18% */
+  --border-dim:  rgba(255,255,255,0.06);
+  --border:      rgba(255,255,255,0.10);
+  --border-hi:   rgba(255,255,255,0.18);
+
+  /* Ink ladder — neutral, AA on bg AND card */
+  --text-0:      #f4f4f5;   /* primary                      */
+  --text-1:      #c2c2c8;   /* secondary                    */
+  --text-2:      #9a9aa2;   /* tertiary / labels (AA)       */
+  --text-3:      #7a7a82;   /* faint (AA on --bg / --card)  */
+
+  --track:       #26262b;
+  --fill:        #f4f4f5;
+
+  /* Type — display grotesque · humanist sans · technical mono */
+  --mono:  "Geist Mono", ui-monospace, "SF Mono", "Menlo", monospace;
+  --sans:  "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --serif: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+
+  /* Radii — everything rounded */
+  --r-sm:   10px;
+  --r:      16px;
+  --r-lg:   24px;
+  --r-pill: 999px;
+
+  /* ── Accent — ONE vivid indigo / electric-blue ──
+     --accent      = signal hue (text, icons, focus, data viz)
+     --accent-deep = primary pill FILL (white text hits AA: 4.89)
+     --accent-soft = soft tinted fill (chips, focus glow)
+     --accent-line = accent-tinted edge
+     --accent-fg   = on-accent text (white) */
+  --accent:        #7c8cff;
+  --accent-deep:   #5560ee;
+  --accent-soft:   rgba(124,140,255,0.14);
+  --accent-line:   rgba(124,140,255,0.40);
+  --accent-fg:     #ffffff;
+
+  /* ── Semantic states — VIVID (not muted). Legacy names kept. ──
+     ok=green · err=red · warn=amber · info=blue · route=violet.
+     base = AA on card/bg · -bg = soft fill · -line = stronger edge. */
+  --ok:       #4ade80;   --ok-bg:   rgba(74,222,128,0.13);   --ok-line:   rgba(74,222,128,0.42);
+  --err:      #f87171;   --err-bg:  rgba(248,113,113,0.13);  --err-line:  rgba(248,113,113,0.44);
+  --warn:     #fbbf24;   --warn-bg: rgba(251,191,36,0.13);   --warn-line: rgba(251,191,36,0.44);
+  --info:     #60a5fa;   --info-bg: rgba(96,165,250,0.13);   --info-line: rgba(96,165,250,0.44);
+  --route:    #c084fc;   --route-bg:rgba(192,132,252,0.13);  --route-line:rgba(192,132,252,0.44);
+
+  /* ── Shadows — soft, NEUTRAL, layered ── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-md: 0 8px 26px -10px rgba(0,0,0,0.60), 0 2px 6px rgba(0,0,0,0.32);
+  --shadow-lg: 0 28px 70px -26px rgba(0,0,0,0.74);
+  --shadow-accent: 0 0 0 1px var(--accent-line), 0 6px 18px -10px rgba(124,140,255,0.26);
+  --glow-live: 0 0 0 1px rgba(74,222,128,0.32), 0 0 18px -8px rgba(74,222,128,0.38);
+
+  --surface-grad: linear-gradient(150deg, var(--bg-2), var(--bg-1));
+
+  /* ── Legacy utility tokens (MONO values) ── */
+  --grain-opacity:    0;                                     /* film grain removed (distill: decoration without signal) */
+  --scrollbar-thumb:  rgba(255,255,255,0.16);
+  --hdr-bg:           color-mix(in srgb, var(--bg) 76%, transparent);
+  --fill-hover:       rgba(255,255,255,0.05);
+  --q-bar-start:      var(--accent);
+}
+
+/* ── LIGHT THEME: paper-white, deep neutral ink ── */
+[data-theme="light"] {
+  --bg:          #f5f5f6;   /* page — paper                 */
+  --bg-1:        #ffffff;   /* card base                    */
+  --bg-2:        #fbfbfc;   /* raised / hover               */
+  --bg-3:        #ebebed;   /* chips, controls              */
+  --bg-sunk:     #f0f0f2;   /* recessed wells               */
+
+  /* Hairlines — black @ 7 / 12 / 20% */
+  --border-dim:  rgba(0,0,0,0.07);
+  --border:      rgba(0,0,0,0.12);
+  --border-hi:   rgba(0,0,0,0.20);
+
+  --text-0:      #161619;   /* primary                      */
+  --text-1:      #3d3d44;   /* secondary                    */
+  --text-2:      #65656d;   /* tertiary / labels (AA on bg) */
+  --text-3:      #7f7f88;   /* faint (decorative)           */
+
+  --track:       #e6e6e9;
+  --fill:        #161619;
+
+  --mono:  "Geist Mono", ui-monospace, "SF Mono", "Menlo", monospace;
+  --sans:  "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --serif: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+
+  --r-sm:   10px;
+  --r:      16px;
+  --r-lg:   24px;
+  --r-pill: 999px;
+
+  /* Accent — same indigo, darkened for paper (AA on light surfaces) */
+  --accent:        #4f46e5;
+  --accent-deep:   #4338ca;
+  --accent-soft:   rgba(79,70,229,0.10);
+  --accent-line:   rgba(79,70,229,0.38);
+  --accent-fg:     #ffffff;
+
+  /* Semantic states — darkened so they clear AA on the paper surface. */
+  --ok:       #0d7044;   --ok-bg:   rgba(13,112,68,0.11);    --ok-line:   rgba(13,112,68,0.40);
+  --err:      #dc2626;   --err-bg:  rgba(220,38,38,0.10);    --err-line:  rgba(220,38,38,0.42);
+  --warn:     #a16207;   --warn-bg: rgba(161,98,7,0.11);     --warn-line: rgba(161,98,7,0.42);
+  --info:     #2563eb;   --info-bg: rgba(37,99,235,0.10);    --info-line: rgba(37,99,235,0.42);
+  --route:    #7c3aed;   --route-bg:rgba(124,58,237,0.10);   --route-line:rgba(124,58,237,0.42);
+
+  --shadow-sm: 0 1px 2px rgba(15,15,20,0.06);
+  --shadow-md: 0 10px 28px -12px rgba(15,15,20,0.16), 0 2px 6px rgba(15,15,20,0.05);
+  --shadow-lg: 0 30px 70px -28px rgba(15,15,20,0.22);
+  --shadow-accent: 0 0 0 1px var(--accent-line), 0 6px 18px -10px rgba(79,70,229,0.20);
+  --glow-live: 0 0 0 1px rgba(13,112,68,0.30), 0 0 16px -8px rgba(13,112,68,0.30);
+
+  --surface-grad: linear-gradient(150deg, var(--bg-2), var(--bg-1));
+
+  --grain-opacity:    0;
+  --scrollbar-thumb:  rgba(0,0,0,0.20);
+  --hdr-bg:           color-mix(in srgb, var(--bg) 80%, transparent);
+  --fill-hover:       rgba(0,0,0,0.04);
+  --q-bar-start:      var(--accent);
+}

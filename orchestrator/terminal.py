@@ -6,10 +6,12 @@ as a single non-interactive CLI call for reliability.
 """
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from .config import Config
 from .execution import ExecutionProfile
@@ -106,6 +108,7 @@ class Terminal:
         runtime_config: Config | None = None,
         verbose: bool = True,
         default_profile: ExecutionProfile | None = None,
+        session_log: Any | None = None,
     ):
         self.terminal_id = terminal_id
         self.working_dir = working_dir
@@ -114,6 +117,10 @@ class Terminal:
         self.verbose = verbose
         # Default execution profile for this worker; per-task profiles override it.
         self.default_profile = default_profile
+        # Optional firehose (``session_log.SessionLog``). When provided, captured
+        # prompts are mirrored into the total session log (F16). Best-effort:
+        # never required, never allowed to break a run.
+        self.session_log = session_log
 
         self.state = TerminalState.IDLE
         self.current_task_id: str | None = None
@@ -130,6 +137,106 @@ class Terminal:
         self.state = TerminalState.IDLE
         self._log("Ready")
         return True
+
+    @staticmethod
+    def _extract_flag_value(command: list[str], flag: str) -> str | None:
+        """Return the value following ``flag`` in a built CLI command, or None.
+
+        The command is the flat argv list produced by
+        :meth:`Config.build_llm_command`, so the value (when present) is the next
+        element after the flag token.
+
+        Args:
+            command: The argv list to scan.
+            flag: The flag whose value to extract (e.g. ``"--model"``).
+
+        Returns:
+            The string value following ``flag``, or None when the flag is absent or
+            has no following token.
+        """
+        try:
+            idx = command.index(flag)
+        except ValueError:
+            return None
+        if idx + 1 < len(command):
+            return command[idx + 1]
+        return None
+
+    def _capture_prompt(self, command: list[str]) -> None:
+        """Persist a JSONL record of the prompt/modes sent to the CLI (F8).
+
+        Writes one append-only line to
+        ``<orchestra_dir>/terminal_prompts/<worker_id>.jsonl`` and, when a
+        firehose ``session_log`` is attached, mirrors the same record there.
+
+        The recorded ``model``/``effort``/``permission_mode``/``system``/``body``
+        are read back from the *built* command so they reflect exactly what the
+        subprocess receives (after profile/effort-dial resolution), rather than
+        re-deriving them. ``permission_mode`` reports ``"bypass"`` when the
+        permission-skip flag is present.
+
+        Best-effort by contract: any failure (missing dir, serialization, I/O) is
+        swallowed so prompt capture never breaks task execution.
+
+        Args:
+            command: The argv list returned by ``build_llm_command``.
+        """
+        try:
+            model = self._extract_flag_value(command, "--model")
+            effort = self._extract_flag_value(command, "--effort")
+            system = self._extract_flag_value(command, "--append-system-prompt")
+            body = self._extract_flag_value(command, "-p")
+
+            permission_mode = self._extract_flag_value(command, "--permission-mode")
+            if permission_mode is None and "--dangerously-skip-permissions" in command:
+                permission_mode = "bypass"
+
+            record = {
+                "ts": datetime.now().isoformat(),
+                "worker": self.terminal_id,
+                "task_id": self.current_task_id,
+                "model": model,
+                "effort": effort,
+                "permission_mode": permission_mode,
+                "system": system,
+                "body": body,
+            }
+
+            self._write_prompt_record(record)
+            self._mirror_prompt_to_firehose(record)
+        except Exception as e:  # noqa: BLE001 - capture must never break the run
+            self._log(f"Prompt capture skipped: {e}")
+
+    def _write_prompt_record(self, record: dict[str, Any]) -> None:
+        """Append a prompt record to the per-worker JSONL file (best-effort)."""
+        try:
+            orchestra_dir = getattr(self.runtime_config, "orchestra_dir", None)
+            if orchestra_dir is None:
+                return
+            prompts_dir = Path(orchestra_dir) / "terminal_prompts"
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+            path = prompts_dir / f"{self.terminal_id}.jsonl"
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, default=str) + "\n")
+        except Exception as e:  # noqa: BLE001 - best-effort file I/O
+            self._log(f"Prompt record write failed: {e}")
+
+    def _mirror_prompt_to_firehose(self, record: dict[str, Any]) -> None:
+        """Mirror a prompt record into the session firehose, if one is attached."""
+        log = self.session_log
+        if log is None:
+            return
+        try:
+            log.prompt(
+                worker_id=record["worker"],
+                task_id=record["task_id"],
+                model=record["model"],
+                effort=record["effort"],
+                system=record["system"],
+                body=record["body"],
+            )
+        except Exception as e:  # noqa: BLE001 - firehose mirror is best-effort
+            self._log(f"Prompt firehose mirror failed: {e}")
 
     async def _execute_single_attempt(
         self,
@@ -169,6 +276,10 @@ class Terminal:
             profile=profile,
             system_prompt=self.system_prompt,
         )
+
+        # F8: capture the exact prompt + resolved modes that were sent to the CLI.
+        # Best-effort: a capture/write failure must never break the run.
+        self._capture_prompt(command)
 
         # Use asyncio subprocess for non-blocking execution
         self._process = await asyncio.create_subprocess_exec(

@@ -351,3 +351,143 @@ def agents_json_str(profile: ExecutionProfile) -> str | None:
     if not profile.agents:
         return None
     return json.dumps(profile.agents, separators=(",", ":"))
+
+
+# ---------------------------------------------------------------------------
+# F7 — Skill / MCP creation policy (the "use, don't create" deny-set)
+# ---------------------------------------------------------------------------
+#
+# The subprocess only sees the tools that ``Config.build_llm_command`` lets through
+# (``--allowedTools`` / ``--disallowedTools``). We never emit ``--disable-slash-commands``
+# (would kill skills) nor ``--strict-mcp-config`` (would kill all installed MCP servers,
+# incl. XcodeBuildMCP), so *using* installed skills and MCP tools stays enabled by default.
+#
+# What we DO want to block is *creation* of new skills / MCP servers / plugins, which
+# happens through two channels:
+#   1. CLI subcommands: ``claude mcp ...``, ``claude plugin ...`` (run via Bash).
+#   2. Writing the config / manifest files that register them: ``.mcp.json``,
+#      ``SKILL.md``, and anything under a ``.claude/skills`` or ``.claude/plugins`` dir.
+#
+# These patterns use Claude Code's tool-spec syntax: ``Tool(specifier)`` where Bash
+# specifiers are command-prefix globs and Write/Edit specifiers are file globs. Normal
+# Bash / Write / Edit (anything not matching these specifiers) stays usable.
+SKILL_MCP_DENY_TOOLS: list[str] = [
+    # --- block create via CLI subcommands (leave normal Bash usable) ---
+    "Bash(claude mcp:*)",
+    "Bash(claude mcp add:*)",
+    "Bash(claude mcp remove:*)",
+    "Bash(claude plugin:*)",
+    "Bash(claude plugin install:*)",
+    "Bash(claude plugin marketplace:*)",
+    # --- block writing MCP server config files ---
+    "Write(.mcp.json)",
+    "Write(**/.mcp.json)",
+    "Edit(.mcp.json)",
+    "Edit(**/.mcp.json)",
+    # --- block writing/editing skill manifests + skills dirs ---
+    "Write(**/SKILL.md)",
+    "Edit(**/SKILL.md)",
+    "Write(**/.claude/skills/**)",
+    "Edit(**/.claude/skills/**)",
+    # --- block writing/editing plugin dirs ---
+    "Write(**/.claude/plugins/**)",
+    "Edit(**/.claude/plugins/**)",
+]
+
+
+def mcp_allow_patterns() -> list[str]:
+    """Return ``--allowedTools`` patterns that surface installed MCP tools.
+
+    Installed MCP servers (XcodeBuildMCP, Context7, etc.) expose tools named
+    ``mcp__<server>__<tool>``. The Claude CLI does **not** accept a blanket
+    ``mcp__*`` allow pattern — it errors with *"Wildcard tool name mcp__* is not
+    supported in allow rules; globs are permitted only after a literal
+    ``mcp__<server>__`` prefix"* and silently ignores the rule. Since we can't
+    enumerate servers generically, we emit no MCP allow pattern: workers reach MCP
+    tools via the run's permission mode (the orchestrator launches with
+    ``--dangerously-skip-permissions`` by default), and creating new MCP servers
+    stays blocked by :data:`SKILL_MCP_DENY_TOOLS`.
+
+    Returns:
+        An empty list (no valid blanket MCP allow pattern exists).
+    """
+    return []
+
+
+# ---------------------------------------------------------------------------
+# F6 — Per-model base reasoning effort
+# ---------------------------------------------------------------------------
+#
+# When the effort dial is on but a task profile left effort as INHERIT, the effort is
+# derived from the resolved model/tier. Stronger models default to more reasoning effort.
+# Keys are matched case-insensitively against substrings of the resolved model/tier name
+# (so concrete aliases like ``opus``, dated ids like ``claude-opus-4-...`` and tier names
+# like ``deep``/``cheap`` all resolve correctly).
+DEFAULT_BASE_EFFORT_TABLE: dict[str, str] = {
+    "opus": Effort.HIGH.value,
+    "sonnet": Effort.MEDIUM.value,
+    "haiku": Effort.LOW.value,
+    # tier names (in case a tier string is passed instead of a model alias)
+    "deep": Effort.HIGH.value,
+    "standard": Effort.MEDIUM.value,
+    "cheap": Effort.LOW.value,
+    # explicit catch-all
+    "default": Effort.INHERIT.value,
+}
+
+
+def base_effort_for(
+    model_or_tier: str | None,
+    table: dict[str, str] | None = None,
+) -> Effort:
+    """Map a resolved model or tier name to a base :class:`Effort`.
+
+    Pure and deterministic (no I/O). Matching is case-insensitive and substring-based,
+    so concrete aliases (``opus``), dated model ids (``claude-opus-4-...``) and tier
+    names (``deep``) all resolve. Unknown / empty input falls back to
+    :attr:`Effort.INHERIT` (meaning "emit no ``--effort`` flag").
+
+    Args:
+        model_or_tier: the resolved ``--model`` value or tier name (may be ``None``).
+        table: optional override mapping of (lowercase) key substrings to effort value
+            strings; merged over :data:`DEFAULT_BASE_EFFORT_TABLE`. Values may be
+            :class:`Effort` members or their string values.
+
+    Returns:
+        The derived :class:`Effort` (``Effort.INHERIT`` when nothing matches).
+    """
+    if not model_or_tier:
+        return Effort.INHERIT
+
+    merged: dict[str, str] = dict(DEFAULT_BASE_EFFORT_TABLE)
+    if table:
+        for key, value in table.items():
+            if key is None or value is None:
+                continue
+            merged[str(key).lower()] = value.value if isinstance(value, Effort) else str(value)
+
+    name = str(model_or_tier).lower()
+
+    # 1) exact match wins (e.g. "default", or a precise tier/alias).
+    if name in merged:
+        return _coerce_effort(merged[name])
+
+    # 2) substring match, longest key first so "opus" beats a generic catch-all.
+    for key in sorted((k for k in merged if k != "default"), key=len, reverse=True):
+        if key and key in name:
+            return _coerce_effort(merged[key])
+
+    # 3) explicit default entry, else INHERIT.
+    if "default" in merged:
+        return _coerce_effort(merged["default"])
+    return Effort.INHERIT
+
+
+def _coerce_effort(value: str) -> Effort:
+    """Coerce a string/Effort value to an :class:`Effort` (INHERIT on bad input)."""
+    if isinstance(value, Effort):
+        return value
+    try:
+        return Effort(str(value).lower())
+    except ValueError:
+        return Effort.INHERIT

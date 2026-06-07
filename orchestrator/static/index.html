@@ -3,604 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ARCHON</title>
-  <style>
-    /* ============================================================
-       ARCHON DASHBOARD — EDITORIAL MONOCHROME + RESTRAINED ACCENTS
-       Background near-black, grayscale hierarchy, muted semantic hues
-    ============================================================ */
+  <title>ARCHON · Control Plane</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <!-- ─────────────────────────────────────────────────────────
+       FONTS — MONO pairing (no Inter/Roboto/Arial/system/Space Grotesk)
+       Bricolage Grotesque : modern display grotesque → wordmark / headings / big numerals
+       Hanken Grotesk      : crisp humanist sans → body / labels / UI
+       Geist Mono          : technical mono → ids, runtime chips, logs, metrics
+  ───────────────────────────────────────────────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-    :root {
-      --bg:          #0a0a0a;
-      --bg-1:        #111111;
-      --bg-2:        #181818;
-      --bg-3:        #222222;
-      --border-dim:  rgba(255,255,255,0.06);
-      --border:      rgba(255,255,255,0.10);
-      --border-hi:   rgba(255,255,255,0.18);
-      --text-0:      #fafafa;
-      --text-1:      #d4d4d4;
-      --text-2:      #8a8a8a;
-      --text-3:      #4a4a4a;
-      --track:       #1e1e1e;
-      --fill:        #e0e0e0;
-      --mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Mono", "Consolas", monospace;
-      --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      --r: 2px;
-
-      /* ── Muted semantic accent palette ──────────────────────────
-         Low-saturation, ~55-65% lightness on dark. NOT neon.
-         Used ONLY for state encoding — never for decoration.
-      ─────────────────────────────────────────────────────────── */
-      --ok:    #5a9e6f;   /* muted green  — busy / live / success   */
-      --ok-bg: rgba(90,158,111,0.10);
-      --err:   #a05050;   /* muted red    — error                   */
-      --err-bg:rgba(160,80,80,0.10);
-      --warn:  #9e8a45;   /* muted amber  — decision / warning      */
-      --warn-bg:rgba(158,138,69,0.10);
-      --info:  #4a6e96;   /* muted slate-blue — info                */
-      --info-bg:rgba(74,110,150,0.10);
-      --route: #3e8c8c;   /* desaturated teal — routing             */
-      --route-bg:rgba(62,140,140,0.10);
-    }
-
-    /* Grain overlay */
-    body::after {
-      content: '';
-      position: fixed; inset: 0; z-index: 9000; pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-      opacity: 1;
-    }
-
-    html { font-size: 13px; }
-
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text-1);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 2px; }
-
-    /* ── Focus ── */
-    :focus-visible { outline: 1px solid var(--text-0); outline-offset: 2px; }
-
-    /* ════════════════════════════════
-       HEADER
-    ════════════════════════════════ */
-    #header {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(10,10,10,0.96);
-      border-bottom: 1px solid var(--border-dim);
-      backdrop-filter: blur(0px);
-      padding: 0 28px;
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 24px;
-      height: 52px;
-    }
-
-    .wordmark {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.28em;
-      color: var(--text-0);
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    .project-meta {
-      display: flex; align-items: center; gap: 12px; min-width: 0;
-    }
-    .project-name {
-      font-family: var(--mono); font-size: 11px;
-      color: var(--text-2); letter-spacing: 0.05em;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .project-path {
-      font-family: var(--mono); font-size: 10px;
-      color: var(--text-3);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .project-sep { color: var(--text-3); font-family: var(--mono); font-size: 10px; }
-
-    .header-right {
-      display: flex; align-items: center; gap: 16px; flex-shrink: 0;
-    }
-
-    /* Connection indicator */
-    .conn-indicator {
-      display: flex; align-items: center; gap: 6px;
-    }
-    .conn-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--text-3);
-      transition: background 300ms;
-    }
-    .conn-dot.live { background: var(--ok); animation: pulse-dot 2s ease infinite; }
-    .conn-dot.reconnecting { background: var(--text-2); animation: blink 1s step-end infinite; }
-    .conn-dot.error { background: transparent; border: 1px solid var(--err); }
-    @keyframes pulse-dot {
-      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
-    }
-    @keyframes blink { 50% { opacity: 0; } }
-    .conn-label {
-      font-family: var(--mono); font-size: 10px; color: var(--text-2); letter-spacing: 0.08em;
-    }
-
-    /* Global control buttons */
-    .hdr-btn {
-      font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
-      color: var(--text-2); background: transparent;
-      border: 1px solid var(--border); border-radius: var(--r);
-      padding: 4px 10px; cursor: pointer;
-      transition: color 150ms, border-color 150ms;
-    }
-    .hdr-btn:hover { color: var(--text-0); border-color: var(--border-hi); }
-    .hdr-btn.active { color: var(--text-0); border-color: var(--border-hi); }
-
-    /* Toggles */
-    .toggles {
-      display: flex; gap: 8px; align-items: center;
-    }
-    .toggle-item {
-      display: flex; align-items: center; gap: 5px; cursor: pointer;
-    }
-    .toggle-item input[type="checkbox"] { display: none; }
-    .toggle-track {
-      width: 26px; height: 14px; border-radius: 7px;
-      background: var(--bg-3); border: 1px solid var(--border);
-      position: relative; transition: background 200ms;
-      cursor: pointer; flex-shrink: 0;
-    }
-    .toggle-track::after {
-      content: ''; position: absolute;
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--text-3); top: 2px; left: 2px;
-      transition: transform 200ms, background 200ms;
-    }
-    .toggle-item input:checked + .toggle-track { background: var(--bg-3); border-color: var(--border-hi); }
-    .toggle-item input:checked + .toggle-track::after {
-      transform: translateX(12px); background: var(--text-0);
-    }
-    .toggle-label {
-      font-family: var(--mono); font-size: 10px; color: var(--text-3);
-      letter-spacing: 0.06em; white-space: nowrap;
-    }
-
-    /* ════════════════════════════════
-       SUMMARY STRIP
-    ════════════════════════════════ */
-    #summary-strip {
-      border-bottom: 1px solid var(--border-dim);
-      padding: 10px 28px;
-      display: flex; align-items: center; gap: 28px;
-      background: var(--bg-1);
-    }
-
-    .summary-item {
-      display: flex; align-items: center; gap: 8px;
-    }
-    .summary-label {
-      font-family: var(--mono); font-size: 10px; color: var(--text-3);
-      letter-spacing: 0.12em; text-transform: uppercase;
-    }
-    .summary-value {
-      font-family: var(--mono); font-size: 11px; color: var(--text-1);
-    }
-    .summary-sep { color: var(--border-hi); }
-
-    /* State badge */
-    .state-badge {
-      font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
-      padding: 2px 7px; border-radius: var(--r);
-      border: 1px solid var(--border);
-      color: var(--text-2);
-      text-transform: uppercase;
-    }
-    .state-badge.running { color: var(--text-0); border-color: var(--border-hi); }
-    .state-badge.stopped { color: var(--text-3); }
-    .state-badge.paused  { color: var(--text-2); border-style: dashed; }
-
-    /* Quality bar (shared) */
-    .q-bar-wrap {
-      display: flex; align-items: center; gap: 6px;
-    }
-    .q-bar {
-      width: 80px; height: 3px; border-radius: 2px;
-      background: var(--track); overflow: hidden; flex-shrink: 0;
-    }
-    .q-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #555 0%, var(--ok) 100%);
-      border-radius: 2px; transition: width 400ms ease;
-    }
-    .q-val {
-      font-family: var(--mono); font-size: 10px; color: var(--text-2); width: 28px;
-    }
-
-    /* Task counts */
-    .task-count-group { display: flex; gap: 14px; }
-    .tc { display: flex; align-items: center; gap: 4px; }
-    .tc-label { font-family: var(--mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.08em; }
-    .tc-val   { font-family: var(--mono); font-size: 11px; color: var(--text-1); }
-
-    /* ════════════════════════════════
-       MAIN LAYOUT
-    ════════════════════════════════ */
-    #main {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      grid-template-rows: auto auto;
-      gap: 0;
-      min-height: calc(100vh - 52px - 40px);
-    }
-
-    /* LEFT COLUMN */
-    #left-col {
-      border-right: 1px solid var(--border-dim);
-      display: flex; flex-direction: column;
-    }
-
-    /* RIGHT COLUMN */
-    #right-col {
-      display: flex; flex-direction: column;
-    }
-
-    /* ════════════════════════════════
-       SECTION HEADERS
-    ════════════════════════════════ */
-    .section-hdr {
-      padding: 14px 20px 10px;
-      border-bottom: 1px solid var(--border-dim);
-      display: flex; align-items: baseline; gap: 8px;
-    }
-    .section-title {
-      font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
-      color: var(--text-3); text-transform: uppercase; font-weight: 600;
-    }
-    .section-count {
-      font-family: var(--mono); font-size: 10px; color: var(--text-3);
-    }
-
-    /* ════════════════════════════════
-       WORKER GRID
-    ════════════════════════════════ */
-    #worker-section {
-      padding: 20px;
-      border-bottom: 1px solid var(--border-dim);
-    }
-    #worker-section > .section-hdr {
-      padding: 0 0 12px 0; border: none;
-    }
-
-    #worker-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-      gap: 12px;
-    }
-
-    .worker-card {
-      background: var(--bg-1);
-      border: 1px solid var(--border-dim);
-      border-radius: var(--r);
-      overflow: hidden;
-      display: flex; flex-direction: column;
-      transition: border-color 200ms;
-    }
-    .worker-card:hover { border-color: var(--border); }
-    .worker-card.state-busy  { border-color: rgba(90,158,111,0.22); }
-    .worker-card.state-error { border-color: rgba(160,80,80,0.28); }
-
-    .worker-card-top {
-      padding: 12px 14px 10px;
-      border-bottom: 1px solid var(--border-dim);
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
-    }
-
-    .worker-id-wrap { display: flex; align-items: center; gap: 8px; }
-    .worker-id {
-      font-family: var(--mono); font-size: 13px; font-weight: 700;
-      color: var(--text-0); letter-spacing: 0.04em;
-    }
-    .worker-state-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      flex-shrink: 0; margin-top: 1px;
-    }
-    .wsd-idle       { background: var(--text-3); }
-    .wsd-busy       { background: var(--ok); animation: pulse-dot 1.6s ease infinite; }
-    .wsd-not_started{ background: transparent; border: 1px solid var(--text-3); }
-    .wsd-error      { background: var(--err); }
-
-    .worker-state-label {
-      font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
-      text-transform: uppercase; color: var(--text-2);
-    }
-    .worker-state-label.st-busy  { color: var(--ok); }
-    .worker-state-label.st-error { color: var(--err); }
-
-    .worker-mode-badge {
-      font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em;
-      color: var(--text-2); border: 1px solid var(--border-dim);
-      border-radius: 2px; padding: 2px 6px; white-space: nowrap;
-    }
-
-    .worker-spec {
-      font-family: var(--sans); font-size: 11px; color: var(--text-2);
-      margin-top: 2px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-
-    .worker-task {
-      font-family: var(--sans); font-size: 11px; color: var(--text-1);
-      margin-top: 5px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      min-height: 14px;
-    }
-    .worker-task.no-task { color: var(--text-3); font-style: italic; }
-
-    .worker-quality {
-      padding: 8px 14px;
-      border-bottom: 1px solid var(--border-dim);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .worker-quality .q-label {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3); letter-spacing: 0.1em; text-transform: uppercase;
-    }
-    .worker-quality .q-bar { width: 100%; flex: 1; }
-    .worker-quality .q-val { font-size: 9px; }
-
-    .worker-model {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3); margin-left: auto;
-    }
-
-    /* Lane capability tag */
-    .worker-lane-tag {
-      font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
-      color: var(--route); border: 1px solid rgba(62,140,140,0.3);
-      border-radius: 2px; padding: 1px 5px;
-    }
-
-    /* Subagent chips row */
-    .worker-subagents {
-      padding: 5px 14px 5px;
-      border-bottom: 1px solid var(--border-dim);
-      display: flex; flex-wrap: wrap; gap: 4px;
-    }
-    .sa-chip {
-      font-family: var(--mono); font-size: 9px;
-      color: var(--text-3); border: 1px solid var(--border-dim);
-      border-radius: 2px; padding: 1px 5px;
-      white-space: nowrap;
-    }
-
-    /* Output tail */
-    .worker-output {
-      flex: 1;
-      font-family: var(--mono); font-size: 10px; color: var(--text-2);
-      line-height: 1.5;
-      padding: 8px 12px;
-      max-height: 100px; overflow-y: auto;
-      white-space: pre-wrap; word-break: break-all;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border-dim);
-    }
-    .worker-output:empty::after { content: '—'; color: var(--text-3); }
-
-    /* Inline mode controls */
-    .worker-controls {
-      padding: 8px 12px;
-      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-    }
-    .wc-select {
-      font-family: var(--mono); font-size: 10px;
-      background: var(--bg); color: var(--text-1);
-      border: 1px solid var(--border-dim); border-radius: var(--r);
-      padding: 3px 6px; cursor: pointer;
-      -webkit-appearance: none; appearance: none;
-    }
-    .wc-select:focus { outline: 1px solid var(--border-hi); }
-    .wc-label {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3);
-      letter-spacing: 0.08em; white-space: nowrap;
-    }
-    .wc-checkbox-wrap {
-      display: flex; align-items: center; gap: 4px; cursor: pointer;
-    }
-    .wc-checkbox-wrap input { accent-color: #fff; width: 11px; height: 11px; cursor: pointer; }
-    .wc-apply {
-      font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
-      color: var(--text-2); background: transparent;
-      border: 1px solid var(--border); border-radius: var(--r);
-      padding: 3px 8px; cursor: pointer; margin-left: auto;
-      transition: color 150ms, border-color 150ms;
-    }
-    .wc-apply:hover { color: var(--text-0); border-color: var(--border-hi); }
-
-    /* ════════════════════════════════
-       INJECT / DIRECT CONTROL
-    ════════════════════════════════ */
-    #inject-section {
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--border-dim);
-    }
-    #inject-section > .section-hdr {
-      padding: 0 0 12px 0; border: none;
-    }
-    .inject-form {
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .if-row { display: flex; gap: 8px; align-items: flex-start; }
-    .if-input, .if-textarea, .if-select {
-      font-family: var(--mono); font-size: 11px;
-      background: var(--bg); color: var(--text-1);
-      border: 1px solid var(--border-dim); border-radius: var(--r);
-      padding: 6px 10px; width: 100%;
-      transition: border-color 150ms;
-    }
-    .if-textarea { resize: vertical; min-height: 52px; line-height: 1.5; }
-    .if-input:focus, .if-textarea:focus, .if-select:focus {
-      outline: none; border-color: var(--border-hi);
-    }
-    .if-select { -webkit-appearance: none; appearance: none; cursor: pointer; }
-    .if-check-wrap {
-      display: flex; align-items: center; gap: 6px; cursor: pointer;
-      font-family: var(--mono); font-size: 10px; color: var(--text-2);
-    }
-    .if-check-wrap input { accent-color: #fff; width: 12px; height: 12px; cursor: pointer; }
-    .inject-btn {
-      font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
-      color: var(--text-0); background: transparent;
-      border: 1px solid var(--border-hi); border-radius: var(--r);
-      padding: 6px 16px; cursor: pointer; align-self: flex-end;
-      transition: background 150ms, color 150ms;
-    }
-    .inject-btn:hover { background: rgba(255,255,255,0.07); }
-
-    /* ════════════════════════════════
-       TASKS PANEL
-    ════════════════════════════════ */
-    #tasks-section {
-      border-right: 1px solid var(--border-dim);
-      border-bottom: 1px solid var(--border-dim);
-      display: flex; flex-direction: column;
-    }
-    .tasks-inner { padding: 0 20px 16px; flex: 1; overflow-y: auto; max-height: 280px; }
-    .task-group-title {
-      font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
-      color: var(--text-3); text-transform: uppercase;
-      padding: 10px 0 6px;
-    }
-    .task-row {
-      display: flex; align-items: baseline; gap: 8px;
-      padding: 5px 0; border-bottom: 1px solid var(--border-dim);
-    }
-    .task-row:last-child { border-bottom: none; }
-    .task-id {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3);
-      flex-shrink: 0; width: 36px; overflow: hidden; text-overflow: ellipsis;
-    }
-    .task-title {
-      font-size: 11px; color: var(--text-1);
-      flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .task-assignee {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3); flex-shrink: 0;
-    }
-    .task-quality {
-      font-family: var(--mono); font-size: 9px; color: var(--text-2); flex-shrink: 0; width: 22px;
-    }
-    .task-cancel-btn {
-      font-family: var(--mono); font-size: 9px; color: var(--text-3);
-      background: none; border: none; cursor: pointer; flex-shrink: 0; padding: 0 2px;
-      transition: color 150ms;
-    }
-    .task-cancel-btn:hover { color: var(--text-1); }
-    .empty-state {
-      font-family: var(--mono); font-size: 10px; color: var(--text-3);
-      padding: 12px 0; font-style: italic;
-    }
-
-    /* ════════════════════════════════
-       FEEDS (LOG + EVENTS)
-    ════════════════════════════════ */
-    .feed-section {
-      display: flex; flex-direction: column;
-      border-bottom: 1px solid var(--border-dim);
-    }
-    .feed-inner {
-      flex: 1; overflow-y: auto; max-height: 240px;
-      padding: 8px 16px 12px;
-    }
-    .feed-entry {
-      display: flex; gap: 8px; align-items: baseline;
-      padding: 4px 0; border-bottom: 1px solid var(--border-dim);
-      font-family: var(--mono); font-size: 10px;
-    }
-    .feed-entry:last-child { border-bottom: none; }
-    .feed-ts   { color: var(--text-3); flex-shrink: 0; width: 52px; }
-    .feed-tag  {
-      font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--text-3); border: 1px solid var(--border-dim);
-      border-radius: 2px; padding: 1px 4px; flex-shrink: 0; align-self: center;
-    }
-    .feed-tag.t-error    { color: var(--err);   border-color: var(--err);   background: var(--err-bg); }
-    .feed-tag.t-routing  { color: var(--route); border-color: var(--route); background: var(--route-bg); }
-    .feed-tag.t-decision { color: var(--warn);  border-color: var(--warn);  background: var(--warn-bg); }
-    .feed-tag.t-info     { color: var(--info);  border-color: var(--info);  background: var(--info-bg); }
-    .feed-tag.t-state    { color: var(--text-3); }
-    /* event type tags — map common prefixes */
-    .feed-tag.t-task_sta,
-    .feed-tag.t-task_com { color: var(--ok);    border-color: var(--ok);    background: var(--ok-bg); }
-    .feed-tag.t-task_fai { color: var(--err);   border-color: var(--err);   background: var(--err-bg); }
-    .feed-tag.t-subagent { color: var(--route); border-color: var(--route); background: var(--route-bg); }
-    .feed-tag.t-intervnt { color: var(--warn);  border-color: var(--warn);  background: var(--warn-bg); }
-    .feed-msg  { color: var(--text-1); flex: 1; white-space: pre-wrap; word-break: break-word; }
-
-    /* ════════════════════════════════
-       SUBAGENTS
-    ════════════════════════════════ */
-    .subagent-row {
-      display: flex; gap: 8px; align-items: baseline;
-      padding: 4px 0; border-bottom: 1px solid var(--border-dim);
-      font-size: 10px;
-    }
-    .subagent-row:last-child { border-bottom: none; }
-    .sa-ts   { font-family: var(--mono); color: var(--text-3); flex-shrink: 0; width: 52px; }
-    .sa-name { font-family: var(--mono); color: var(--text-1); flex-shrink: 0; }
-    .sa-via  { font-family: var(--mono); font-size: 9px; color: var(--text-3); flex-shrink: 0; }
-    .sa-task { color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    /* ════════════════════════════════
-       TOAST (self-contained, monochrome)
-    ════════════════════════════════ */
-    #toast-root {
-      position: fixed; top: 64px; right: 20px; z-index: 9999;
-      display: flex; flex-direction: column; gap: 6px; pointer-events: none;
-    }
-    .toast {
-      font-family: var(--mono); font-size: 11px;
-      background: var(--bg-2); border: 1px solid var(--border-hi);
-      border-radius: var(--r); padding: 9px 14px;
-      color: var(--text-1); pointer-events: auto;
-      opacity: 0; transform: translateX(12px);
-      transition: opacity 200ms, transform 200ms;
-      max-width: 280px;
-    }
-    .toast.in  { opacity: 1; transform: translateX(0); }
-    .toast.out { opacity: 0; transform: translateX(12px); }
-    .toast.t-error { border-color: rgba(255,255,255,0.22); color: var(--text-0); }
-    .toast.t-success { border-color: rgba(255,255,255,0.18); }
-
-    /* ════════════════════════════════
-       RESPONSIVE
-    ════════════════════════════════ */
-    @media (max-width: 960px) {
-      #main { grid-template-columns: 1fr; }
-      #right-col { border-left: none; border-top: 1px solid var(--border-dim); }
-      .toggles { display: none; }
-    }
-
-    /* ════════════════════════════════
-       UTILITY
-    ════════════════════════════════ */
-    .sr-only {
-      position: absolute; width: 1px; height: 1px; overflow: hidden;
-      clip: rect(0,0,0,0); white-space: nowrap;
-    }
-    .mono { font-family: var(--mono); }
-    .divider-v { width: 1px; height: 14px; background: var(--border-dim); flex-shrink: 0; }
-  </style>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <!-- Shared motion keyframes + util classes (.rise / .rise-stagger / .pulse-live) -->
+  <link rel="stylesheet" href="/static/css/motion.css">
+  <!-- Apply saved theme before first paint to avoid a flash (app.js re-applies it on load). -->
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('archon.theme')==='light'?'light':'dark';}catch(e){}</script>
 </head>
 <body>
 
@@ -608,909 +29,295 @@
 <div id="toast-root" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <!-- ══════════════════════════════════════════════
-     HEADER
+     HEADER — calm top bar (brand · routes · session · live · pause/resume · theme)
 ══════════════════════════════════════════════ -->
 <header id="header" role="banner">
-  <span class="wordmark" aria-label="Archon">ARCHON</span>
-
-  <div class="project-meta" role="group" aria-label="Current project">
-    <span class="project-name" id="hdr-project-name">—</span>
-    <span class="project-sep" aria-hidden="true">/</span>
-    <span class="project-path" id="hdr-project-path">—</span>
+  <div class="brand">
+    <span class="wordmark" aria-label="Archon">Archon<span class="brand-dot">.</span></span>
+    <span class="brand-tag">Control Plane</span>
   </div>
 
+  <!-- Primary navigation between SPA routes -->
+  <nav id="route-nav" role="navigation" aria-label="Primary">
+    <a class="nav-link" data-route="#/"          href="#/">Dashboard</a>
+    <a class="nav-link" data-route="#/new"        href="#/new">New Run</a>
+    <a class="nav-link" data-route="#/sessions"   href="#/sessions">Sessions</a>
+    <a class="nav-link" data-route="#/chat"       href="#/chat">Chat</a>
+    <a class="nav-link" data-route="#/files"      href="#/files">Files</a>
+    <a class="nav-link" data-route="#/workspace"  href="#/workspace">Workspace</a>
+  </nav>
+
   <div class="header-right">
+    <!-- Session switcher -->
+    <div class="session-switch" role="group" aria-label="Active session">
+      <span class="session-switch-label">Session</span>
+      <select id="session-select" class="session-select" aria-label="Select active session">
+        <option value="">newest running</option>
+      </select>
+    </div>
+
     <!-- Connection -->
     <div class="conn-indicator" aria-label="Connection status">
       <div class="conn-dot" id="conn-dot"></div>
       <span class="conn-label" id="conn-label">connecting</span>
     </div>
 
-    <div class="divider-v" aria-hidden="true"></div>
-
-    <!-- Controls -->
-    <button class="hdr-btn" id="btn-pause" aria-label="Pause orchestration">PAUSE</button>
-    <button class="hdr-btn" id="btn-resume" aria-label="Resume orchestration">RESUME</button>
-
-    <div class="divider-v" aria-hidden="true"></div>
-
-    <!-- Toggles -->
-    <div class="toggles" role="group" aria-label="Feature toggles">
-      <label class="toggle-item" title="Model tiering">
-        <input type="checkbox" id="tog-model-tiering" aria-label="Model tiering">
-        <span class="toggle-track"></span>
-        <span class="toggle-label">MODEL TIER</span>
-      </label>
-      <label class="toggle-item" title="Effort dial">
-        <input type="checkbox" id="tog-effort-dial" aria-label="Effort dial">
-        <span class="toggle-track"></span>
-        <span class="toggle-label">EFFORT</span>
-      </label>
-      <label class="toggle-item" title="Dynamic agents">
-        <input type="checkbox" id="tog-dynamic-agents" aria-label="Dynamic agents">
-        <span class="toggle-track"></span>
-        <span class="toggle-label">DYN AGENTS</span>
-      </label>
+    <!-- Pause / Resume — segmented pill control -->
+    <div class="seg" role="group" aria-label="Run control">
+      <button class="hdr-btn seg-btn" id="btn-pause" aria-label="Pause orchestration">Pause</button>
+      <button class="hdr-btn seg-btn" id="btn-resume" aria-label="Resume orchestration">Resume</button>
     </div>
+
+    <!-- Theme toggle -->
+    <button class="icon-btn" id="btn-theme" aria-label="Switch color theme" title="Toggle theme">
+      <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8L6 18M18 6l1.8-1.8"/></svg>
+    </button>
   </div>
 </header>
 
 <!-- ══════════════════════════════════════════════
-     SUMMARY STRIP
+     SUB-BAR — calmer strip: project crumb + the 3 run-mode toggles
 ══════════════════════════════════════════════ -->
-<section id="summary-strip" aria-label="Orchestration summary">
-  <div class="summary-item">
-    <span class="summary-label">STATE</span>
-    <span class="state-badge" id="sum-state">—</span>
+<div id="project-bar" role="group" aria-label="Current project &amp; run modes">
+  <div class="project-crumb">
+    <svg class="project-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    <span class="project-name" id="hdr-project-name">—</span>
+    <span class="project-sep" aria-hidden="true">/</span>
+    <span class="project-path" id="hdr-project-path">—</span>
   </div>
-  <div class="divider-v"></div>
-  <div class="summary-item">
-    <span class="summary-label">QUALITY</span>
-    <div class="q-bar-wrap">
-      <div class="q-bar" role="progressbar" aria-valuemin="0" aria-valuemax="1" id="sum-q-bar-aria">
-        <div class="q-bar-fill" id="sum-q-fill" style="width:0%"></div>
-      </div>
-      <span class="q-val" id="sum-q-val">0.0</span>
-    </div>
+
+  <!-- Run-mode toggles (demoted from the header) -->
+  <div class="toggles" role="group" aria-label="Feature toggles">
+    <label class="toggle-item" title="Model tiering">
+      <input type="checkbox" id="tog-model-tiering" aria-label="Model tiering">
+      <span class="toggle-track"></span>
+      <span class="toggle-label">Model tier</span>
+    </label>
+    <label class="toggle-item" title="Effort dial">
+      <input type="checkbox" id="tog-effort-dial" aria-label="Effort dial">
+      <span class="toggle-track"></span>
+      <span class="toggle-label">Effort</span>
+    </label>
+    <label class="toggle-item" title="Dynamic agents">
+      <input type="checkbox" id="tog-dynamic-agents" aria-label="Dynamic agents">
+      <span class="toggle-track"></span>
+      <span class="toggle-label">Dynamic agents</span>
+    </label>
   </div>
-  <div class="divider-v"></div>
-  <div class="task-count-group" aria-label="Task counts">
-    <div class="tc"><span class="tc-label">PEND</span><span class="tc-val" id="tc-pending">0</span></div>
-    <div class="tc"><span class="tc-label">PROG</span><span class="tc-val" id="tc-progress">0</span></div>
-    <div class="tc"><span class="tc-label">DONE</span><span class="tc-val" id="tc-completed">0</span></div>
-    <div class="tc"><span class="tc-label">FAIL</span><span class="tc-val" id="tc-failed">0</span></div>
-  </div>
-  <div class="divider-v"></div>
-  <div class="summary-item">
-    <span class="summary-label">FLOW</span>
-    <span class="summary-value mono" id="sum-flow">—</span>
-  </div>
-</section>
+</div>
 
 <!-- ══════════════════════════════════════════════
-     MAIN
+     DASHBOARD ROUTE (#/) — wrapped so the router can show/hide it.
 ══════════════════════════════════════════════ -->
-<div id="main">
+<div id="route-dashboard" class="route-page">
 
-  <!-- LEFT COLUMN -->
-  <div id="left-col">
-
-    <!-- Workers -->
-    <section id="worker-section" aria-label="Workers">
-      <div class="section-hdr">
-        <span class="section-title">WORKERS</span>
-        <span class="section-count" id="worker-count"></span>
-      </div>
-      <div id="worker-grid" role="list"></div>
-    </section>
-
-    <!-- Direct Control / Inject -->
-    <section id="inject-section" aria-label="Inject task">
-      <div class="section-hdr">
-        <span class="section-title">DIRECT CONTROL</span>
-      </div>
-      <form class="inject-form" id="inject-form" autocomplete="off" novalidate>
-        <input class="if-input" id="inj-title" type="text"
-               placeholder="Task title" aria-label="Task title" required>
-        <textarea class="if-textarea" id="inj-desc"
-                  placeholder="Description (optional)" aria-label="Task description"></textarea>
-        <div class="if-row">
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-            <label class="wc-label" for="inj-target">TARGET</label>
-            <select class="if-select" id="inj-target" aria-label="Target worker">
-              <option value="">auto</option>
-            </select>
-          </div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-            <label class="wc-label" for="inj-effort">EFFORT</label>
-            <select class="if-select" id="inj-effort" aria-label="Effort level">
-              <option value="">inherit</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="xhigh">xhigh</option>
-              <option value="max">max</option>
-            </select>
-          </div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-            <label class="wc-label" for="inj-model">MODEL</label>
-            <select class="if-select" id="inj-model" aria-label="Model tier">
-              <option value="">inherit</option>
-              <option value="cheap">cheap</option>
-              <option value="standard">standard</option>
-              <option value="deep">deep</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <label class="if-check-wrap">
-            <input type="checkbox" id="inj-plan" aria-label="Plan mode">
-            <span>PLAN MODE</span>
-          </label>
-          <button type="submit" class="inject-btn" aria-label="Inject task">INJECT &rarr;</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- Tasks -->
-    <section id="tasks-section" aria-label="Tasks">
-      <div class="section-hdr">
-        <span class="section-title">TASKS</span>
-      </div>
-      <div class="tasks-inner">
-        <div class="task-group-title">IN PROGRESS</div>
-        <div id="tasks-progress" role="list"></div>
-        <div class="task-group-title">PENDING</div>
-        <div id="tasks-pending" role="list"></div>
-      </div>
-    </section>
-
-  </div><!-- /left-col -->
-
-  <!-- RIGHT COLUMN -->
-  <div id="right-col">
-
-    <!-- Orchestrator Log -->
-    <section class="feed-section" aria-label="Orchestrator log">
-      <div class="section-hdr">
-        <span class="section-title">ORCHESTRATOR LOG</span>
-      </div>
-      <div class="feed-inner" id="orch-log" role="log" aria-live="polite" aria-label="Orchestrator log entries"></div>
-    </section>
-
-    <!-- Events -->
-    <section class="feed-section" aria-label="Events">
-      <div class="section-hdr">
-        <span class="section-title">EVENTS</span>
-      </div>
-      <div class="feed-inner" id="events-feed" role="log" aria-live="polite" aria-label="Event entries"></div>
-    </section>
-
-    <!-- Subagents -->
-    <section class="feed-section" aria-label="Subagents">
-      <div class="section-hdr">
-        <span class="section-title">SUBAGENTS</span>
-      </div>
-      <div class="feed-inner" id="subagents-feed" role="list" aria-label="Subagent invocations"></div>
-    </section>
-
-  </div><!-- /right-col -->
-
-</div><!-- /main -->
-
-<script type="module">
-/* ═══════════════════════════════════════════════════════════
-   ARCHON DASHBOARD — VANILLA JS, STRICT MONOCHROME
-   Data-driven: no hardcoded terminal IDs anywhere.
-═══════════════════════════════════════════════════════════ */
-
-'use strict';
-
-// ── Toast (self-contained, no external dependency) ──────────────────────────
-const toastRoot = document.getElementById('toast-root');
-function showToast(message, type = 'info') {
-  const el = document.createElement('div');
-  el.className = `toast t-${type}`;
-  el.textContent = message;
-  toastRoot.appendChild(el);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => el.classList.add('in'));
-  });
-  const remove = () => {
-    el.classList.replace('in', 'out');
-    el.addEventListener('transitionend', () => el.remove(), { once: true });
-  };
-  setTimeout(remove, 3200);
-  el.addEventListener('click', remove);
-}
-
-// ── State ────────────────────────────────────────────────────────────────────
-const state = {
-  ws: null,
-  wsReady: false,
-  retryDelay: 1000,
-  retryTimer: null,
-  pollTimer: null,
-  knownWorkers: new Set(),   // ids we've rendered cards for
-  lastData: {}
-};
-
-// ── DOM Refs ─────────────────────────────────────────────────────────────────
-const connDot    = document.getElementById('conn-dot');
-const connLabel  = document.getElementById('conn-label');
-const workerGrid = document.getElementById('worker-grid');
-const workerCount= document.getElementById('worker-count');
-
-// ── Utilities ────────────────────────────────────────────────────────────────
-function fmtQuality(v) {
-  const n = parseFloat(v) || 0;
-  return n.toFixed(2);
-}
-
-function fmtPct(v) {
-  return `${Math.round((parseFloat(v) || 0) * 100)}%`;
-}
-
-function fmtTs(ts) {
-  if (ts == null || ts === '') return '·';
-  const s = String(ts).trim();
-  // Already a "HH:MM" or "HH:MM:SS" string — render verbatim
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) return s;
-  // ISO / epoch — try parsing
-  try {
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const hh = String(d.getHours()).padStart(2,'0');
-      const mm = String(d.getMinutes()).padStart(2,'0');
-      const ss = String(d.getSeconds()).padStart(2,'0');
-      return `${hh}:${mm}:${ss}`;
-    }
-  } catch {}
-  // Unparseable — show a dim placeholder, never "NaN:NaN:NaN"
-  return '·';
-}
-
-function safeText(el, val) {
-  const s = val == null ? '' : String(val);
-  if (el.textContent !== s) el.textContent = s;
-}
-
-function safeAttr(el, attr, val) {
-  const s = String(val ?? '');
-  if (el.getAttribute(attr) !== s) el.setAttribute(attr, s);
-}
-
-function safeClass(el, cls, on) {
-  if (on) el.classList.add(cls); else el.classList.remove(cls);
-}
-
-// ── Connection status display ─────────────────────────────────────────────────
-function setConnStatus(status) {
-  connDot.className = `conn-dot ${status}`;
-  const labels = { live: 'live', reconnecting: 'reconnecting', error: 'down' };
-  safeText(connLabel, labels[status] || status);
-}
-
-// ── Summary strip ─────────────────────────────────────────────────────────────
-function updateSummary(payload) {
-  const s = payload.status || {};
-  const st = (s.state || 'idle').toLowerCase();
-
-  // State badge
-  const badge = document.getElementById('sum-state');
-  badge.className = `state-badge ${st}`;
-  safeText(badge, st.toUpperCase());
-
-  // Quality
-  const qa = parseFloat(s.quality_average ?? s.flow_state?.quality_average ?? 0);
-  document.getElementById('sum-q-fill').style.width = fmtPct(qa);
-  safeText(document.getElementById('sum-q-val'), fmtQuality(qa));
-  safeAttr(document.getElementById('sum-q-bar-aria'), 'aria-valuenow', qa);
-
-  // Task counts
-  const t = s.tasks || {};
-  safeText(document.getElementById('tc-pending'),   t.pending_count   ?? 0);
-  safeText(document.getElementById('tc-progress'),  t.in_progress_count ?? 0);
-  safeText(document.getElementById('tc-completed'), t.completed_count ?? 0);
-  safeText(document.getElementById('tc-failed'),    t.failed_count    ?? 0);
-
-  // Flow state
-  const flow = s.flow_state?.overall_flow || '';
-  safeText(document.getElementById('sum-flow'), flow || '—');
-
-  // Project
-  const proj = s.project || {};
-  safeText(document.getElementById('hdr-project-name'), proj.name || '—');
-  safeText(document.getElementById('hdr-project-path'), proj.path || '—');
-
-  // Paused state => update button active class
-  const paused = !!s.paused;
-  document.getElementById('btn-pause').classList.toggle('active', paused);
-  document.getElementById('btn-resume').classList.toggle('active', !paused && st === 'running');
-}
-
-// ── Worker card lifecycle ─────────────────────────────────────────────────────
-function stateDotClass(st) {
-  const map = {
-    idle: 'wsd-idle',
-    busy: 'wsd-busy',
-    error: 'wsd-error',
-    not_started: 'wsd-not_started'
-  };
-  return map[st] || 'wsd-idle';
-}
-
-function buildWorkerCard(id) {
-  const article = document.createElement('article');
-  article.className = 'worker-card';
-  article.id = `wcard-${id}`;
-  article.setAttribute('role', 'listitem');
-  article.setAttribute('aria-label', `Worker ${id}`);
-
-  article.innerHTML = `
-    <div class="worker-card-top">
-      <div style="min-width:0;flex:1">
-        <div class="worker-id-wrap">
-          <span class="worker-state-dot wsd-not_started" data-ref="dot"></span>
-          <span class="worker-id">${id.toUpperCase()}</span>
-          <span class="worker-lane-tag" data-ref="lane"></span>
-          <span class="worker-state-label" data-ref="state-label">NOT STARTED</span>
-        </div>
-        <div class="worker-spec" data-ref="spec">—</div>
-        <div class="worker-task no-task" data-ref="task">idle</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-        <span class="worker-mode-badge" data-ref="mode">—</span>
-        <span class="worker-model" data-ref="model" style="display:none"></span>
-      </div>
+  <!-- STUCK BANNER (hidden until status.stuck / needs_input) -->
+  <section id="stuck-banner" class="stuck-banner" hidden aria-live="assertive">
+    <div class="stuck-banner-body">
+      <span class="stuck-banner-tag">Needs input</span>
+      <span class="stuck-banner-msg" id="stuck-msg">An agent is stuck and waiting for direction.</span>
     </div>
-    <div class="worker-quality">
-      <span class="q-label">QUAL</span>
-      <div class="q-bar" role="progressbar" aria-valuemin="0" aria-valuemax="1">
-        <div class="q-bar-fill" data-ref="q-fill" style="width:0%"></div>
+    <form class="stuck-banner-form" id="stuck-form" autocomplete="off" novalidate>
+      <input class="stuck-input" id="stuck-input" type="text"
+             placeholder="Reply to unblock the agent…" aria-label="Reply to stuck agent">
+      <button type="submit" class="stuck-send" aria-label="Send reply">Send &rarr;</button>
+    </form>
+  </section>
+
+  <div class="wrap">
+
+    <!-- ══════════════ METRICS BAND ══════════════
+         Hero state tile · completion · quality ring · full-word task tiles ·
+         throughput · elapsed. Legacy ids preserved on the live targets. -->
+    <section id="metrics-strip" class="metrics" aria-label="Orchestration metrics">
+
+      <!-- Hero state tile -->
+      <div class="tile hero summary-item">
+        <div class="tile-k">Orchestration</div>
+        <div class="hero-badge">
+          <span class="hero-ring" id="sum-state-ring"></span>
+          <span class="state-badge" id="sum-state">—</span>
+        </div>
+        <div class="hero-meta">
+          <span class="hero-m">flow <b class="mono" id="sum-flow">—</b></span>
+        </div>
       </div>
-      <span class="q-val" data-ref="q-val">0.00</span>
-    </div>
-    <div class="worker-subagents" data-ref="subagents-row" style="display:none"></div>
-    <pre class="worker-output" data-ref="output" aria-label="Worker ${id} output"></pre>
-    <div class="worker-controls">
-      <span class="wc-label">EFF</span>
-      <select class="wc-select" data-ref="sel-effort" aria-label="Effort for ${id}">
-        <option value="">inherit</option>
-        <option value="low">low</option>
-        <option value="medium">med</option>
-        <option value="high">high</option>
-        <option value="xhigh">xhi</option>
-        <option value="max">max</option>
-      </select>
-      <span class="wc-label">MDL</span>
-      <select class="wc-select" data-ref="sel-model" aria-label="Model for ${id}">
-        <option value="">inherit</option>
-        <option value="cheap">cheap</option>
-        <option value="standard">std</option>
-        <option value="deep">deep</option>
-      </select>
-      <label class="wc-checkbox-wrap" title="Plan mode">
-        <input type="checkbox" data-ref="chk-plan" aria-label="Plan mode for ${id}">
-        <span class="wc-label">PLAN</span>
-      </label>
-      <button class="wc-apply" data-worker-id="${id}" aria-label="Apply mode to ${id}">APPLY</button>
-    </div>
-  `;
 
-  // Apply button handler
-  article.querySelector('[data-ref="dot"]');  // just ensure refs work
-  const applyBtn = article.querySelector('.wc-apply');
-  applyBtn.addEventListener('click', () => applyWorkerMode(id, article));
-
-  return article;
-}
-
-function getRef(card, ref) {
-  return card.querySelector(`[data-ref="${ref}"]`);
-}
-
-function updateWorkerCard(id, info, output) {
-  let card = document.getElementById(`wcard-${id}`);
-  let isNew = false;
-  if (!card) {
-    card = buildWorkerCard(id);
-    workerGrid.appendChild(card);
-    isNew = true;
-    state.knownWorkers.add(id);
-    // Also add to inject target select
-    syncInjectTargetSelect();
-  }
-
-  const st = (info.state || 'not_started').toLowerCase();
-
-  // State dot
-  const dot = getRef(card, 'dot');
-  dot.className = `worker-state-dot ${stateDotClass(st)}`;
-
-  // State label
-  const stLabel = getRef(card, 'state-label');
-  const stText = st.replace('_', ' ').toUpperCase();
-  safeText(stLabel, stText);
-  const stClass = st === 'error' ? 'st-error' : st === 'busy' ? 'st-busy' : '';
-  stLabel.className = `worker-state-label${stClass ? ' ' + stClass : ''}`;
-
-  // Card class
-  card.className = `worker-card state-${st}`;
-
-  // Lane tag (dynamic workers may have a lane capability)
-  const laneEl = getRef(card, 'lane');
-  const lane = info.lane || '';
-  safeText(laneEl, lane ? lane.toUpperCase() : '');
-  laneEl.style.display = lane ? '' : 'none';
-
-  // Focus / specialization subtitle
-  const spec = info.focus || info.specialization || '';
-  safeText(getRef(card, 'spec'), spec || '—');
-
-  // Task
-  const taskEl = getRef(card, 'task');
-  const taskText = info.current_task || null;
-  safeText(taskEl, taskText || 'idle');
-  taskEl.className = `worker-task${taskText ? '' : ' no-task'}`;
-
-  // Mode badge — single badge = info.mode
-  safeText(getRef(card, 'mode'), info.mode || '—');
-
-  // Model — only show if meaningful (not "default"/"auto"/empty)
-  const modelEl = getRef(card, 'model');
-  const modelVal = info.model || '';
-  const showModel = modelVal && modelVal !== 'default' && modelVal !== 'auto';
-  safeText(modelEl, showModel ? modelVal : '');
-  modelEl.style.display = showModel ? '' : 'none';
-
-  // Subagents chips (array of names)
-  const saRow = getRef(card, 'subagents-row');
-  const saList = Array.isArray(info.subagents) ? info.subagents : [];
-  if (saList.length > 0) {
-    saRow.style.display = '';
-    const chips = saList.map(name =>
-      `<span class="sa-chip">${escHtml(String(name))}</span>`
-    ).join('');
-    saRow.innerHTML = chips;
-  } else {
-    saRow.style.display = 'none';
-    saRow.innerHTML = '';
-  }
-
-  // Quality
-  const ql = parseFloat(info.quality_level) || 0;
-  getRef(card, 'q-fill').style.width = fmtPct(ql);
-  safeText(getRef(card, 'q-val'), fmtQuality(ql));
-
-  // Output
-  if (output != null) {
-    const outEl = getRef(card, 'output');
-    const tail = String(output).slice(-800);
-    if (outEl.textContent !== tail) {
-      outEl.textContent = tail;
-      // Auto-scroll only if already at bottom
-      if (outEl.scrollHeight - outEl.scrollTop < outEl.clientHeight + 40) {
-        outEl.scrollTop = outEl.scrollHeight;
-      }
-    }
-  }
-}
-
-function removeStaleWorkers(activeIds) {
-  const activeSet = new Set(activeIds);
-  for (const id of [...state.knownWorkers]) {
-    if (!activeSet.has(id)) {
-      const card = document.getElementById(`wcard-${id}`);
-      if (card) card.remove();
-      state.knownWorkers.delete(id);
-    }
-  }
-}
-
-function updateWorkerCount(n) {
-  safeText(workerCount, n > 0 ? `(${n})` : '');
-}
-
-// ── Apply worker mode ─────────────────────────────────────────────────────────
-async function applyWorkerMode(id, card) {
-  const effort = getRef(card, 'sel-effort').value;
-  const model  = getRef(card, 'sel-model').value;
-  const plan   = getRef(card, 'chk-plan').checked;
-
-  const body = { target: id, plan };
-  if (effort) body.effort = effort;
-  if (model)  body.model_tier = model;
-
-  try {
-    const r = await fetch('/api/control/mode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (r.ok) showToast(`Mode applied to ${id.toUpperCase()}`, 'success');
-    else showToast(`Failed to apply mode: ${r.status}`, 'error');
-  } catch (e) {
-    showToast(`Error: ${e.message}`, 'error');
-  }
-}
-
-// ── Inject target select sync ─────────────────────────────────────────────────
-function syncInjectTargetSelect() {
-  const sel = document.getElementById('inj-target');
-  const existing = new Set([...sel.options].map(o => o.value));
-  for (const id of state.knownWorkers) {
-    if (!existing.has(id)) {
-      const opt = document.createElement('option');
-      opt.value = id; opt.textContent = id.toUpperCase();
-      sel.appendChild(opt);
-    }
-  }
-  // Remove stale options (keep '' = auto)
-  for (const opt of [...sel.options]) {
-    if (opt.value !== '' && !state.knownWorkers.has(opt.value)) opt.remove();
-  }
-}
-
-// ── Inject form ───────────────────────────────────────────────────────────────
-document.getElementById('inject-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const title = document.getElementById('inj-title').value.trim();
-  if (!title) { showToast('Title is required', 'error'); return; }
-
-  const target = document.getElementById('inj-target').value || null;
-  const effort = document.getElementById('inj-effort').value || null;
-  const model  = document.getElementById('inj-model').value  || null;
-  const plan   = document.getElementById('inj-plan').checked;
-  const desc   = document.getElementById('inj-desc').value.trim();
-
-  const body = { title, priority: 'high', plan };
-  if (desc)   body.description = desc;
-  if (target) body.target = target;
-  if (effort) body.effort = effort;
-  if (model)  body.model_tier = model;
-
-  try {
-    const r = await fetch('/api/control/inject', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (r.ok) {
-      showToast('Task injected', 'success');
-      document.getElementById('inj-title').value = '';
-      document.getElementById('inj-desc').value  = '';
-    } else {
-      showToast(`Inject failed: ${r.status}`, 'error');
-    }
-  } catch (e) {
-    showToast(`Error: ${e.message}`, 'error');
-  }
-});
-
-// ── Pause / Resume ────────────────────────────────────────────────────────────
-document.getElementById('btn-pause').addEventListener('click', async () => {
-  try {
-    const r = await fetch('/api/control/pause', { method: 'POST' });
-    if (r.ok) { showToast('Paused', 'info'); document.getElementById('btn-pause').classList.add('active'); }
-    else showToast(`Pause failed: ${r.status}`, 'error');
-  } catch (e) { showToast(`Error: ${e.message}`, 'error'); }
-});
-
-document.getElementById('btn-resume').addEventListener('click', async () => {
-  try {
-    const r = await fetch('/api/control/resume', { method: 'POST' });
-    if (r.ok) { showToast('Resumed', 'info'); document.getElementById('btn-pause').classList.remove('active'); }
-    else showToast(`Resume failed: ${r.status}`, 'error');
-  } catch (e) { showToast(`Error: ${e.message}`, 'error'); }
-});
-
-// ── Config toggles ────────────────────────────────────────────────────────────
-async function sendConfig(key, val) {
-  try {
-    const r = await fetch('/api/control/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: val })
-    });
-    if (!r.ok) showToast(`Config update failed: ${r.status}`, 'error');
-  } catch (e) { showToast(`Error: ${e.message}`, 'error'); }
-}
-
-document.getElementById('tog-model-tiering').addEventListener('change', (e) => {
-  sendConfig('model_tiering', e.target.checked);
-});
-document.getElementById('tog-effort-dial').addEventListener('change', (e) => {
-  sendConfig('effort_dial', e.target.checked);
-});
-document.getElementById('tog-dynamic-agents').addEventListener('change', (e) => {
-  sendConfig('dynamic_agents', e.target.checked);
-});
-
-// ── Tasks panel ───────────────────────────────────────────────────────────────
-function renderTaskList(containerId, tasks) {
-  const container = document.getElementById(containerId);
-  if (!tasks || tasks.length === 0) {
-    container.innerHTML = '<div class="empty-state">none</div>';
-    return;
-  }
-
-  // Build a set of current task IDs in DOM
-  const existingEls = {};
-  for (const child of container.children) {
-    const tid = child.dataset.taskId;
-    if (tid) existingEls[tid] = child;
-  }
-  const incoming = new Set(tasks.map(t => String(t.id || t.title)));
-
-  // Remove stale
-  for (const [tid, el] of Object.entries(existingEls)) {
-    if (!incoming.has(tid)) el.remove();
-  }
-
-  // Add or update
-  for (const task of tasks) {
-    const tid = String(task.id || task.title);
-    let row = existingEls[tid];
-    if (!row) {
-      row = document.createElement('div');
-      row.className = 'task-row';
-      row.dataset.taskId = tid;
-      row.setAttribute('role', 'listitem');
-      container.appendChild(row);
-    }
-    const q = fmtQuality(task.quality_level);
-    const cancelBtn = containerId === 'tasks-progress' && task.id
-      ? `<button class="task-cancel-btn" aria-label="Cancel task ${task.id}" data-cancel-id="${task.id}">&times;</button>`
-      : '';
-    row.innerHTML = `
-      <span class="task-id" title="${task.id || ''}">${(task.id || '—').slice(0,6)}</span>
-      <span class="task-title">${task.title || '—'}</span>
-      <span class="task-assignee">${task.assigned_to || '—'}</span>
-      <span class="task-quality">${q}</span>
-      ${cancelBtn}
-    `;
-    if (cancelBtn) {
-      row.querySelector('.task-cancel-btn')?.addEventListener('click', () => cancelTask(task.id));
-    }
-  }
-}
-
-async function cancelTask(taskId) {
-  try {
-    const r = await fetch('/api/control/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId })
-    });
-    if (r.ok) showToast('Task cancelled', 'info');
-    else showToast(`Cancel failed: ${r.status}`, 'error');
-  } catch (e) { showToast(`Error: ${e.message}`, 'error'); }
-}
-
-// ── Log / Events feeds ────────────────────────────────────────────────────────
-function renderFeed(containerId, entries, buildRow, emptyPlaceholder = '—') {
-  const container = document.getElementById(containerId);
-  if (!entries || entries.length === 0) {
-    container.innerHTML = `<div class="empty-state">${escHtml(emptyPlaceholder)}</div>`;
-    delete container.dataset.populated;
-    return;
-  }
-  container.dataset.populated = '1';
-
-  const fragment = document.createDocumentFragment();
-  for (const entry of entries) {
-    fragment.appendChild(buildRow(entry));
-  }
-  container.innerHTML = '';
-  container.appendChild(fragment);
-}
-
-function buildLogRow(entry) {
-  const row = document.createElement('div');
-  row.className = 'feed-entry';
-  const type = (entry.type || 'state').toLowerCase();
-  const ts = fmtTs(entry.timestamp);
-  row.innerHTML = `
-    <span class="feed-ts">${ts}</span>
-    <span class="feed-tag t-${type}">${type.slice(0,6).toUpperCase()}</span>
-    <span class="feed-msg">${escHtml(entry.message || entry.raw || '')}</span>
-  `;
-  return row;
-}
-
-function eventTypeClass(type) {
-  // Map common event type prefixes to CSS class suffixes
-  const t = type.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  if (t.startsWith('task_sta'))  return 't-task_sta';
-  if (t.startsWith('task_com'))  return 't-task_com';
-  if (t.startsWith('task_fai'))  return 't-task_fai';
-  if (t.startsWith('subagent'))  return 't-subagent';
-  if (t.startsWith('intervent')) return 't-intervnt';
-  if (t.startsWith('error'))     return 't-error';
-  if (t.startsWith('routing'))   return 't-routing';
-  if (t.startsWith('decision'))  return 't-decision';
-  if (t.startsWith('info'))      return 't-info';
-  return '';
-}
-
-function buildEventRow(event) {
-  const row = document.createElement('div');
-  row.className = 'feed-entry';
-  const type = (event.type || 'event').toLowerCase();
-  const cls = eventTypeClass(type);
-  const ts = fmtTs(event.timestamp);
-  const msg = event.message
-    ? event.message
-    : (event.data ? JSON.stringify(event.data) : JSON.stringify(event));
-  row.innerHTML = `
-    <span class="feed-ts">${ts}</span>
-    <span class="feed-tag ${cls}">${type.slice(0,8).toUpperCase().replace(/_/g,'·')}</span>
-    <span class="feed-msg">${escHtml(String(msg).slice(0,200))}</span>
-  `;
-  return row;
-}
-
-function buildSubagentRow(sa) {
-  const row = document.createElement('div');
-  row.className = 'subagent-row';
-  row.setAttribute('role', 'listitem');
-  row.innerHTML = `
-    <span class="sa-ts">${fmtTs(sa.timestamp)}</span>
-    <span class="sa-name">${escHtml(sa.name || '—')}</span>
-    <span class="sa-via">via ${escHtml(sa.terminal || '?')}</span>
-    <span class="sa-task">${escHtml(sa.task || '')}</span>
-  `;
-  return row;
-}
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
-}
-
-// ── Full render from payload ──────────────────────────────────────────────────
-function applyPayload(payload) {
-  if (!payload) return;
-  state.lastData = payload;
-
-  // Summary
-  updateSummary(payload);
-
-  // Workers
-  const terminals = payload.status?.terminals || {};
-  const outputs   = payload.terminal_outputs || {};
-  const ids = Object.keys(terminals);
-
-  for (const id of ids) {
-    updateWorkerCard(id, terminals[id] || {}, outputs[id] ?? null);
-  }
-  removeStaleWorkers(ids);
-  updateWorkerCount(ids.length);
-  syncInjectTargetSelect();
-
-  // Tasks
-  const tasks = payload.tasks || {};
-  renderTaskList('tasks-progress', tasks.in_progress || []);
-  renderTaskList('tasks-pending',  tasks.pending     || []);
-
-  // Log
-  const log = payload.orchestrator_log || [];
-  renderFeed('orch-log', log, buildLogRow, '—');
-
-  // Events
-  const events = payload.events || [];
-  renderFeed('events-feed', events, buildEventRow, '—');
-
-  // Subagents — always render so placeholder shows when empty
-  const sas = payload.subagents || [];
-  renderFeed('subagents-feed', sas, buildSubagentRow, 'no subagent delegations yet');
-}
-
-// ── HTTP fallback poll ────────────────────────────────────────────────────────
-async function fetchAll() {
-  try {
-    const [statusRes, tasksRes, logRes] = await Promise.all([
-      fetch('/api/status'),
-      fetch('/api/tasks'),
-      fetch('/api/orchestrator-log')
-    ]);
-
-    const status = statusRes.ok ? await statusRes.json() : {};
-    const tasks  = tasksRes.ok  ? await tasksRes.json()  : {};
-    // /api/orchestrator-log returns {entries:[...]}, not a bare array.
-    const logBody = logRes.ok ? await logRes.json() : {};
-    const log = Array.isArray(logBody) ? logBody : (logBody.entries || []);
-
-    // Fetch terminal outputs for known workers. The endpoint returns a JSON object
-    // {terminal_id, role, output, ...}; take .output (NOT the raw body) so the panel
-    // shows the real output, matching the WS path's plain-string shape.
-    const ids = Object.keys(status.terminals || {});
-    const outputFetches = ids.map(id =>
-      fetch(`/api/terminal-output/${id}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(j => [id, j && typeof j.output === 'string' ? j.output : ''])
-        .catch(() => [id, ''])
-    );
-    const outputPairs = await Promise.all(outputFetches);
-    const terminal_outputs = Object.fromEntries(outputPairs);
-
-    applyPayload({ status, tasks, orchestrator_log: log, terminal_outputs, events: [], subagents: [] });
-  } catch (e) {
-    // Silently fail — connection indicator already shows status
-  }
-}
-
-function startPoll() {
-  if (state.pollTimer) return;
-  state.pollTimer = setInterval(fetchAll, 5000);
-  fetchAll();
-}
-
-function stopPoll() {
-  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
-}
-
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-function connectWS() {
-  if (state.ws) {
-    try { state.ws.close(); } catch {}
-    state.ws = null;
-  }
-
-  setConnStatus('reconnecting');
-
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  state.ws = ws;
-
-  ws.addEventListener('open', () => {
-    state.wsReady = true;
-    state.retryDelay = 1000;
-    setConnStatus('live');
-    stopPoll();
-  });
-
-  ws.addEventListener('message', (evt) => {
-    try {
-      const msg = JSON.parse(evt.data);
-      if (msg.type === 'update' || msg.status) {
-        applyPayload(msg);
-      }
-    } catch {}
-  });
-
-  ws.addEventListener('close', () => {
-    state.wsReady = false;
-    setConnStatus('reconnecting');
-    startPoll();
-    scheduleReconnect();
-  });
-
-  ws.addEventListener('error', () => {
-    state.wsReady = false;
-    setConnStatus('error');
-    startPoll();
-  });
-}
-
-function scheduleReconnect() {
-  if (state.retryTimer) return;
-  state.retryTimer = setTimeout(() => {
-    state.retryTimer = null;
-    // Exponential backoff, cap 30s
-    state.retryDelay = Math.min(state.retryDelay * 1.6, 30000);
-    connectWS();
-  }, state.retryDelay);
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-connectWS();
-// Kick off a first poll immediately so the UI isn't blank while WS connects
-fetchAll();
-</script>
+      <!-- Completion -->
+      <div class="tile completion metric-cell">
+        <div class="tile-k">Completion</div>
+        <div class="tile-v"><span id="m-completion-val">0%</span></div>
+        <div class="track metric-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="m-completion-aria">
+          <i class="track-fill metric-bar-fill" id="m-completion-fill" style="width:0%"></i>
+        </div>
+      </div>
+
+      <!-- Quality ring -->
+      <div class="tile quality summary-item">
+        <div class="qring">
+          <svg width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
+            <circle cx="31" cy="31" r="26" fill="none" stroke="var(--track)" stroke-width="6"/>
+            <circle id="sum-q-ring" cx="31" cy="31" r="26" fill="none" stroke="var(--accent)" stroke-width="6"
+                    stroke-linecap="round" stroke-dasharray="163.3" stroke-dashoffset="163.3"
+                    transform="rotate(-90 31 31)"/>
+          </svg>
+          <span class="qring-pct" id="sum-q-val">0.0</span>
+        </div>
+        <div>
+          <div class="tile-k">Quality</div>
+          <!-- Hidden ARIA progressbar mirror kept for app.js + assistive tech. -->
+          <div class="q-bar sr-only" role="progressbar" aria-valuemin="0" aria-valuemax="1" id="sum-q-bar-aria">
+            <div class="q-bar-fill" id="sum-q-fill" style="width:0%"></div>
+          </div>
+          <div class="tile-sub" id="sum-q-note">quality average</div>
+        </div>
+      </div>
+
+      <!-- Full-word task tiles -->
+      <div class="tile tc pend"><div class="tile-k">Pending</div><div class="tile-v" id="tc-pending">0</div></div>
+      <div class="tile tc prog"><div class="tile-k">In&nbsp;progress</div><div class="tile-v" id="tc-progress">0</div></div>
+      <div class="tile tc done"><div class="tile-k">Done</div><div class="tile-v" id="tc-completed">0</div></div>
+      <div class="tile tc fail"><div class="tile-k">Failed</div><div class="tile-v" id="tc-failed">0</div></div>
+
+      <!-- Throughput -->
+      <div class="tile metric-cell">
+        <div class="tile-k">Throughput</div>
+        <div class="tile-v metric-num" id="m-throughput">0.0<span class="metric-unit">/min</span></div>
+      </div>
+
+      <!-- Elapsed -->
+      <div class="tile metric-cell">
+        <div class="tile-k">Elapsed</div>
+        <div class="tile-v mono metric-num" id="m-elapsed">0:00</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         MAIN GRID — workers (left) + right rail
+    ══════════════════════════════════════════════ -->
+    <div id="main">
+
+      <!-- LEFT COLUMN -->
+      <div id="left-col">
+
+        <!-- Workers -->
+        <section id="worker-section" aria-label="Agents">
+          <div class="section-hdr section-eyebrow">
+            <h2 class="section-title">Agents</h2>
+            <span class="section-count count" id="worker-count"></span>
+            <div class="rule"></div>
+            <button class="hdr-btn" id="btn-layout" aria-label="Toggle agent layout" title="Switch grid / split layout">Split</button>
+          </div>
+          <div id="worker-area">
+            <div id="worker-grid" class="workers" role="list" data-layout="grid"></div>
+            <aside id="worker-dock" data-collapsed="false" data-empty="true" aria-label="Docked agents">
+              <button id="dock-toggle" aria-label="Collapse agent dock" title="Collapse dock">
+                <span id="dock-toggle-label">Dock</span> ‹
+              </button>
+              <div class="dock-chips" id="dock-chips"></div>
+            </aside>
+          </div>
+        </section>
+
+      </div><!-- /left-col -->
+
+      <!-- RIGHT COLUMN / RAIL -->
+      <div id="right-col" class="rail">
+
+        <!-- Direct Control / Inject -->
+        <section id="inject-section" class="panel" aria-label="Inject task">
+          <div class="panel-head">
+            <h3 class="section-title">Inject a task</h3>
+            <span class="panel-badge">push work to an agent</span>
+          </div>
+          <form class="inject-form inject" id="inject-form" autocomplete="off" novalidate>
+            <input class="if-input" id="inj-title" type="text"
+                   placeholder="Task title — e.g. Add dark-mode palette" aria-label="Task title" required>
+            <textarea class="if-textarea" id="inj-desc"
+                      placeholder="Description (optional)" aria-label="Task description"></textarea>
+            <div class="if-row row3">
+              <div class="field">
+                <label class="wc-label" for="inj-target">Target</label>
+                <select class="if-select" id="inj-target" aria-label="Target agent">
+                  <option value="">auto-assign</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="wc-label" for="inj-effort">Effort</label>
+                <select class="if-select" id="inj-effort" aria-label="Effort level">
+                  <option value="">inherit</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="xhigh">xhigh</option>
+                  <option value="max">max</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="wc-label" for="inj-model">Model</label>
+                <select class="if-select" id="inj-model" aria-label="Model tier">
+                  <option value="">inherit</option>
+                  <option value="cheap">cheap</option>
+                  <option value="standard">standard</option>
+                  <option value="deep">deep</option>
+                </select>
+              </div>
+            </div>
+            <div class="if-actions">
+              <label class="if-check-wrap check" title="The agent plans its approach first and changes nothing until you approve.">
+                <input type="checkbox" id="inj-plan" aria-label="Plan first (agent plans before changing anything)">
+                <span class="check-box" aria-hidden="true"></span>
+                <span>Plan first</span>
+              </label>
+              <button type="submit" class="inject-btn btn-primary" aria-label="Inject task">Inject &rarr;</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Tasks -->
+        <section id="tasks-section" class="panel" aria-label="Tasks">
+          <div class="panel-head">
+            <h3 class="section-title">Tasks</h3>
+          </div>
+          <div class="tasks-inner">
+            <div class="task-group-title">In progress</div>
+            <div id="tasks-progress" role="list"></div>
+            <div class="task-group-title">Pending</div>
+            <div id="tasks-pending" role="list"></div>
+          </div>
+        </section>
+
+        <!-- ══════════════ FEEDS — ONE tabbed panel ══════════════
+             Tabs switch which feed is visible. Each feed keeps its
+             existing render target id (orch-log / events-feed /
+             subagents-feed) so app.js render logic is untouched. -->
+        <section id="feeds-section" class="panel feed-section" aria-label="Activity feeds">
+          <div class="feed-tabs" role="tablist" aria-label="Feed selector">
+            <button class="feed-tab active" role="tab" aria-selected="true"  data-feed="orch-log"       id="feed-tab-orch">Orchestrator</button>
+            <button class="feed-tab"        role="tab" aria-selected="false" data-feed="events-feed"     id="feed-tab-events">Events</button>
+            <button class="feed-tab"        role="tab" aria-selected="false" data-feed="subagents-feed"  id="feed-tab-subagents">Subagents</button>
+          </div>
+          <div class="feed-panels">
+            <div class="feed-inner" id="orch-log" role="log" aria-live="polite" aria-label="Orchestrator log entries"></div>
+            <div class="feed-inner" id="events-feed" role="log" aria-live="polite" aria-label="Event entries" hidden></div>
+            <div class="feed-inner" id="subagents-feed" role="list" aria-label="Subagent invocations" hidden></div>
+          </div>
+        </section>
+
+      </div><!-- /right-col -->
+
+    </div><!-- /main -->
+
+  </div><!-- /wrap -->
+
+</div><!-- /route-dashboard -->
+
+<!-- ══════════════════════════════════════════════
+     VIEW CONTAINER — non-dashboard routes mount here
+══════════════════════════════════════════════ -->
+<main id="view" class="route-page" hidden aria-label="Route view"></main>
+
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

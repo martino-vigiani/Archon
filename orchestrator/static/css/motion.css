@@ -1,0 +1,150 @@
+/* ============================================================
+   ARCHON DASHBOARD — MOTION · "MONO"
+   Shared, token-driven animation utilities. Reference these by
+   class name from any view — do NOT redefine them locally.
+
+   Owned by agent `qa` (per UI-V3-CONTRACT §5). Loaded after
+   app.css via <link> in index.html (added by agent `core`).
+
+   Vocabulary (contract §4):
+     .rise            one-shot entrance: fade + translateY → 0
+     .rise-stagger    same, auto-staggered across children
+     .pulse-live      gentle live-status pulse (dot / ring) on --ok
+     .shimmer         skeleton loading sweep
+     .bubble-in       chat-message / toast pop-in
+
+   Everything is calm and subtle (8–12px travel, ~200–300ms,
+   ease-out) to match the airy MONO direction. All distances,
+   colors and timings derive from var(--…) tokens or the local
+   --motion-* knobs declared below — never hardcoded brand values.
+
+   reduced-motion: a hard reset at the bottom disables every
+   transform/animation/transition for users who ask for it.
+   ─────────────────────────────────────────────────────────── */
+
+:root {
+  /* Motion knobs — tweak the whole system from one place. */
+  --motion-rise:        12px;    /* entrance travel distance      */
+  --motion-rise-dur:    260ms;   /* entrance duration             */
+  --motion-stagger:     46ms;    /* delay step between siblings    */
+  --motion-ease:        cubic-bezier(0.22, 0.61, 0.36, 1); /* ease-out */
+  --motion-hover-dur:   150ms;   /* hover lift / tint              */
+  --motion-bubble:      220ms;   /* chat / toast pop-in            */
+}
+
+/* ── Keyframes ─────────────────────────────────────────────── */
+
+@keyframes mono-rise {
+  from { opacity: 0; transform: translateY(var(--motion-rise)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Live status: a soft ring breathing out from the dot, plus a
+   gentle opacity beat on the dot itself. Tinted with --ok. */
+@keyframes mono-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ok) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+
+@keyframes mono-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* Skeleton sweep — a faint highlight band traveling left→right
+   over the recessed surface. Uses neutral hairline tokens only. */
+@keyframes mono-shimmer {
+  from { background-position: -160% 0; }
+  to   { background-position:  260% 0; }
+}
+
+@keyframes mono-bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* ── Utilities ─────────────────────────────────────────────── */
+
+/* One-shot entrance. Pair with .rise-stagger on a parent for a
+   ladder, or use alone for a single surface. */
+.rise {
+  animation: mono-rise var(--motion-rise-dur) var(--motion-ease) both;
+}
+
+/* Auto-staggered children: each direct child fades/rises in turn.
+   ~10 explicit steps then a graceful cap so longer lists settle
+   quickly rather than dribbling in forever. */
+.rise-stagger > * {
+  animation: mono-rise var(--motion-rise-dur) var(--motion-ease) both;
+}
+.rise-stagger > *:nth-child(1)  { animation-delay: calc(var(--motion-stagger) * 0); }
+.rise-stagger > *:nth-child(2)  { animation-delay: calc(var(--motion-stagger) * 1); }
+.rise-stagger > *:nth-child(3)  { animation-delay: calc(var(--motion-stagger) * 2); }
+.rise-stagger > *:nth-child(4)  { animation-delay: calc(var(--motion-stagger) * 3); }
+.rise-stagger > *:nth-child(5)  { animation-delay: calc(var(--motion-stagger) * 4); }
+.rise-stagger > *:nth-child(6)  { animation-delay: calc(var(--motion-stagger) * 5); }
+.rise-stagger > *:nth-child(7)  { animation-delay: calc(var(--motion-stagger) * 6); }
+.rise-stagger > *:nth-child(8)  { animation-delay: calc(var(--motion-stagger) * 7); }
+.rise-stagger > *:nth-child(9)  { animation-delay: calc(var(--motion-stagger) * 8); }
+.rise-stagger > *:nth-child(10) { animation-delay: calc(var(--motion-stagger) * 9); }
+/* Cap: anything past the 10th shares the last delay so the reveal
+   stays snappy instead of growing unbounded. */
+.rise-stagger > *:nth-child(n+11) { animation-delay: calc(var(--motion-stagger) * 10); }
+
+/* Live status indicator. Put on a small round dot; the ring
+   pulses outward and the dot beats softly. Color comes from --ok
+   (override by setting --ok-context on a wrapper if a different
+   semantic state ever needs the same treatment). */
+.pulse-live {
+  border-radius: var(--r-pill, 999px);
+  background: var(--ok);
+  animation:
+    mono-pulse-ring 2s var(--motion-ease) infinite,
+    mono-pulse-dot  2s ease-in-out        infinite;
+}
+
+/* Skeleton loading block. Apply to a placeholder element that
+   already has its own width/height/radius. Builds a subtle
+   moving highlight from neutral surface + hairline tokens. */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg-2);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--fill-hover) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: mono-shimmer 1.4s linear infinite;
+}
+
+/* Message / toast entrance — softer + slightly springy vs .rise. */
+.bubble-in {
+  animation: mono-bubble-in var(--motion-bubble) var(--motion-ease) both;
+}
+
+/* ── reduced-motion: hard reset ────────────────────────────────
+   Honor the user's OS preference. Kill every transform, animation
+   and transition introduced here so content simply appears. */
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .rise-stagger > *,
+  .pulse-live,
+  .shimmer,
+  .bubble-in {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  /* Make sure entrance utilities don't leave content invisible
+     (animation-fill-mode `both` would otherwise hold opacity:0). */
+  .rise,
+  .rise-stagger > *,
+  .bubble-in {
+    opacity: 1 !important;
+  }
+}

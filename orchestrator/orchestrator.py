@@ -17,25 +17,27 @@ import asyncio
 import contextlib
 import fcntl
 import json
+import os
 import signal
 from datetime import datetime
+from pathlib import Path
 
+from . import metrics, sessions
 from .cli_display import Colors
 from .config import Config, TerminalID
 from .contract_manager import ContractManager
 from .control import ControlChannel
-from .execution import ExecutionProfile, classify_task, profile_for_kind
 from .dynamic_agents import AgentSpec, derive_agents, route_to_agent
+from .execution import ExecutionProfile, classify_task, profile_for_kind
 from .logger import EventLogger
 from .manager_intelligence import ActionType, ManagerAction, ManagerIntelligence, TerminalHeartbeat
 from .message_bus import MessageBus
 from .planner import Planner, TaskPlan
 from .report_manager import Report, ReportManager
+from .session_log import SessionLog
 from .sync_manager import SyncManager
 from .task_queue import FlowState, Task, TaskPriority, TaskQueue, TaskStatus
 from .terminal import Terminal, TerminalState
-from .sync_manager import SyncManager
-from .manager_intelligence import ManagerIntelligence, ManagerAction, ActionType, TerminalHeartbeat
 
 # =============================================================================
 # Progress Bar (optional tqdm integration)
@@ -220,6 +222,24 @@ class Orchestrator:
         self.control = ControlChannel(self.config.orchestra_dir)
         # Per-worker mode overrides set live via the control plane (set_mode command).
         self._mode_overrides: dict[TerminalID, dict] = {}
+
+        # Total firehose log (F16): one append-only session.jsonl for this run.
+        self._session_log = SessionLog(self.config.orchestra_dir)
+
+        # F15: real per-worker progress timestamps (assign / output-save / done).
+        # Feeds TerminalHeartbeat.timestamp so a genuine stall actually fires.
+        self._last_progress_at: dict[TerminalID, str] = {}
+        # Conservative no-progress threshold (seconds) before flagging stuck/needs_input.
+        # Long, quiet `claude --print` tasks (MAX effort) buffer all output until they
+        # finish, so a busy worker can legitimately emit no progress for several
+        # minutes. 600s avoids false "stuck" alarms while still catching a real hang.
+        self._stuck_threshold_seconds = 600.0
+        # Latest stuck / needs_input snapshot (mirrored into status.json).
+        self._stuck: bool = False
+        self._needs_input: dict | None = None
+
+        # F11: latest captured prompt record + adherence per worker (status.json).
+        self._last_adherence: dict[TerminalID, float] = {}
 
         # Rate limit tracking
         self._rate_limited = False
@@ -409,12 +429,49 @@ class Orchestrator:
 
         Serialized compactly (no indent) — it is machine state polled by the dashboard,
         so smaller payloads mean less IO/RAM each tick.
+
+        The live execution-mode toggles live on the in-process Config and are flipped at
+        runtime via the control bus; the dashboard runs in a SEPARATE process, so this file
+        is the only channel that can carry their CURRENT truth to the header toggles.
         """
+        status["model_tiering"] = self.config.model_tiering
+        status["effort_dial"] = self.config.effort_dial
+        status["dynamic_agents"] = self.config.dynamic_agents
         data = json.dumps(status, separators=(",", ":"), default=str)
-        data_hash = hash(data)
+        # The dedup hash must IGNORE per-tick wall-clocks (they change almost every poll
+        # and would defeat change-detection, forcing a write every tick). Hash a copy of
+        # the payload with the clock fields stripped; still WRITE the full status.
+        data_hash = hash(self._status_dedup_key(status))
         if data_hash != self._last_status_hash:
             self._last_status_hash = data_hash
             self.config.status_file.write_text(data)
+            # Mirror each distinct status snapshot into the firehose (F16).
+            self._session_log.state(status)
+
+    @staticmethod
+    def _status_dedup_key(status: dict) -> str:
+        """Serialize a status payload for change-detection, excluding wall-clocks.
+
+        ``metrics.elapsed_sec`` and ``metrics.throughput_per_min`` advance on nearly
+        every poll, so including them in the dedup hash would force a status write each
+        tick. Strip them (and any top-level ``duration_seconds``) from a shallow copy
+        before hashing — the full status is still written; only the HASH excludes clocks.
+
+        Args:
+            status: The status payload about to be written.
+
+        Returns:
+            A compact JSON string of the payload with per-tick clock fields removed.
+        """
+        dedup = dict(status)
+        dedup.pop("duration_seconds", None)
+        raw_metrics = dedup.get("metrics")
+        if isinstance(raw_metrics, dict):
+            trimmed = dict(raw_metrics)
+            trimmed.pop("elapsed_sec", None)
+            trimmed.pop("throughput_per_min", None)
+            dedup["metrics"] = trimmed
+        return json.dumps(dedup, separators=(",", ":"), default=str)
 
     def _get_status(self) -> dict:
         """Get current status."""
@@ -424,6 +481,79 @@ class Orchestrator:
             return {}
 
     # =========================================================================
+    # Session Registry (F1, F14)
+    # =========================================================================
+
+    def _registry_path(self) -> Path:
+        """Resolve the top-level (NON-namespaced) ``sessions.json`` registry path.
+
+        The registry lives at ``<base>/.orchestra/sessions.json`` regardless of
+        whether this run uses a namespaced per-session dir
+        (``<base>/.orchestra/runs/<id>``) or the legacy ``<base>/.orchestra``.
+
+        Returns:
+            Absolute path to the shared ``sessions.json`` registry file.
+        """
+        orch = Path(self.config.orchestra_dir)
+        # Namespaced: .../.orchestra/runs/<id> → registry is two levels up.
+        if orch.parent.name == "runs":
+            return orch.parent.parent / "sessions.json"
+        # Legacy single-session: .../.orchestra → registry sits beside the runs.
+        return orch / "sessions.json"
+
+    def _register_session_start(self, goal: str) -> None:
+        """Register (or refresh) this run in the shared session registry.
+
+        Mints a session id when the config lacks one, records it back onto the
+        config, and writes a ``running`` entry. Best-effort: never raises.
+
+        Args:
+            goal: The run's goal text (used for the slug when minting an id).
+        """
+        try:
+            if not self.config.session_id:
+                self.config.session_id = sessions.make_session_id(goal)
+            # Preserve the project_path the launcher (dashboard /api/runs or __main__'s
+            # --project handling) already recorded; only fall back to base_dir when no
+            # prior entry exists. Otherwise this clobbers the real target dir with the
+            # repo root, which is just where .orchestra lives — not where work happens.
+            existing = sessions.read_session(self._registry_path(), self.config.session_id) or {}
+            project_path = existing.get("project_path") or str(self.config.base_dir)
+            sessions.register_session(
+                self._registry_path(),
+                {
+                    "session_id": self.config.session_id,
+                    "goal": goal,
+                    "project_path": project_path,
+                    "pid": os.getpid(),
+                    "status": "running",
+                    "started_at": (
+                        self.start_time.isoformat()
+                        if self.start_time
+                        else datetime.now().isoformat()
+                    ),
+                    "orchestra_dir": str(self.config.orchestra_dir),
+                },
+            )
+        except Exception as e:  # never let registry I/O crash the run
+            self._log_warning(f"[session] register failed (non-fatal): {e}")
+
+    def _update_session_status(self, status: str, **fields: object) -> None:
+        """Update this run's status in the shared registry (best-effort).
+
+        Args:
+            status: New session status (e.g. ``paused``/``running``/``completed``).
+            **fields: Extra registry fields to set.
+        """
+        sid = self.config.session_id
+        if not sid:
+            return
+        try:
+            sessions.update_session_status(self._registry_path(), sid, status, **fields)
+        except Exception as e:  # never let registry I/O crash the run
+            self._log_warning(f"[session] status update failed (non-fatal): {e}")
+
+    # =========================================================================
     # Pause/Resume Control (for Manager Chat)
     # =========================================================================
 
@@ -431,11 +561,13 @@ class Orchestrator:
         """Pause task execution. Current tasks will complete but no new tasks start."""
         self._paused.clear()
         self._log_warning("Execution PAUSED by user")
+        self._update_session_status("paused")
 
     async def resume(self) -> None:
         """Resume task execution after pause."""
         self._paused.set()
         self._log_success("Execution RESUMED")
+        self._update_session_status("running")
 
     async def inject_task(
         self,
@@ -535,6 +667,8 @@ class Orchestrator:
         """
         for cmd in self.control.drain():
             ctype = cmd.get("type")
+            # Mirror every drained command into the firehose before applying it (F16).
+            self._session_log.control(cmd)
             try:
                 if ctype == "pause":
                     await self.pause()
@@ -580,8 +714,246 @@ class Orchestrator:
                         if key in cmd:
                             setattr(self.config, key, bool(cmd[key]))
                     self._log_info(f"[control] Config updated: {cmd}")
+                elif ctype == "spawn_worker":
+                    await self._spawn_worker_from_control(cmd)
+                elif ctype == "chat":
+                    await self._handle_chat_command(cmd)
+                elif ctype == "stop":
+                    self._log_warning("[control] Stop requested - graceful shutdown")
+                    self._shutdown_requested = True
+                    if not self.continuous_mode:
+                        self.is_running = False
+                    self._update_session_status("stopped")
             except Exception as e:  # never let a bad command crash the loop
                 self._log_warning(f"[control] Failed to apply {ctype}: {e}")
+
+    def _record_adherence(self, terminal_id: TerminalID, output_text: str, task: Task) -> None:
+        """Compute and cache prompt-adherence for a worker's latest output (F11).
+
+        Uses :func:`metrics.adherence_for` over the raw output and the task's
+        title/description/deliverables. The result rides status.json so the
+        dashboard can badge each worker's output quality. Best-effort.
+
+        Args:
+            terminal_id: The worker that produced the output.
+            output_text: The worker's raw output text.
+            task: The task the output belongs to.
+        """
+        try:
+            task_dict = {
+                "title": task.title,
+                "description": task.description,
+                "metadata": task.metadata or {},
+            }
+            self._last_adherence[terminal_id] = metrics.adherence_for(None, output_text, task_dict)
+        except Exception:  # adherence is advisory — never crash the run
+            self._last_adherence[terminal_id] = 0.0
+
+    def _mark_progress(self, terminal_id: TerminalID) -> None:
+        """Record that a worker just made real progress (F15).
+
+        Stamps ``last_progress_at`` for the worker with the current time. This is
+        what feeds :attr:`TerminalHeartbeat.timestamp` so a genuine stall (no
+        assign / output / completion for a while) actually fires, instead of the
+        heartbeat resetting to now every tick.
+
+        Args:
+            terminal_id: The worker that progressed.
+        """
+        self._last_progress_at[terminal_id] = datetime.now().isoformat()
+
+    def _compute_stuck_state(self, terminal_snapshot: dict) -> tuple[bool, dict | None]:
+        """Derive the run-level ``stuck`` / ``needs_input`` signals (F15).
+
+        A worker that is busy (has a current task) but has made no real progress
+        (assign / output / completion) for longer than
+        :attr:`_stuck_threshold_seconds` is considered stalled. The whole run is
+        ``stuck`` when any busy worker is stalled; ``needs_input`` then carries the
+        most-stalled worker as an ASK (never an auto-action).
+
+        Args:
+            terminal_snapshot: The per-worker snapshot just built for status.json.
+
+        Returns:
+            A ``(stuck, needs_input)`` tuple where ``needs_input`` is
+            ``{"worker": wid|None, "question": str}`` or ``None``.
+        """
+        now = datetime.now()
+        worst_worker: TerminalID | None = None
+        worst_elapsed = 0.0
+        for tid, snap in terminal_snapshot.items():
+            # Only busy workers can stall; an idle worker waiting for work is fine.
+            if not snap.get("current_task"):
+                continue
+            stamp = self._last_progress_at.get(tid)
+            if not stamp:
+                continue
+            try:
+                elapsed = (now - datetime.fromisoformat(stamp)).total_seconds()
+            except (ValueError, TypeError):
+                continue
+            if elapsed > self._stuck_threshold_seconds and elapsed > worst_elapsed:
+                worst_elapsed = elapsed
+                worst_worker = tid
+
+        if worst_worker is None:
+            return False, None
+        question = (
+            f"Worker {worst_worker} has shown no progress for "
+            f"{int(worst_elapsed)}s. Intervene, redirect, or wait?"
+        )
+        return True, {"worker": worst_worker, "question": question}
+
+    def _next_dynamic_worker_id(self) -> str:
+        """Mint the next non-colliding dynamic worker id (``w{N+1}``).
+
+        Scans both the live terminals and the dynamic spec map so a spawned worker
+        never reuses an id that already exists in either, even with gaps.
+
+        Returns:
+            A fresh ``w<N>`` id not currently in use.
+        """
+        used = set(self.terminals.keys()) | set(self._dynamic_specs.keys())
+        n = 1
+        while f"w{n}" in used:
+            n += 1
+        return f"w{n}"
+
+    async def _spawn_worker_from_control(self, cmd: dict) -> None:
+        """Spawn a new dynamic worker mid-run from a control command (F10).
+
+        Builds an :class:`AgentSpec` from a ``focus`` (free text) or a capability
+        ``lane`` key, gates its profile (honouring an optional ``profile`` override),
+        appends it to the live roster + dynamic spec map, and starts a Terminal —
+        mirroring :meth:`_spawn_dynamic_roster`.
+
+        Args:
+            cmd: The control command, with ``focus`` and/or ``lane`` and an optional
+                ``profile`` dict.
+        """
+        from .dynamic_agents import LANES, _select_subagents
+
+        lane_key = cmd.get("lane")
+        focus = cmd.get("focus")
+        lane = next((ln for ln in LANES if ln.key == lane_key), None)
+        if lane is None:
+            # Default to the code backbone lane when only a free-text focus is given.
+            lane = next(ln for ln in LANES if ln.key == "code")
+
+        worker_id = self._next_dynamic_worker_id()
+        base_profile = profile_for_kind(lane.kind, tiering=True)
+        if isinstance(cmd.get("profile"), dict):
+            override = ExecutionProfile.from_dict(cmd["profile"])
+            base_profile = base_profile.merged(
+                model_tier=override.model_tier,
+                effort=override.effort,
+                permission_mode=override.permission_mode,
+                append_system_prompt=override.append_system_prompt,
+                allowed_tools=override.allowed_tools,
+                disallowed_tools=override.disallowed_tools,
+                timeout=override.timeout,
+            )
+
+        spec = AgentSpec(
+            id=worker_id,
+            lane=lane.key,
+            kind=lane.kind,
+            focus=(focus.strip() if isinstance(focus, str) and focus.strip() else lane.focus),
+            subagents=_select_subagents(lane, self.config.get_all_subagents()),
+            keywords=list(lane.keywords),
+            profile=base_profile,
+        )
+
+        gated = self.config.gate_profile(spec.profile)
+        terminal = Terminal(
+            terminal_id=spec.id,
+            working_dir=self.config.base_dir,
+            system_prompt=spec.system_prompt(),
+            runtime_config=self.config,
+            verbose=self.verbose,
+            default_profile=gated,
+        )
+        await terminal.start()
+        self.terminals[spec.id] = terminal
+        self.agent_roster.append(spec)
+        self._dynamic_specs[spec.id] = spec
+        self._terminal_modes[spec.id] = gated.badge()
+        self._mark_progress(spec.id)
+        self._log_terminal(spec.id, f"Spawned ({spec.focus})", Colors.GREEN)
+        self._session_log.event("worker_spawned", spec.to_dict())
+
+    async def _handle_chat_command(self, cmd: dict) -> None:
+        """Answer a manager-chat query against the live status and append the reply (F4).
+
+        Calls :func:`manager_chat.answer_query` with the live detailed status,
+        recent reply history and any session memory, then appends a
+        ``{ts, query, answer}`` record to the per-chat reply channel
+        ``<orchestra_dir>/chat/<chat_session_id>.replies.jsonl``.
+
+        Args:
+            cmd: The control command, with ``text`` (the query) and
+                ``chat_session_id`` (the reply-channel key).
+        """
+        from . import manager_chat
+
+        text = cmd.get("text") or ""
+        # Sanitize the channel id before it becomes a filesystem path: this value comes
+        # off the control bus (attacker-controllable). Replacing every char outside
+        # [A-Za-z0-9._-] with '_' strips path separators, so traversal (../, absolute,
+        # backslash) is impossible; a leftover ".." is collapsed to the default too.
+        raw_id = str(cmd.get("chat_session_id") or "default")
+        chat_session_id = (
+            "".join(c if (c.isalnum() or c in "._-") else "_" for c in raw_id) or "default"
+        )
+        if ".." in chat_session_id:
+            chat_session_id = "default"
+        chat_dir = self.config.orchestra_dir / "chat"
+        replies_path = chat_dir / f"{chat_session_id}.replies.jsonl"
+        memory_path = chat_dir / f"{chat_session_id}.memory.json"
+
+        # Prior turns on this channel become the conversational history.
+        history: list[dict] = []
+        with contextlib.suppress(OSError, ValueError):
+            if replies_path.exists():
+                for line in replies_path.read_text().splitlines():
+                    line = line.strip()
+                    if line:
+                        history.append(json.loads(line))
+
+        memory: list | None = None
+        with contextlib.suppress(OSError, ValueError):
+            if memory_path.exists():
+                loaded = json.loads(memory_path.read_text())
+                if isinstance(loaded, list):
+                    memory = loaded
+
+        try:
+            # answer_query is async and reads context["status"]/["reports"] — mirror
+            # ManagerChat.ask_claude exactly: await it and pass the structured context.
+            answer = await manager_chat.answer_query(
+                self.config,
+                {
+                    "status": {
+                        "goal": getattr(self, "_current_goal", ""),
+                        **self.get_detailed_status(),
+                    },
+                    "reports": self.report_manager.get_all_components(),
+                },
+                history,
+                text,
+                memory,
+            )
+        except Exception as e:  # never let a chat failure crash the loop
+            answer = f"(chat error: {e})"
+
+        record = {"ts": datetime.now().isoformat(), "query": text, "answer": answer}
+        try:
+            chat_dir.mkdir(parents=True, exist_ok=True)
+            with open(replies_path, "a") as f:
+                f.write(json.dumps(record, default=str) + "\n")
+        except OSError as e:
+            self._log_warning(f"[control] Failed to append chat reply (non-fatal): {e}")
+        self._session_log.event("chat", record)
 
     async def _run_control_loop(self) -> None:
         """Background loop that applies dashboard control commands ~1x/sec.
@@ -714,6 +1086,18 @@ class Orchestrator:
             include_testing=not self.config.disable_testing,
             tiering=True,
         )
+
+        # F5: apply per-agent ExecutionProfile overrides from roster_overrides.json
+        # (written into the session dir by the dashboard's /api/runs) on top of the
+        # freshly derived roster, keyed by agent id.
+        overrides = self._load_roster_overrides()
+        if overrides:
+            for spec in roster:
+                ov = overrides.get(spec.id)
+                if isinstance(ov, dict):
+                    spec.profile = ExecutionProfile.from_dict(ov)
+            self._log_info(f"Applied roster overrides for: {sorted(overrides.keys())}")
+
         self.agent_roster = roster
         self._dynamic_specs = {spec.id: spec for spec in roster}
 
@@ -730,12 +1114,35 @@ class Orchestrator:
             await terminal.start()
             self.terminals[spec.id] = terminal
             self._terminal_modes[spec.id] = gated.badge()
+            self._mark_progress(spec.id)
             self._log_terminal(spec.id, f"Ready ({spec.focus})", Colors.GREEN)
 
         self._log_success(
             f"Dynamic roster ready: {len(roster)} workers "
             f"({', '.join(f'{s.id}:{s.lane}' for s in roster)})"
         )
+
+    def _load_roster_overrides(self) -> dict[str, dict]:
+        """Load per-agent ExecutionProfile overrides from the session dir (F5).
+
+        Reads ``<orchestra_dir>/roster_overrides.json`` — a mapping of agent id →
+        :class:`ExecutionProfile` dict — that the dashboard writes before spawning
+        a run. Best-effort: a missing/corrupt file yields an empty mapping.
+
+        Returns:
+            Mapping of agent id → profile-dict (possibly empty).
+        """
+        path = self.config.orchestra_dir / "roster_overrides.json"
+        try:
+            if not path.exists():
+                return {}
+            data = json.loads(path.read_text())
+        except (OSError, ValueError) as e:
+            self._log_warning(f"[roster] overrides unreadable (non-fatal): {e}")
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return {k: v for k, v in data.items() if isinstance(v, dict)}
 
     async def _spawn_terminal(self, terminal_id: TerminalID) -> Terminal | None:
         """Spawn a single terminal."""
@@ -875,21 +1282,34 @@ class Orchestrator:
         - model tier is applied only when ``model_tiering`` is on (may request a model
           the plan lacks, so opt-in).
         """
-        override = (task.metadata or {}).get("profile") if hasattr(task, "metadata") else None
+        metadata = task.metadata if hasattr(task, "metadata") else None
+        override = (metadata or {}).get("profile")
         if override:
-            return ExecutionProfile.from_dict(override)
-
-        if terminal_id and terminal_id in self._mode_overrides:
-            return ExecutionProfile.from_dict(self._mode_overrides[terminal_id])
-
-        spec = self._dynamic_specs.get(terminal_id) if terminal_id else None
-        if spec is not None:
-            profile = spec.profile
+            resolved = ExecutionProfile.from_dict(override)
+        elif terminal_id and terminal_id in self._mode_overrides:
+            resolved = ExecutionProfile.from_dict(self._mode_overrides[terminal_id])
         else:
-            kind = classify_task(task.title, task.description)
-            profile = profile_for_kind(kind, tiering=True)  # both model + effort
+            spec = self._dynamic_specs.get(terminal_id) if terminal_id else None
+            if spec is not None:
+                profile = spec.profile
+            else:
+                kind = classify_task(task.title, task.description)
+                profile = profile_for_kind(kind, tiering=True)  # both model + effort
+            resolved = self.config.gate_profile(profile)
 
-        return self.config.gate_profile(profile)
+        # F2: carry how-to instructions from task metadata into the worker run as an
+        # appended system prompt (without clobbering a profile that already set one).
+        instructions = None
+        if isinstance(metadata, dict):
+            instructions = metadata.get("append_system_prompt") or metadata.get("instructions")
+        if isinstance(instructions, str) and instructions.strip():
+            if resolved.append_system_prompt:
+                merged_system = f"{resolved.append_system_prompt}\n\n{instructions.strip()}"
+            else:
+                merged_system = instructions.strip()
+            resolved = resolved.merged(append_system_prompt=merged_system)
+
+        return resolved
 
     async def _execute_task_on_terminal(
         self,
@@ -956,6 +1376,9 @@ This helps the orchestrator coordinate with other terminals.
         self._terminal_modes[terminal_id] = profile.badge()
         task_timeout = profile.timeout or self.config.terminal_timeout
 
+        # F15: the worker is actively running now — stamp real progress.
+        self._mark_progress(terminal_id)
+
         try:
             output = await terminal.execute_task(
                 prompt=prompt,
@@ -963,6 +1386,19 @@ This helps the orchestrator coordinate with other terminals.
                 timeout=task_timeout,
                 profile=profile,
             )
+
+            # F16: capture the FULL, untruncated output into the firehose BEFORE the
+            # 3000/2000-char truncations applied below for the dashboard / task result.
+            self._session_log.output(
+                terminal_id,
+                task.id,
+                output.content,
+                profile=profile.badge(),
+            )
+            # F11: estimate prompt-adherence from the raw output for the status block.
+            self._record_adherence(terminal_id, output.content, task)
+            # F15: output arrived — real progress.
+            self._mark_progress(terminal_id)
 
             # Save terminal output for dashboard
             self._save_terminal_output(terminal_id, output.content)
@@ -1024,6 +1460,8 @@ This helps the orchestrator coordinate with other terminals.
 
                 self._log_terminal(terminal_id, f"Done: {task.title}", Colors.GREEN)
                 self.event_logger.task_completed(terminal_id, task.id, task.title)
+                # F15: completion is real progress.
+                self._mark_progress(terminal_id)
 
                 # Update progress
                 if self._progress:
@@ -1202,15 +1640,27 @@ This helps the orchestrator coordinate with other terminals.
                     await asyncio.sleep(self._manager_loop_interval)
                     continue
 
-                # Build heartbeats from internal terminal state (no disk I/O)
+                # Build heartbeats from internal terminal state (no disk I/O).
+                # F15: feed the REAL last-progress timestamp into the heartbeat so a
+                # genuine stall actually ages out (the heartbeat previously defaulted
+                # its timestamp to now, so age_seconds was always ~0 and never fired).
                 heartbeats = {}
                 for tid, terminal in self.terminals.items():
-                    heartbeats[tid] = TerminalHeartbeat(
-                        terminal_id=tid,
-                        current_task_id=terminal.current_task_id,
-                        current_task_title=terminal.current_task_id,
-                        is_blocked=(terminal.state.value == "blocked"),
-                    )
+                    kwargs: dict = {
+                        "terminal_id": tid,
+                        "current_task_id": terminal.current_task_id,
+                        "current_task_title": terminal.current_task_id,
+                        "is_blocked": (terminal.state.value == "blocked"),
+                    }
+                    # Only feed the real last-progress timestamp when the worker is
+                    # actually BUSY (has a current task). An idle worker waiting for
+                    # work has a stale last_progress_at and would otherwise look stalled;
+                    # for it we keep the heartbeat default (now) so it is never flagged.
+                    last_progress = self._last_progress_at.get(tid)
+                    if last_progress and terminal.current_task_id:
+                        kwargs["timestamp"] = last_progress
+                        kwargs["last_output_timestamp"] = last_progress
+                    heartbeats[tid] = TerminalHeartbeat(**kwargs)
 
                 # Get contracts for context (live roster, dynamic-aware)
                 contracts = {}
@@ -1244,12 +1694,15 @@ This helps the orchestrator coordinate with other terminals.
         Handles the 5 intervention types: AMPLIFY, REDIRECT, MEDIATE, INJECT, PRUNE
         """
         self._log_info(f"Manager action: {action.action_type.value} - {action.reason}")
-        self.event_logger.log_event("manager_action", {
+        action_payload = {
             "type": action.action_type.value,
             "reason": action.reason,
             "priority": action.priority,
             "flow_state_before": action.flow_state_before,
-        })
+        }
+        self.event_logger.log_event("manager_action", action_payload)
+        # F16: mirror every manager intervention into the firehose.
+        self._session_log.event("manager_action", action_payload)
 
         # ORGANIC FLOW INTERVENTIONS (v2.0)
 
@@ -1609,6 +2062,8 @@ If the task is not critical, you may skip it with an explanation.
                     self._log_terminal(
                         terminal_id, f"{phase_tag} Assigned: {assigned.title}", Colors.CYAN
                     )
+                    # F15: assignment is real progress for this worker.
+                    self._mark_progress(terminal_id)
 
                     # Start task execution in background
                     future = asyncio.create_task(
@@ -1621,25 +2076,50 @@ If the task is not critical, you may skip it with an explanation.
             terminal_snapshot = {}
             for tid, terminal in self.terminals.items():
                 runtime_profile = self.config.get_terminal_runtime_profile(tid)
+                current_task = self.task_queue.get_terminal_current_task(tid)
                 terminal_snapshot[tid] = {
                     "state": terminal.state.value,
                     "current_task": terminal.current_task_id,
+                    # F9: metrics._per_worker reads quality_level — mirror
+                    # get_detailed_status so the metrics block sees real quality.
+                    "quality_level": current_task.quality_level if current_task else 0.0,
                     "provider": runtime_profile["provider"],
                     "model": runtime_profile["model"],
                     "reasoning_profile": runtime_profile["reasoning"],
                     "specialization": runtime_profile["specialization"],
                     "mode": self._terminal_modes.get(tid, "auto"),
+                    # F15 / F11: real progress timestamp + output-adherence per worker.
+                    "last_progress_at": self._last_progress_at.get(tid),
+                    "adherence": self._last_adherence.get(tid, 0.0),
                     **self._dynamic_meta(tid),
                 }
 
-            self._update_status({
+            tasks_summary = self.task_queue.get_status_summary()
+            now_iso = datetime.now().isoformat()
+            stuck, needs_input = self._compute_stuck_state(terminal_snapshot)
+            self._stuck, self._needs_input = stuck, needs_input
+
+            status_payload: dict = {
                 "state": "running",
                 "current_phase": current_phase,
                 "use_organic_model": self.use_organic_model,
                 "flow_state": flow_state_data if self.use_organic_model else None,
                 "terminals": terminal_snapshot,
-                "tasks": self.task_queue.get_status_summary(),
-            })
+                "tasks": tasks_summary,
+                # F3: live roster (dynamic + spawned). Empty for the legacy fixed roster.
+                "roster": [spec.to_dict() for spec in self.agent_roster],
+                # F9: fresh metrics derived from the just-built snapshot.
+                "metrics": metrics.compute_metrics(
+                    {"terminals": terminal_snapshot},
+                    tasks_summary,
+                    self.start_time.isoformat() if self.start_time else None,
+                    now_iso,
+                ),
+                # F15: stuck / needs-input signals.
+                "stuck": stuck,
+                "needs_input": needs_input,
+            }
+            self._update_status(status_payload)
 
             # Brief pause before next iteration
             await asyncio.sleep(self.config.poll_interval)
@@ -1693,7 +2173,16 @@ If the task is not critical, you may skip it with an explanation.
         """
         self.is_running = True
         self.start_time = datetime.now()
+        # Remember the run goal so the live chat (F4) can answer about it even
+        # before the plan/tasks land in the status snapshot.
+        self._current_goal = task
 
+        # Register this run in the shared session registry (mints a session id
+        # if the config lacks one) so the dashboard can discover/steer it.
+        self._register_session_start(task)
+        self._session_log.event("run_started", {"goal": task, "session_id": self.config.session_id})
+
+        run_status = "completed"
         try:
             # Initialize
             await self.initialize()
@@ -1709,6 +2198,7 @@ If the task is not critical, you may skip it with an explanation.
             self._control_loop_task = asyncio.create_task(self._run_control_loop())
 
             if not self.terminals:
+                run_status = "failed"
                 return {"error": "No terminals created"}
 
             # Run the main workflow (possibly in continuous mode)
@@ -1742,9 +2232,19 @@ If the task is not critical, you may skip it with an explanation.
                 current_task = new_task
 
             # Generate final report
-            return self._generate_report()
+            report = self._generate_report()
+            if self._rate_limited or report.get("status") == "partial":
+                run_status = "completed"
+            return report
+
+        except Exception:
+            run_status = "failed"
+            raise
 
         finally:
+            # Record terminal session status before tearing down.
+            self._update_session_status(run_status)
+            self._session_log.event("run_finished", {"status": run_status})
             # Cleanup
             await self.shutdown()
 

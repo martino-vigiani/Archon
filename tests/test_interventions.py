@@ -98,7 +98,7 @@ class TestREDIRECTIntervention:
     def test_redirect_via_escalation(self, manager_intelligence: ManagerIntelligence):
         """REDIRECT can escalate to shift terminal focus."""
         # Create a situation where redirect is needed - terminal stalled
-        old_time = datetime.now() - timedelta(seconds=200)
+        old_time = datetime.now() - timedelta(seconds=700)
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
             "t1": TerminalHeartbeat(
                 terminal_id="t1",
@@ -285,7 +285,7 @@ class TestInterventionTriggers:
 
     def test_stalled_terminal_triggers_escalation(self, manager_intelligence: ManagerIntelligence):
         """Stalled terminals should trigger ESCALATE action."""
-        old_time = datetime.now() - timedelta(seconds=200)
+        old_time = datetime.now() - timedelta(seconds=700)
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
             "t1": TerminalHeartbeat(
                 terminal_id="t1",
@@ -468,7 +468,7 @@ class TestActionHistory:
 
     def test_actions_stored_in_history(self, manager_intelligence: ManagerIntelligence):
         """Actions should be stored in history."""
-        old_time = datetime.now() - timedelta(seconds=200)
+        old_time = datetime.now() - timedelta(seconds=700)
         heartbeats: dict[TerminalID, TerminalHeartbeat] = {
             "t1": TerminalHeartbeat(
                 terminal_id="t1",

@@ -13,13 +13,13 @@ import asyncio
 import contextlib
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .orchestrator import Orchestrator
 
 from .cli_display import (
-    TERMINAL_PERSONALITIES,
     Colors,
     c,
     get_terminal_badge,
@@ -31,23 +31,185 @@ from .cli_display import (
 from .config import Config
 from .execution import utility_profile
 
+# Legacy fixed roster, used only as a final fallback when no live roster is
+# available (mirrors dashboard._known_terminal_ids).
+_LEGACY_TERMINAL_IDS: list[str] = ["t1", "t2", "t3", "t4", "t5"]
+
+# Default chat session id when the caller does not scope the conversation.
+DEFAULT_CHAT_SESSION_ID = "default"
+
+
+def _roster_ids_from_status(status: dict | None) -> list[str]:
+    """Return live worker ids from a status dict, falling back to the legacy roster.
+
+    Mirrors ``dashboard._known_terminal_ids``: the live ``terminals`` mapping is the
+    source of truth (dynamic-aware), and the fixed T1..T5 roster is only used when no
+    live roster is present yet.
+
+    Args:
+        status: A detailed-status dict (e.g. from ``get_detailed_status``) or None.
+
+    Returns:
+        Ordered list of worker ids; never empty.
+    """
+    ids = list(((status or {}).get("terminals") or {}).keys())
+    return ids or list(_LEGACY_TERMINAL_IDS)
+
+
+# =============================================================================
+# Natural-language Q&A (shared by the REPL and the dashboard control plane)
+# =============================================================================
+
+
+async def answer_query(
+    config: Config,
+    context: dict,
+    history: list,
+    query: str,
+    memory: list | None = None,
+) -> str:
+    """Answer a natural-language question about a running session.
+
+    This is the single Q&A entrypoint reused by both the interactive REPL
+    (:meth:`ManagerChat.ask_claude`) and the dashboard control plane
+    (``POST /api/control/chat`` → orchestrator ``chat`` command). It applies the EXACT
+    same token policy as the original ``ask_claude``: a cheap *utility* call gated
+    through ``config.gate_profile(utility_profile())`` and composed via
+    ``config.build_llm_command`` with ``bare=False`` (the default), so it honors the
+    ``--model-tiering`` / ``--no-effort-dial`` switches and never spends top-tier tokens.
+
+    Args:
+        config: The session ``Config`` (provides the gated command + base dir).
+        context: Free-form context dict. Recognized keys ``status`` (detailed status)
+            and ``reports`` (worker components); any other keys are serialized too.
+        history: Recent chat turns (list of ``{"role", "content", ...}`` dicts).
+        query: The user's natural-language question.
+        memory: Optional durable "Session Memory" entries injected into the prompt.
+
+    Returns:
+        The model's answer, or a friendly fallback string on timeout/error. Never raises.
+    """
+    status = context.get("status", {}) if isinstance(context, dict) else {}
+    reports = context.get("reports", {}) if isinstance(context, dict) else {}
+
+    # Compact context (separators, not indent) to cut prompt tokens.
+    status_payload = json.dumps(status, separators=(",", ":"), default=str)[:3500]
+    reports_payload = json.dumps(reports, separators=(",", ":"), default=str)[:2500]
+    history_payload = json.dumps(history or [], separators=(",", ":"), default=str)[:1200]
+
+    # Optional durable session memory block.
+    memory_block = ""
+    if memory:
+        memory_payload = json.dumps(memory, separators=(",", ":"), default=str)[:1500]
+        memory_block = f"""## Session Memory
+
+{memory_payload}
+
+"""
+
+    prompt = f"""You are the Manager Assistant for Archon, a multi-terminal orchestration system.
+Answer the user's question concisely based on the current execution state.
+
+## Current Execution State
+
+{status_payload}
+
+## Worker Components Created
+
+{reports_payload}
+
+{memory_block}## Recent Chat History
+
+{history_payload}
+
+## User Question
+
+{query}
+
+## Instructions
+
+- Be concise (2-4 sentences max)
+- Reference workers by the ids present in the state above
+- If you don't have enough information, say so
+- Provide actionable insights when possible
+- Avoid repeating context verbatim.
+"""
+
+    # Chat Q&A is a cheap utility call: run it on the cheap tier with low effort so
+    # it never spends top-tier tokens. config.gate_profile honors the
+    # --model-tiering / --no-effort-dial switches uniformly.
+    chat_profile = config.gate_profile(utility_profile())
+
+    proc: asyncio.subprocess.Process | None = None
+    try:
+        # Async subprocess so the chat/orchestrator event loop is not blocked.
+        # bare=False is enforced via the profile (utility_profile() sets bare=False so
+        # OAuth/subscription auth keeps working); build_llm_command takes no bare kwarg.
+        command = config.build_llm_command(prompt, profile=chat_profile)
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(config.base_dir),
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        out = (stdout or b"").decode("utf-8", "replace").strip()
+        err = (stderr or b"").decode("utf-8", "replace").strip()
+
+        if proc.returncode == 0 and out:
+            return out
+        if proc.returncode == 0 and err:
+            return err
+        return "I couldn't process that question. Try rephrasing or use a specific command like 'status'."
+
+    except TimeoutError:
+        return "Response timed out. Try a simpler question or use 'status' for quick info."
+    except FileNotFoundError:
+        return "Configured model CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
+    except Exception as e:
+        return f"Error: {str(e)}"
+    finally:
+        # wait_for cancels communicate() but does NOT kill the child; reap it so a
+        # timed-out/aborted chat query never leaks an orphaned CLI subprocess.
+        if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(Exception):
+                await proc.wait()
+
+
 # =============================================================================
 # Chat History
 # =============================================================================
 
 
 class ChatHistory:
-    """Manages chat history for context."""
+    """Manages session-scoped chat history (and persistent memory) for context.
 
-    def __init__(self, config: Config, max_entries: int = 50):
+    The conversation transcript lives at ``<orchestra_dir>/chat/<chat_session_id>.json``
+    so concurrent chat sessions never collide. A companion, read-only
+    ``<orchestra_dir>/chat/<chat_session_id>.memory.json`` (a JSON array of strings or
+    objects) provides durable "Session Memory" that is fed into the prompt but never
+    overwritten by the chat loop.
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        max_entries: int = 50,
+        chat_session_id: str = DEFAULT_CHAT_SESSION_ID,
+    ):
         self.config = config
         self.max_entries = max_entries
-        self.history_file = config.orchestra_dir / "chat_history.json"
+        self.chat_session_id = chat_session_id or DEFAULT_CHAT_SESSION_ID
+        self.chat_dir: Path = config.orchestra_dir / "chat"
+        self.history_file = self.chat_dir / f"{self.chat_session_id}.json"
+        self.memory_file = self.chat_dir / f"{self.chat_session_id}.memory.json"
         self.entries: list[dict] = []
         self._load()
 
     def _load(self) -> None:
-        """Load history from file."""
+        """Load history from the session-scoped file (best-effort)."""
         if self.history_file.exists():
             try:
                 self.entries = json.loads(self.history_file.read_text())
@@ -55,9 +217,35 @@ class ChatHistory:
                 self.entries = []
 
     def _save(self) -> None:
-        """Save history to file."""
-        self.config.ensure_dirs()
-        self.history_file.write_text(json.dumps(self.entries[-self.max_entries :], indent=2))
+        """Persist history to the session-scoped file (best-effort, never crashes)."""
+        try:
+            self.chat_dir.mkdir(parents=True, exist_ok=True)
+            self.history_file.write_text(json.dumps(self.entries[-self.max_entries :], indent=2))
+        except OSError:
+            # File I/O is best-effort; a failed save must never abort the run.
+            pass
+
+    def get_memory(self, limit: int = 20) -> list:
+        """Return durable session memory entries (best-effort, never raises).
+
+        Args:
+            limit: Maximum number of trailing memory entries to return.
+
+        Returns:
+            A list of memory items (strings or dicts). Empty when absent/corrupt.
+        """
+        if not self.memory_file.exists():
+            return []
+        try:
+            data = json.loads(self.memory_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return []
+        if isinstance(data, list):
+            return data[-limit:]
+        # Tolerate a single-object or wrapped memory file.
+        if isinstance(data, dict) and isinstance(data.get("memory"), list):
+            return data["memory"][-limit:]
+        return [data]
 
     def add(self, role: str, content: str) -> None:
         """Add an entry to history."""
@@ -120,11 +308,27 @@ class ManagerChat:
         "quit": "Exit chat (orchestrator continues)",
     }
 
-    def __init__(self, orchestrator: "Orchestrator", config: Config):
+    def __init__(
+        self,
+        orchestrator: "Orchestrator",
+        config: Config,
+        chat_session_id: str = DEFAULT_CHAT_SESSION_ID,
+    ):
         self.orchestrator = orchestrator
         self.config = config
-        self.history = ChatHistory(config)
+        self.chat_session_id = chat_session_id or DEFAULT_CHAT_SESSION_ID
+        self.history = ChatHistory(config, chat_session_id=self.chat_session_id)
         self._running = True
+
+    def _roster_ids(self, status: dict | None = None) -> list[str]:
+        """Live worker ids for display loops (dynamic-aware, legacy fallback).
+
+        Reads from the supplied status dict when given, otherwise from a fresh
+        ``get_detailed_status()``. Mirrors the ``_known_terminal_ids`` pattern.
+        """
+        if status is None:
+            status = self.orchestrator.get_detailed_status()
+        return _roster_ids_from_status(status)
 
     def _print_manager(self, message: str, color: str = Colors.BRIGHT_CYAN) -> None:
         """Print a message from the manager."""
@@ -211,7 +415,7 @@ class ManagerChat:
         """Handle status command."""
         status = self.orchestrator.get_detailed_status()
 
-        if args and args.lower() in ["t1", "t2", "t3", "t4", "t5"]:
+        if args and args.lower() in self._roster_ids(status):
             # Terminal-specific status
             return self._format_terminal_status(args.lower(), status)
         else:
@@ -259,7 +463,7 @@ class ManagerChat:
         lines.append("Terminals:")
         terminals = status.get("terminals", {})
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        for tid in _roster_ids_from_status(status):
             t_info = terminals.get(tid, {})
             t_state = t_info.get("state", "unknown")
             t_task = t_info.get("current_task", None)
@@ -409,7 +613,7 @@ class ManagerChat:
         """Handle reports command to show recent terminal reports."""
         lines = ["Recent Reports:", ""]
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        for tid in self._roster_ids():
             reports = self.orchestrator.report_manager.get_reports_for_terminal(tid, limit=2)
             if reports:
                 badge = get_terminal_badge(tid)
@@ -438,12 +642,8 @@ class ManagerChat:
         status = self.orchestrator.get_detailed_status()
         terminals = status.get("terminals", {})
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        for tid in _roster_ids_from_status(status):
             t_info = terminals.get(tid, {})
-            personality = TERMINAL_PERSONALITIES.get(tid)
-
-            if not personality:
-                continue
 
             # Get quality from reports (estimate based on completed tasks)
             reports = self.orchestrator.report_manager.get_reports_for_terminal(tid, limit=5)
@@ -570,7 +770,7 @@ class ManagerChat:
         blocked_terminals = []
         idle_terminals = []
 
-        for tid in ["t1", "t2", "t3", "t4", "t5"]:
+        for tid in _roster_ids_from_status(status):
             t_info = terminals.get(tid, {})
             state = t_info.get("state", "unknown")
             current_task = t_info.get("current_task")
@@ -676,7 +876,11 @@ class ManagerChat:
                 Colors.BRIGHT_RED,
             )
 
-        valid_targets = ["t1", "t2", "t3", "t4", "t5"]
+        # Validate the target against the LIVE roster (dynamic-aware: w1..wN under
+        # --dynamic-agents). _roster_ids() reads get_detailed_status() and falls back to
+        # the legacy t1..t5 ids only when no live roster is present yet. Match
+        # case-insensitively (target is already lowercased above).
+        valid_targets = [tid.lower() for tid in self._roster_ids()]
         if target not in valid_targets:
             return c(
                 f"Unknown target: {target}. Valid: {', '.join(valid_targets)}", Colors.BRIGHT_RED
@@ -801,90 +1005,27 @@ class ManagerChat:
         """
         Use the configured model runtime to answer natural language questions.
 
+        Thin wrapper around the module-level :func:`answer_query` so the dashboard
+        control-plane (``POST /api/control/chat``) and the interactive REPL share the
+        EXACT same token policy and prompt shape.
+
         Args:
             query: User's natural language question
 
         Returns:
             Model response
         """
-        # Gather context
-        status = self.orchestrator.get_detailed_status()
-        reports = self.orchestrator.report_manager.get_all_components()
-        recent_history = self.history.get_recent(5)
-
-        # Compact context (separators, not indent) to cut prompt tokens.
-        status_payload = json.dumps(status, separators=(",", ":"), default=str)[:3500]
-        reports_payload = json.dumps(reports, separators=(",", ":"), default=str)[:2500]
-        history_payload = json.dumps(recent_history, separators=(",", ":"), default=str)[:1200]
-
-        # Build prompt
-        prompt = f"""You are the Manager Assistant for Archon, a multi-terminal orchestration system.
-Answer the user's question concisely based on the current execution state.
-
-## Current Execution State
-
-{status_payload}
-
-## Worker Components Created
-
-{reports_payload}
-
-## Recent Chat History
-
-{history_payload}
-
-## User Question
-
-{query}
-
-## Instructions
-
-- Be concise (2-4 sentences max)
-- Reference workers by the ids present in the state above
-- If you don't have enough information, say so
-- Provide actionable insights when possible
-- Avoid repeating context verbatim.
-"""
-
-        # Chat Q&A is a cheap utility call: run it on the cheap tier with low effort so
-        # it never spends top-tier tokens. config.gate_profile honors the
-        # --model-tiering / --no-effort-dial switches uniformly.
-        chat_profile = self.config.gate_profile(utility_profile())
-
-        proc: asyncio.subprocess.Process | None = None
-        try:
-            # Async subprocess so the chat/orchestrator event loop is not blocked.
-            command = self.config.build_llm_command(prompt, profile=chat_profile)
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(self.config.base_dir),
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-            out = (stdout or b"").decode("utf-8", "replace").strip()
-            err = (stderr or b"").decode("utf-8", "replace").strip()
-
-            if proc.returncode == 0 and out:
-                return out
-            if proc.returncode == 0 and err:
-                return err
-            return "I couldn't process that question. Try rephrasing or use a specific command like 'status'."
-
-        except asyncio.TimeoutError:
-            return "Response timed out. Try a simpler question or use 'status' for quick info."
-        except FileNotFoundError:
-            return "Configured model CLI not available. Use built-in commands like 'status', 'tasks', 'reports'."
-        except Exception as e:
-            return f"Error: {str(e)}"
-        finally:
-            # wait_for cancels communicate() but does NOT kill the child; reap it so a
-            # timed-out/aborted chat query never leaks an orphaned CLI subprocess.
-            if proc is not None and proc.returncode is None:
-                with contextlib.suppress(ProcessLookupError):
-                    proc.kill()
-                with contextlib.suppress(Exception):
-                    await proc.wait()
+        context = {
+            "status": self.orchestrator.get_detailed_status(),
+            "reports": self.orchestrator.report_manager.get_all_components(),
+        }
+        return await answer_query(
+            self.config,
+            context,
+            self.history.get_recent(5),
+            query,
+            memory=self.history.get_memory(),
+        )
 
     # =========================================================================
     # Main Processing
