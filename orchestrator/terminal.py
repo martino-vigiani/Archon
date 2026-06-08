@@ -6,6 +6,7 @@ as a single non-interactive CLI call for reliability.
 """
 
 import asyncio
+import contextlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +16,43 @@ from typing import Any
 
 from .config import Config
 from .execution import ExecutionProfile
+
+# Defensive cap on the decoded worker output we keep in RAM. ``communicate()``
+# buffers the entire child stdout/stderr with no upper bound, so a runaway worker
+# (e.g. a CLI that streams megabytes of logs) could exhaust memory over a long
+# run. We bound the *stored/returned* string by keeping its head and tail and
+# collapsing the middle into a truncation marker. This is a post-decode guard,
+# not true streaming capture (out of scope), and never changes success/error
+# logic or return types.
+MAX_OUTPUT_BYTES = 2 * 1024 * 1024  # 2 MiB
+
+
+def _cap_output(text: str, max_bytes: int = MAX_OUTPUT_BYTES) -> str:
+    """Bound a decoded output string to ``max_bytes``, keeping head and tail.
+
+    When ``text`` exceeds ``max_bytes`` (measured on its UTF-8 encoding), the
+    middle is replaced with a ``...[truncated N bytes]...`` marker so the start
+    and end of the output remain visible for diagnostics. Smaller strings are
+    returned unchanged.
+
+    Args:
+        text: The decoded output to bound.
+        max_bytes: Maximum allowed size of the UTF-8 encoded result body
+            (excluding the marker). Defaults to :data:`MAX_OUTPUT_BYTES`.
+
+    Returns:
+        Either ``text`` unchanged or a head+marker+tail truncation of it.
+    """
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+
+    removed = len(encoded) - max_bytes
+    head_bytes = max_bytes // 2
+    tail_bytes = max_bytes - head_bytes
+    head = encoded[:head_bytes].decode("utf-8", errors="ignore")
+    tail = encoded[len(encoded) - tail_bytes:].decode("utf-8", errors="ignore")
+    return f"{head}\n...[truncated {removed} bytes]...\n{tail}"
 
 
 class TerminalState(str, Enum):
@@ -298,8 +336,11 @@ class Terminal:
 
         # IMPORTANT: Save returncode BEFORE setting _process to None
         returncode = self._process.returncode
-        output = stdout.decode("utf-8") if stdout else ""
-        error = stderr.decode("utf-8") if stderr else ""
+        # Bound the in-RAM output: ``communicate()`` buffers the full child
+        # stdout/stderr with no cap, so we defensively truncate the decoded
+        # strings (head+tail) before they are stored or returned.
+        output = _cap_output(stdout.decode("utf-8")) if stdout else ""
+        error = _cap_output(stderr.decode("utf-8")) if stderr else ""
 
         # Clean up process reference
         self._process = None
@@ -396,6 +437,10 @@ class Terminal:
                 except ProcessLookupError:
                     pass
                 finally:
+                    # Reap the killed child so it does not linger as a <defunct>
+                    # zombie (PID/FD exhaustion over a long run). Best-effort.
+                    with contextlib.suppress(Exception):
+                        await self._process.wait()
                     self._process = None
 
             self.state = TerminalState.ERROR
@@ -435,6 +480,10 @@ class Terminal:
                 except ProcessLookupError:
                     pass
                 finally:
+                    # Reap the terminated child so it does not linger as a
+                    # <defunct> zombie. Best-effort, never raises.
+                    with contextlib.suppress(Exception):
+                        await self._process.wait()
                     self._process = None
 
             self.state = TerminalState.ERROR
@@ -455,6 +504,10 @@ class Terminal:
             except ProcessLookupError:
                 pass  # Process already terminated
             finally:
+                # Reap the killed child so it does not linger as a <defunct>
+                # zombie. Best-effort, never raises.
+                with contextlib.suppress(Exception):
+                    await self._process.wait()
                 self._process = None
         self.state = TerminalState.STOPPED
         self._log("Stopped")

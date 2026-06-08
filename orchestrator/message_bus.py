@@ -115,11 +115,22 @@ class MessageBus:
 
         return msg
 
+    # Files below this size may still hold only a header + placeholder, so they
+    # need a read-then-rewrite to strip it. Past this, real messages exist and
+    # we can pure-append in amortized O(1).
+    _PLACEHOLDER_MAX_BYTES = 256
+
     def _append_to_inbox(self, terminal_id: TerminalID, msg: Message) -> None:
         """Append a message to a terminal's inbox."""
         inbox = self.config.get_terminal_inbox(terminal_id)
-        current = inbox.read_text() if inbox.exists() else ""
 
+        # Only read when the file is small enough to plausibly be the placeholder.
+        if not inbox.exists() or inbox.stat().st_size > self._PLACEHOLDER_MAX_BYTES:
+            with inbox.open("a") as f:
+                f.write(msg.to_markdown())
+            return
+
+        current = inbox.read_text()
         # Remove "No messages yet." if present
         if "No messages yet." in current:
             current = "# Inbox\n\n"
@@ -129,8 +140,14 @@ class MessageBus:
     def _append_to_broadcast(self, msg: Message) -> None:
         """Append a message to the broadcast channel."""
         broadcast = self.config.get_broadcast_file()
-        current = broadcast.read_text() if broadcast.exists() else ""
 
+        # Only read when the file is small enough to plausibly be the placeholder.
+        if not broadcast.exists() or broadcast.stat().st_size > self._PLACEHOLDER_MAX_BYTES:
+            with broadcast.open("a") as f:
+                f.write(msg.to_markdown())
+            return
+
+        current = broadcast.read_text()
         if "No broadcasts yet." in current:
             current = "# Broadcast Channel\n\n"
 

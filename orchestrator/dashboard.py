@@ -18,6 +18,7 @@ import contextlib
 import json
 import os
 import re
+import secrets
 import signal
 import subprocess
 import sys
@@ -39,16 +40,43 @@ app = FastAPI(title="Archon Dashboard", version="0.5.0")
 
 _CSRF_SAFE_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
+# Optional shared-secret gate for the control plane. When ``ARCHON_DASHBOARD_TOKEN``
+# is set, every state-changing request (and the WebSocket) must present it via the
+# ``X-Archon-Token`` header (or ``?token=`` for the WS handshake). Unset (the
+# default) preserves the loopback-only, no-auth dev behavior — set it to harden a
+# dashboard that any local process / a CSRF drive-by could otherwise steer (it
+# can inject tasks and spawn/kill processes).
+DASHBOARD_TOKEN = os.environ.get("ARCHON_DASHBOARD_TOKEN") or None
+
+# Resource-exhaustion guards for the unauthenticated, process-spawning /api/runs
+# endpoint (each run forks an orchestrator that forks N model subprocesses).
+_MAX_GOAL_LEN = 20_000
+_MAX_INSTRUCTIONS_LEN = 20_000
+_MAX_ROSTER_BYTES = 256 * 1024
+_MAX_CONCURRENT_RUNS = int(os.environ.get("ARCHON_MAX_CONCURRENT_RUNS", "8") or "8")
+
+
+def _token_ok(provided: str | None) -> bool:
+    """Constant-time check of a presented control-plane token.
+
+    Always True when no token is configured (opt-in hardening).
+    """
+    if not DASHBOARD_TOKEN:
+        return True
+    return bool(provided) and secrets.compare_digest(provided, DASHBOARD_TOKEN)
+
 
 @app.middleware("http")
 async def _csrf_origin_guard(request, call_next):
-    """Block cross-origin state-changing requests (drive-by CSRF defense).
+    """Block cross-origin state-changing requests + enforce the optional token.
 
     The dashboard binds loopback, but a victim's browser visiting a malicious page
     can still POST to ``http://localhost:8420`` — and our mutating endpoints spawn
     and kill processes. Browsers send an ``Origin`` header on cross-origin (and
     same-origin) POSTs; we reject any whose host isn't loopback. Requests with no
-    ``Origin`` (curl, server-to-server, the test client) are allowed through.
+    ``Origin`` (curl, server-to-server, the test client) are allowed through the
+    origin check — but when ``ARCHON_DASHBOARD_TOKEN`` is configured they must
+    still present a valid ``X-Archon-Token`` header.
     """
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         origin = request.headers.get("origin")
@@ -58,6 +86,8 @@ async def _csrf_origin_guard(request, call_next):
                 return JSONResponse(
                     {"detail": "cross-origin request blocked"}, status_code=403
                 )
+        if not _token_ok(request.headers.get("x-archon-token")):
+            return JSONResponse({"detail": "invalid or missing token"}, status_code=401)
     return await call_next(request)
 
 # Legacy single-session config + control channel. These remain the default target
@@ -342,18 +372,45 @@ def read_json_file(path: Path) -> Any:
     return None
 
 
+def _tail_text(path: Path, max_lines: int) -> str:
+    """Return the last ``max_lines`` lines of ``path`` reading only its tail.
+
+    Seeks from EOF in blocks instead of loading the whole file, so tailing a
+    multi-hundred-MB firehose/log costs a bounded amount of RAM. Output matches
+    the previous ``content.strip().split("\\n")[-max_lines:]`` behavior.
+    """
+    block = 65536
+    data = b""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        pos = f.tell()
+        # Read backwards until we have more than max_lines newlines (so the first
+        # — possibly partial — line is the one we slice off) or reach the start.
+        while pos > 0 and data.count(b"\n") <= max_lines:
+            read = min(block, pos)
+            pos -= read
+            f.seek(pos)
+            data = f.read(read) + data
+    text = data.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    return "\n".join(text.split("\n")[-max_lines:])
+
+
 def read_text_file(path: Path, max_lines: int | None = None) -> str:
-    """Safely read a text file, optionally limiting to last N lines."""
+    """Safely read a text file, optionally limiting to last N lines.
+
+    When ``max_lines`` is set, only the tail of the file is read (bounded RAM)
+    rather than the whole file.
+    """
     try:
         if path.exists():
+            if max_lines:
+                return _tail_text(path, max_lines)
             # errors="replace": a log file rotated on a byte boundary can begin with a
             # partial UTF-8 sequence; never let that crash the dashboard read.
-            content = path.read_text(errors="replace")
-            if max_lines:
-                lines = content.strip().split("\n")
-                return "\n".join(lines[-max_lines:])
-            return content
-    except (FileNotFoundError, PermissionError, ValueError) as e:
+            return path.read_text(errors="replace")
+    except (FileNotFoundError, PermissionError, ValueError, OSError) as e:
         print(f"[Dashboard] Error reading {path}: {e}")
     return ""
 
@@ -1106,6 +1163,17 @@ async def websocket_endpoint(websocket: WebSocket):
     once per tick and shared across all connections watching the same session.
     The optional ``?session=<id>`` query param scopes the stream to that session.
     """
+    # Reject cross-origin WS handshakes (the HTTP CSRF guard does not cover the
+    # WebSocket) and enforce the optional control-plane token. A browser cannot
+    # set custom WS headers, so the token is accepted via ``?token=``.
+    origin = websocket.headers.get("origin")
+    if origin and urlparse(origin).hostname not in _CSRF_SAFE_HOSTS:
+        await websocket.close(code=1008)
+        return
+    if not _token_ok(websocket.query_params.get("token") or websocket.headers.get("x-archon-token")):
+        await websocket.close(code=1008)
+        return
+
     session = websocket.query_params.get("session")
     await manager.connect(websocket)
     last_hash = 0
@@ -1309,6 +1377,30 @@ async def get_session_endpoint(session_id: str):
     return entry
 
 
+def _pid_looks_like_archon(pid: int) -> bool:
+    """Best-effort check that ``pid`` is actually an Archon orchestrator process.
+
+    The session registry (``sessions.json``) is a plain file any local process
+    can rewrite, and the dashboard SIGTERMs the stored pid — so a tampered
+    registry could turn ``stop`` into "kill an arbitrary pid". Before signalling,
+    confirm the process command line looks like our orchestrator. Returns False
+    on any uncertainty so we never signal an unverified pid.
+    """
+    try:
+        out = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if out.returncode != 0:
+        return False
+    cmd = (out.stdout or "").strip()
+    return "orchestrator" in cmd
+
+
 @app.post("/api/sessions/{session_id}/stop")
 async def stop_session_endpoint(session_id: str):
     """Stop a running session: SIGTERM its pid and submit a ``stop`` command.
@@ -1330,10 +1422,12 @@ async def stop_session_endpoint(session_id: str):
     with contextlib.suppress(Exception):
         resolve_control(session_id).submit({"type": "stop"})
 
-    # Best-effort SIGTERM of the recorded pid.
+    # Best-effort SIGTERM of the recorded pid — but only if it really is an
+    # orchestrator process (the registry is locally writable, so a forged pid
+    # must not let this signal an arbitrary process).
     pid = entry.get("pid")
     signalled = False
-    if isinstance(pid, int) and pid > 0:
+    if isinstance(pid, int) and pid > 0 and _pid_looks_like_archon(pid):
         try:
             os.kill(pid, signal.SIGTERM)
             signalled = True
@@ -1490,6 +1584,8 @@ async def create_run(body: dict = Body(...)):
     goal = (body.get("goal") or "").strip() if isinstance(body.get("goal"), str) else ""
     if not goal:
         raise HTTPException(status_code=400, detail="goal is required")
+    if len(goal) > _MAX_GOAL_LEN:
+        raise HTTPException(status_code=400, detail=f"goal exceeds {_MAX_GOAL_LEN} chars")
     # Defense in depth against argv flag-smuggling: the goal is a positional arg to
     # `python -m orchestrator`. A leading '-' could be parsed as an option. We also
     # pass it after a '--' end-of-options separator below.
@@ -1500,11 +1596,43 @@ async def create_run(body: dict = Body(...)):
     if agent_count is not None and (not isinstance(agent_count, int) or agent_count <= 0):
         raise HTTPException(status_code=400, detail="agent_count must be a positive integer")
 
+    instructions = body.get("instructions")
+    if isinstance(instructions, str) and len(instructions) > _MAX_INSTRUCTIONS_LEN:
+        raise HTTPException(
+            status_code=400, detail=f"instructions exceed {_MAX_INSTRUCTIONS_LEN} chars"
+        )
+
     project_path = body.get("project_path")
     if project_path is not None and not isinstance(project_path, str):
         raise HTTPException(status_code=400, detail="project_path must be a string")
+    # Containment: confine the (unauthenticated) dashboard's working dir to the
+    # user's home, mirroring the /api/dirs picker sandbox. Autonomous workers run
+    # permission-bypassed, so an out-of-home path could write anywhere. The CLI
+    # --project (operator-trusted) is unaffected.
+    if isinstance(project_path, str) and project_path.strip():
+        try:
+            resolved_pp = Path(project_path.strip()).expanduser().resolve()
+            home = Path.home().resolve()
+        except (OSError, ValueError, RuntimeError):
+            raise HTTPException(status_code=400, detail="invalid project_path")
+        if resolved_pp != home and home not in resolved_pp.parents:
+            raise HTTPException(status_code=400, detail="project_path must be within the home directory")
 
     base = _base_dir()
+
+    # Cap concurrent live runs so a loop of POST /api/runs cannot fork-bomb the host.
+    try:
+        active = sum(
+            1 for s in sessions.list_sessions(base)
+            if s.get("status") in _RUNNING_STATUSES
+        )
+    except Exception:
+        active = 0
+    if active >= _MAX_CONCURRENT_RUNS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"too many active runs ({active}); max is {_MAX_CONCURRENT_RUNS}",
+        )
     sid = sessions.make_session_id(goal)
     session_path = sessions.session_dir(base, sid)
 
@@ -1514,10 +1642,12 @@ async def create_run(body: dict = Body(...)):
         session_path.mkdir(parents=True, exist_ok=True)
         roster_overrides = body.get("roster_overrides")
         if isinstance(roster_overrides, dict) and roster_overrides:
-            (session_path / "roster_overrides.json").write_text(
-                json.dumps(roster_overrides, indent=2, default=str), encoding="utf-8"
-            )
-        instructions = body.get("instructions")
+            roster_json = json.dumps(roster_overrides, indent=2, default=str)
+            if len(roster_json.encode("utf-8")) > _MAX_ROSTER_BYTES:
+                raise HTTPException(
+                    status_code=400, detail=f"roster_overrides exceed {_MAX_ROSTER_BYTES} bytes"
+                )
+            (session_path / "roster_overrides.json").write_text(roster_json, encoding="utf-8")
         if isinstance(instructions, str) and instructions.strip():
             (session_path / "instructions.txt").write_text(instructions, encoding="utf-8")
     except OSError as e:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from .config import AuthConfig
 from .database import UserDatabase
@@ -19,6 +19,7 @@ from .models import (
     UserResponse,
 )
 from .passwords import PasswordHasher
+from .ratelimit import LoginRateLimiter
 from .tokens import TokenError, TokenService
 
 
@@ -41,6 +42,7 @@ def create_auth_router(
     db = db or UserDatabase(config.db_path)
     token_service = token_service or TokenService(config)
     hasher = PasswordHasher()
+    login_limiter = LoginRateLimiter()
 
     # Initialize shared middleware instances
     init_middleware(token_service, db)
@@ -66,10 +68,10 @@ def create_auth_router(
                 message=f"Password must be at least {config.min_password_length} characters",
             )
 
-        # First user gets admin role
-        role = data.role
-        if db.count_users() == 0:
-            role = Role.ADMIN
+        # Never honor a client-supplied role (privilege-escalation / mass
+        # assignment). New users are always viewers; only the very first
+        # registered user is bootstrapped to admin.
+        role = Role.ADMIN if db.count_users() == 0 else Role.VIEWER
 
         user = User(
             username=data.username,
@@ -90,13 +92,26 @@ def create_auth_router(
         return UserResponse(**user.to_dict())
 
     @router.post("/login", response_model=TokenResponse)
-    async def login(data: LoginRequest) -> TokenResponse:
+    async def login(data: LoginRequest, request: Request) -> TokenResponse:
         """Authenticate and receive access + refresh tokens.
 
-        Validates username and password, returns JWT token pair.
+        Validates username and password, returns JWT token pair. Failed attempts
+        are rate-limited per (client IP, username) to blunt online brute-force /
+        credential-stuffing; too many failures return 429.
         """
+        client_ip = request.client.host if request.client else "?"
+        rl_key = f"{client_ip}:{data.username}"
+        retry_after = login_limiter.retry_after(rl_key)
+        if retry_after > 0:
+            raise APIError(
+                status_code=429,
+                code="RATE_LIMITED",
+                message=f"Too many failed attempts. Retry in {int(retry_after) + 1}s.",
+            )
+
         user = db.get_by_username(data.username)
         if user is None or not hasher.verify(data.password, user.hashed_password):
+            login_limiter.record_failure(rl_key)
             raise APIError(
                 status_code=401,
                 code="INVALID_CREDENTIALS",
@@ -110,6 +125,7 @@ def create_auth_router(
                 message="Account is deactivated",
             )
 
+        login_limiter.record_success(rl_key)
         tokens = token_service.create_token_pair(user.id, user.role.value)
         return TokenResponse(**tokens)
 

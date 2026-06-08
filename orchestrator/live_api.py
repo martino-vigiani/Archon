@@ -24,7 +24,10 @@ with contract-compliant request/response shapes that match T1's APIClient SDK.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import sqlite3
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -40,14 +43,37 @@ from pydantic import BaseModel, Field, field_validator
 from .auth.config import AuthConfig
 from .auth.database import UserDatabase
 from .auth.passwords import PasswordHasher
+from .auth.ratelimit import LoginRateLimiter
 from .auth.tokens import TokenError, TokenService
-
 
 # ─── Configuration ────────────────────────────────────────────────────────
 
 
 def _default_db_path() -> Path:
     return Path(__file__).parent.parent / ".orchestra" / "live_api.db"
+
+
+def _allowed_cors_origins() -> list[str]:
+    """Resolve the allowlist of CORS origins for the JWT API.
+
+    Read from ``ARCHON_CORS_ORIGINS`` (comma-separated) or fall back to the local
+    dashboard / dev-server origins. NEVER returns ``"*"`` together with
+    credentials (an invalid, unsafe combination): a wildcard origin disables
+    credentialed cross-origin requests via :func:`_cors_allow_credentials`.
+    """
+    raw = os.environ.get("ARCHON_CORS_ORIGINS", "")
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or [
+        "http://localhost:8420",
+        "http://127.0.0.1:8420",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+
+def _cors_allow_credentials(origins: list[str]) -> bool:
+    """Credentials may only be allowed when the origin list is not a wildcard."""
+    return "*" not in origins
 
 
 # ─── Pydantic Schemas (contract-compliant) ────────────────────────────────
@@ -311,13 +337,23 @@ class LiveAPIState:
     ) -> None:
         self.auth_config = auth_config or AuthConfig()
         self.hasher = PasswordHasher()
-        self.token_service = TokenService(self.auth_config)
+        self.login_limiter = LoginRateLimiter()
 
         # Single SQLite connection for both users and resources
         resolved_path = str(db_path) if db_path else str(_default_db_path())
         if resolved_path != ":memory:":
             Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(resolved_path)
+        # Shared across concurrent async handlers → must not bind to one thread;
+        # access is serialized by UserDatabase's lock.
+        self._conn = sqlite3.connect(resolved_path, check_same_thread=False)
+
+        # Persist token revocation (logout/rotation) next to the DB so it
+        # survives restarts; in-memory only for the :memory: test DB.
+        revocation_path = (
+            None if resolved_path == ":memory:"
+            else str(Path(resolved_path).with_name("live_api_revoked.json"))
+        )
+        self.token_service = TokenService(self.auth_config, revocation_path=revocation_path)
 
         self.user_db = UserDatabase.__new__(UserDatabase)
         self.user_db.db_path = resolved_path
@@ -325,6 +361,10 @@ class LiveAPIState:
         self.user_db._init_schema()
 
         self.resource_db = ResourceDatabase(self._conn)
+
+        if resolved_path != ":memory:":
+            with contextlib.suppress(OSError):
+                os.chmod(resolved_path, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
 
 _state: LiveAPIState | None = None
@@ -407,11 +447,13 @@ def create_live_api(
         description="JWT-authenticated REST API for Archon.",
     )
 
-    # CORS for T1's admin dashboard
+    # CORS for the admin dashboard. Restricted to an explicit origin allowlist
+    # (env-overridable); a wildcard origin is never combined with credentials.
+    _cors_origins = _allowed_cors_origins()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=_cors_origins,
+        allow_credentials=_cors_allow_credentials(_cors_origins),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -498,15 +540,33 @@ def create_live_api(
     @auth_router.post("/login")
     async def login(
         data: LoginRequest,
+        request: Request,
         api_state: LiveAPIState = Depends(get_state),
     ) -> AuthResponseSchema:
-        """Login with email + password. Returns user + tokens."""
+        """Login with email + password. Returns user + tokens.
+
+        Failed attempts are rate-limited per (client IP, email) to blunt online
+        brute-force / credential-stuffing; too many failures return 429.
+        """
+        client_ip = request.client.host if request.client else "?"
+        rl_key = f"{client_ip}:{data.email}"
+        retry_after = api_state.login_limiter.retry_after(rl_key)
+        if retry_after > 0:
+            raise LiveAPIError(
+                429,
+                "RATE_LIMITED",
+                f"Too many failed attempts. Retry in {int(retry_after) + 1}s.",
+            )
+
         user = api_state.user_db.get_by_email(data.email)
         if user is None or not api_state.hasher.verify(data.password, user.hashed_password):
+            api_state.login_limiter.record_failure(rl_key)
             raise LiveAPIError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.")
 
         if not user.is_active:
             raise LiveAPIError(403, "FORBIDDEN", "Account is deactivated")
+
+        api_state.login_limiter.record_success(rl_key)
 
         user_resp = _user_to_response(user)
         tokens = api_state.token_service.create_token_pair(user.id, user_resp["role"])
@@ -549,14 +609,17 @@ def create_live_api(
             raise LiveAPIError(401, "UNAUTHORIZED", "Authentication required")
 
         try:
-            payload = api_state.token_service.decode_token(
+            # Validate the presented token (raises if invalid/expired/revoked).
+            api_state.token_service.decode_token(
                 credentials.credentials, expected_type="access"
             )
         except TokenError as e:
             raise LiveAPIError(401, "UNAUTHORIZED", str(e))
 
-        # Revoke all refresh tokens for this user isn't practical with in-memory set,
-        # but the access token identifies the session. For the contract, just confirm logout.
+        # Revoke the presented access token by jti so logout is no longer a
+        # no-op: this token stops validating immediately. (Re-login mints a
+        # fresh jti and works normally.)
+        api_state.token_service.revoke_token(credentials.credentials)
         return MessageResponseSchema(message="Logged out successfully.")
 
     app.include_router(auth_router)
@@ -649,9 +712,14 @@ app = create_live_api()
 if __name__ == "__main__":
     import uvicorn
 
+    # Bind loopback by default (overridable via env). This API holds the bcrypt
+    # password store and issues JWTs, so it must not be exposed to the network
+    # unless an operator explicitly opts in (and fronts it with TLS + an origin
+    # allowlist via ARCHON_CORS_ORIGINS). reload is off (it watches the FS and
+    # adds overhead; never appropriate for a credentialed service).
     uvicorn.run(
         "orchestrator.live_api:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        host=os.environ.get("ARCHON_LIVE_API_HOST", "127.0.0.1"),
+        port=int(os.environ.get("ARCHON_LIVE_API_PORT", "8000")),
+        reload=os.environ.get("ARCHON_LIVE_API_RELOAD", "").lower() in ("1", "true", "yes"),
     )

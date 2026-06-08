@@ -22,8 +22,39 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Any
+
+# Profile fields a remote/untrusted control-bus writer is allowed to set. This
+# mirrors the dashboard's ``_build_profile_dict`` allowlist so a writer that
+# bypasses the HTTP API (by appending straight to ``commands.jsonl``) cannot
+# smuggle the dangerous fields (``add_dirs``, ``allowed_tools``,
+# ``disallowed_tools``, ``bare``, ``max_turns``, ``fallback_model``) that widen
+# a permission-bypassed worker's reach. The orchestrator still re-gates every
+# profile via ``Config.gate_profile``; this is defense in depth at the boundary.
+_ALLOWED_PROFILE_FIELDS = frozenset(
+    {
+        "model_tier",
+        "model_override",
+        "effort",
+        "permission_mode",
+        "agents",
+        "append_system_prompt",
+    }
+)
+
+
+def _sanitize_profile(profile: Any) -> Any:
+    """Strip a control-bus profile dict down to the allowlisted fields.
+
+    Non-dict profiles are returned unchanged (the orchestrator already ignores
+    a non-dict profile). Unknown/dangerous keys are dropped silently.
+    """
+    if not isinstance(profile, dict):
+        return profile
+    return {k: v for k, v in profile.items() if k in _ALLOWED_PROFILE_FIELDS}
 
 
 class ControlChannel:
@@ -41,6 +72,14 @@ class ControlChannel:
 
     def _ensure(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
+        # Restrict the control dir + command log to the owner: the bus can inject
+        # tasks and steer a permission-bypassed worker, so another local account
+        # must not be able to read or append to it.
+        with contextlib.suppress(OSError):
+            os.chmod(self.dir, stat.S_IRWXU)  # 0o700
+        with contextlib.suppress(OSError):
+            if self.commands_file.exists():
+                os.chmod(self.commands_file, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
     def submit(self, command: dict[str, Any]) -> None:
         """Append a command (writer side; safe to call from another process)."""
@@ -48,6 +87,8 @@ class ControlChannel:
         line = json.dumps(command, separators=(",", ":"), default=str)
         with open(self.commands_file, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+        with contextlib.suppress(OSError):
+            os.chmod(self.commands_file, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
     def drain(self) -> list[dict[str, Any]]:
         """Return all unread commands and advance the offset (reader side)."""
@@ -84,6 +125,13 @@ class ControlChannel:
             try:
                 obj = json.loads(raw)
                 if isinstance(obj, dict) and "type" in obj:
+                    # Defense in depth: a writer that bypasses the dashboard's
+                    # field allowlist (by appending here directly) must not be
+                    # able to inject dangerous profile fields. Sanitize any
+                    # carried profile down to the allowlist before it reaches
+                    # the orchestrator.
+                    if isinstance(obj.get("profile"), dict):
+                        obj["profile"] = _sanitize_profile(obj["profile"])
                     commands.append(obj)
             except json.JSONDecodeError:
                 continue
