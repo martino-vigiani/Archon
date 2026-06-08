@@ -5,6 +5,7 @@ Each terminal writes structured reports after completing tasks.
 The orchestrator uses these reports to coordinate between terminals.
 """
 
+import asyncio
 import json
 import re
 import subprocess
@@ -278,13 +279,7 @@ class ReportManager:
             # task. config.gate_profile honors --model-tiering / --no-effort-dial.
             parse_profile = self.config.gate_profile(utility_profile())
             command = self.config.build_llm_command(prompt, profile=parse_profile)
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=str(self.config.base_dir),
-            )
+            result = self._run_parser_subprocess(command)
             model_output = result.stdout.strip() or result.stderr.strip()
             parsed = self._extract_json(model_output)
 
@@ -310,6 +305,55 @@ class ReportManager:
 
         # Fallback: create basic report from output analysis
         return self._fallback_parse(output, report_id, task_id, terminal_id)
+
+    def _run_parser_subprocess(self, command: list[str]) -> "subprocess.CompletedProcess[str]":
+        """Run the LLM report-parser subprocess (blocking).
+
+        Isolated so the async entry point can offload it to a worker thread
+        without re-implementing the call. Args/return object/timeout are kept
+        identical to the original inline ``subprocess.run`` so the parsed-result
+        shape and the ``subprocess.run`` patch target are unchanged.
+        """
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=str(self.config.base_dir),
+        )
+
+    async def parse_output_to_report_async(
+        self,
+        output: str,
+        task_id: str,
+        task_title: str,
+        terminal_id: TerminalID,
+        success: bool = True,
+        error: str | None = None,
+    ) -> Report:
+        """Non-blocking variant of :meth:`parse_output_to_report`.
+
+        The optional ``llm_report_parsing`` path shells out to the model via a
+        blocking ``subprocess.run`` (up to a 60s timeout). Called directly from a
+        coroutine that runs on the event loop (``_execute_task_on_terminal`` is
+        scheduled with ``asyncio.create_task``), that blocks the entire loop —
+        every worker, the manager loop, and the control loop — for the duration.
+
+        This wrapper offloads the whole synchronous parse to a worker thread with
+        ``asyncio.to_thread`` so the loop keeps running. Behavior, public result
+        shape, and the local-parse fast path are identical; only the blocking is
+        moved off the loop thread. Awaitable callers should prefer this entry
+        point over the synchronous one.
+        """
+        return await asyncio.to_thread(
+            self.parse_output_to_report,
+            output,
+            task_id,
+            task_title,
+            terminal_id,
+            success,
+            error,
+        )
 
     def _fallback_parse(
         self,

@@ -123,6 +123,11 @@ class RetryConfig:
 # Main Orchestrator
 # =============================================================================
 
+# Cap on control-plane-supplied "how-to instructions" merged into a worker's
+# system prompt. Bounds an unauthenticated/untrusted injector's influence on the
+# prompt size while leaving ample room for legitimate guidance.
+_MAX_INSTRUCTIONS_CHARS = 8000
+
 
 class Orchestrator:
     """
@@ -1285,9 +1290,15 @@ class Orchestrator:
         metadata = task.metadata if hasattr(task, "metadata") else None
         override = (metadata or {}).get("profile")
         if override:
-            resolved = ExecutionProfile.from_dict(override)
+            # Control-plane / metadata profiles are untrusted: gate them like every
+            # other path so the F7 skill/MCP deny-set and the tiering/effort
+            # switches are applied consistently (they previously slipped through
+            # ungated, re-enabling tool-creation on a permission-bypassed worker).
+            resolved = self.config.gate_profile(ExecutionProfile.from_dict(override))
         elif terminal_id and terminal_id in self._mode_overrides:
-            resolved = ExecutionProfile.from_dict(self._mode_overrides[terminal_id])
+            resolved = self.config.gate_profile(
+                ExecutionProfile.from_dict(self._mode_overrides[terminal_id])
+            )
         else:
             spec = self._dynamic_specs.get(terminal_id) if terminal_id else None
             if spec is not None:
@@ -1303,10 +1314,13 @@ class Orchestrator:
         if isinstance(metadata, dict):
             instructions = metadata.get("append_system_prompt") or metadata.get("instructions")
         if isinstance(instructions, str) and instructions.strip():
+            # Cap untrusted, control-plane-supplied system-prompt text so an
+            # unauthenticated injector cannot bloat the worker's system prompt.
+            cleaned = instructions.strip()[:_MAX_INSTRUCTIONS_CHARS]
             if resolved.append_system_prompt:
-                merged_system = f"{resolved.append_system_prompt}\n\n{instructions.strip()}"
+                merged_system = f"{resolved.append_system_prompt}\n\n{cleaned}"
             else:
-                merged_system = instructions.strip()
+                merged_system = cleaned
             resolved = resolved.merged(append_system_prompt=merged_system)
 
         return resolved
@@ -1438,7 +1452,10 @@ This helps the orchestrator coordinate with other terminals.
                 # and cross-terminal notification are METADATA: a failure there must
                 # never discard successful work or trigger a (quota-wasting) retry.
                 try:
-                    report = self.report_manager.parse_output_to_report(
+                    # Async variant: the optional llm_report_parsing path shells
+                    # out, so run it off the event loop to avoid freezing every
+                    # worker / the manager / the control loop.
+                    report = await self.report_manager.parse_output_to_report_async(
                         output=output.content,
                         task_id=task.id,
                         task_title=task.title,

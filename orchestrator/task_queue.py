@@ -212,6 +212,20 @@ class TaskQueue:
         self._pending_cache: list[Task] | None = None
         self._in_progress_cache: list[Task] | None = None
         self._completed_cache: list[Task] | None = None
+        # Mutation counter: bumped on every queue mutation (add/assign/complete/
+        # update/cancel/...). Memoized derived collections recompute lazily only
+        # when this version changes, keeping hot paths O(1) amortized.
+        self._version = 0
+        # Memoized derived collection: union of completed task ids + titles, plus
+        # substantially-complete in_progress ids/titles. Used by the
+        # get_next_task_for_terminal hot path. None = stale/never computed.
+        self._completed_ids_cache: set[str] | None = None
+        self._completed_ids_version = -1
+        # Memoized flow metrics (single scan over all tasks), shared by the status
+        # and flow hot paths so the 2s poll tick scans once per mutation, not per
+        # call. None = stale/never computed.
+        self._flow_metrics_cache: dict | None = None
+        self._flow_metrics_version = -1
         self._ensure_files()
 
     def _ensure_files(self) -> None:
@@ -244,6 +258,8 @@ class TaskQueue:
             self._in_progress_cache = tasks
         elif filename == "completed.json":
             self._completed_cache = tasks
+        # Bump mutation version so memoized derived collections recompute lazily.
+        self._version += 1
 
     def _generate_task_id(self) -> str:
         """Generate a unique task ID."""
@@ -255,18 +271,24 @@ class TaskQueue:
     def pending(self) -> list[Task]:
         if self._pending_cache is None:
             self._pending_cache = self._load_tasks("pending.json")
+            # First load brings in task contents not yet seen by derived caches.
+            self._version += 1
         return self._pending_cache
 
     @property
     def in_progress(self) -> list[Task]:
         if self._in_progress_cache is None:
             self._in_progress_cache = self._load_tasks("in_progress.json")
+            # First load brings in task contents not yet seen by derived caches.
+            self._version += 1
         return self._in_progress_cache
 
     @property
     def completed(self) -> list[Task]:
         if self._completed_cache is None:
             self._completed_cache = self._load_tasks("completed.json")
+            # First load brings in task contents not yet seen by derived caches.
+            self._version += 1
         return self._completed_cache
 
     def add_task(
@@ -368,6 +390,35 @@ class TaskQueue:
                     return task
         return None
 
+    def _get_completed_ids(self) -> set[str]:
+        """
+        Memoized set of "available dependency" identifiers.
+
+        Includes the ids and titles of completed tasks, plus the ids and titles
+        of substantially-complete (quality >= 0.8) in_progress tasks. Recomputed
+        lazily only when the queue has mutated since the last build, so the
+        get_next_task_for_terminal hot path stays O(1) amortized.
+        """
+        # Touch the lazy properties first so a first-load version bump is applied
+        # before we compare against the memoized version.
+        completed = self.completed
+        in_progress = self.in_progress
+        if self._completed_ids_cache is not None and self._completed_ids_version == self._version:
+            return self._completed_ids_cache
+
+        # Include both IDs and titles for dependency matching
+        completed_ids = {t.id for t in completed} | {t.title for t in completed}
+
+        # Also consider substantially complete tasks (quality >= 0.8) as available dependencies
+        for t in in_progress:
+            if t.is_substantially_complete():
+                completed_ids.add(t.id)
+                completed_ids.add(t.title)
+
+        self._completed_ids_cache = completed_ids
+        self._completed_ids_version = self._version
+        return completed_ids
+
     def get_next_task_for_terminal(
         self,
         terminal_id: TerminalID,
@@ -387,16 +438,9 @@ class TaskQueue:
         but no longer gates execution in the organic model.
         """
         pending = self.pending
-        completed = self.completed
 
-        # Include both IDs and titles for dependency matching
-        completed_ids = {t.id for t in completed} | {t.title for t in completed}
-
-        # Also consider substantially complete tasks (quality >= 0.8) as available dependencies
-        for t in self.in_progress:
-            if t.is_substantially_complete():
-                completed_ids.add(t.id)
-                completed_ids.add(t.title)
+        # Memoized union of completed/substantially-complete ids+titles.
+        completed_ids = self._get_completed_ids()
 
         for task in pending:
             # Check if task is assigned to this terminal or unassigned
@@ -471,6 +515,72 @@ class TaskQueue:
 
         return 0
 
+    def _compute_flow_metrics(self) -> dict:
+        """
+        Memoized single-scan aggregation of flow metrics over all tasks.
+
+        Returns raw aggregates (counts, totals, derived flow state) shared by the
+        status and flow hot paths. Recomputed lazily only when the queue mutates,
+        so the 2s poll tick scans the task lists once per mutation instead of
+        several times per call.
+        """
+        # Touch lazy properties so any first-load version bump is applied before
+        # comparing against the memoized version.
+        pending = self.pending
+        in_progress = self.in_progress
+        completed = self.completed
+        if self._flow_metrics_cache is not None and self._flow_metrics_version == self._version:
+            return self._flow_metrics_cache
+
+        n = len(pending) + len(in_progress) + len(completed)
+
+        quality_sum = 0.0
+        blocked_count = 0
+        flourishing_count = 0
+        stalled_count = 0
+        converging_count = 0
+        for tasks in (pending, in_progress, completed):
+            for t in tasks:
+                quality_sum += t.quality_level
+                state = t.flow_state
+                if state == FlowState.BLOCKED:
+                    blocked_count += 1
+                elif state == FlowState.FLOURISHING:
+                    flourishing_count += 1
+                elif state == FlowState.STALLED:
+                    stalled_count += 1
+                elif state == FlowState.CONVERGING:
+                    converging_count += 1
+
+        if n:
+            quality_avg = quality_sum / n
+            if blocked_count > n * 0.3:
+                overall_flow = FlowState.BLOCKED
+            elif stalled_count > n * 0.3:
+                overall_flow = FlowState.STALLED
+            elif converging_count > n * 0.5:
+                overall_flow = FlowState.CONVERGING
+            elif flourishing_count > n * 0.3:
+                overall_flow = FlowState.FLOURISHING
+            else:
+                overall_flow = FlowState.FLOWING
+        else:
+            quality_avg = 0.0
+            overall_flow = FlowState.FLOWING
+
+        metrics = {
+            "n": n,
+            "quality_avg": quality_avg,
+            "blocked_count": blocked_count,
+            "flourishing_count": flourishing_count,
+            "stalled_count": stalled_count,
+            "converging_count": converging_count,
+            "overall_flow": overall_flow,
+        }
+        self._flow_metrics_cache = metrics
+        self._flow_metrics_version = self._version
+        return metrics
+
     def get_flow_state(self) -> dict:
         """
         Get the current organic flow state of the task queue.
@@ -483,9 +593,9 @@ class TaskQueue:
         - flourishing_count: Number of tasks exceeding expectations
         - ready_for_convergence: Whether work is ready to converge/complete
         """
-        all_tasks = self.pending + self.in_progress + self.completed
+        m = self._compute_flow_metrics()
 
-        if not all_tasks:
+        if not m["n"]:
             return {
                 "overall_flow": FlowState.FLOWING.value,
                 "quality_average": 0.0,
@@ -494,38 +604,19 @@ class TaskQueue:
                 "ready_for_convergence": False,
             }
 
-        # Calculate quality average
-        quality_sum = sum(t.quality_level for t in all_tasks)
-        quality_avg = quality_sum / len(all_tasks)
-
-        # Count flow states
-        blocked_count = len([t for t in all_tasks if t.flow_state == FlowState.BLOCKED])
-        flourishing_count = len([t for t in all_tasks if t.flow_state == FlowState.FLOURISHING])
-        stalled_count = len([t for t in all_tasks if t.flow_state == FlowState.STALLED])
-        converging_count = len([t for t in all_tasks if t.flow_state == FlowState.CONVERGING])
-
-        # Determine overall flow state
-        if blocked_count > len(all_tasks) * 0.3:
-            overall_flow = FlowState.BLOCKED
-        elif stalled_count > len(all_tasks) * 0.3:
-            overall_flow = FlowState.STALLED
-        elif converging_count > len(all_tasks) * 0.5:
-            overall_flow = FlowState.CONVERGING
-        elif flourishing_count > len(all_tasks) * 0.3:
-            overall_flow = FlowState.FLOURISHING
-        else:
-            overall_flow = FlowState.FLOWING
+        quality_avg = m["quality_avg"]
+        blocked_count = m["blocked_count"]
 
         # Ready for convergence when quality average is high and no blockers
         ready_for_convergence = quality_avg >= 0.7 and blocked_count == 0
 
         return {
-            "overall_flow": overall_flow.value,
+            "overall_flow": m["overall_flow"].value,
             "quality_average": round(quality_avg, 2),
             "blocked_count": blocked_count,
-            "flourishing_count": flourishing_count,
-            "stalled_count": stalled_count,
-            "converging_count": converging_count,
+            "flourishing_count": m["flourishing_count"],
+            "stalled_count": m["stalled_count"],
+            "converging_count": m["converging_count"],
             "ready_for_convergence": ready_for_convergence,
         }
 
@@ -643,35 +734,19 @@ class TaskQueue:
         successful = [t for t in c if t.status == TaskStatus.COMPLETED]
         failed = [t for t in c if t.status == TaskStatus.FAILED]
 
-        # Compute flow state inline using already-loaded task lists
-        all_tasks = p + ip + c
-        if all_tasks:
-            quality_sum = sum(t.quality_level for t in all_tasks)
-            quality_avg = round(quality_sum / len(all_tasks), 2)
-            blocked_count = sum(1 for t in all_tasks if t.flow_state == FlowState.BLOCKED)
-            flourishing_count = sum(1 for t in all_tasks if t.flow_state == FlowState.FLOURISHING)
-            stalled_count = sum(1 for t in all_tasks if t.flow_state == FlowState.STALLED)
-            converging_count = sum(1 for t in all_tasks if t.flow_state == FlowState.CONVERGING)
-            n = len(all_tasks)
-
-            if blocked_count > n * 0.3:
-                overall_flow = FlowState.BLOCKED
-            elif stalled_count > n * 0.3:
-                overall_flow = FlowState.STALLED
-            elif converging_count > n * 0.5:
-                overall_flow = FlowState.CONVERGING
-            elif flourishing_count > n * 0.3:
-                overall_flow = FlowState.FLOURISHING
-            else:
-                overall_flow = FlowState.FLOWING
-
+        # Reuse the memoized single-scan flow metrics (shared with get_flow_state)
+        # so the poll tick aggregates the task lists once per mutation.
+        m = self._compute_flow_metrics()
+        if m["n"]:
+            quality_avg = round(m["quality_avg"], 2)
+            blocked_count = m["blocked_count"]
             flow_state = {
-                "overall_flow": overall_flow.value,
+                "overall_flow": m["overall_flow"].value,
                 "quality_average": quality_avg,
                 "blocked_count": blocked_count,
-                "flourishing_count": flourishing_count,
-                "stalled_count": stalled_count,
-                "converging_count": converging_count,
+                "flourishing_count": m["flourishing_count"],
+                "stalled_count": m["stalled_count"],
+                "converging_count": m["converging_count"],
                 "ready_for_convergence": quality_avg >= 0.7 and blocked_count == 0,
             }
         else:

@@ -14,7 +14,18 @@ Design contract (see ``.archon-build/CONTRACT.md`` §4):
   ``json.dumps(default=str)`` so a single odd value never drops a record.
 * Writes use ``O_APPEND`` so each line is a single atomic ``write`` syscall;
   one process owning one log means appends do not interleave.
+* The file is created with owner-only permissions (``0o600``): it persists full
+  prompts and worker output in cleartext (potentially secrets), so it must not
+  be world-readable.
 * All I/O is best-effort: a failure to write a line must never crash the caller.
+
+Safety valve: the "never truncate" contract holds for any realistic run, but to
+bound pathological growth there is a single high-ceiling rotation. Before each
+append, if ``session.jsonl`` exceeds a large hard cap (default 1 GiB, overridable
+via the ``ARCHON_SESSION_LOG_MAX_BYTES`` env var), it is rotated once to
+``session.jsonl.1`` (overwriting any previous ``.1``) and a fresh ``session.jsonl``
+is started. The active file keeps its name so the dashboard tail keeps working.
+Rotation is best-effort and never raises.
 """
 
 from __future__ import annotations
@@ -27,6 +38,30 @@ from pathlib import Path
 from typing import Any
 
 __all__ = ["SessionLog"]
+
+# High-ceiling safety valve. The firehose contract is "never truncate", so this
+# default (1 GiB) is far above any realistic run; it only guards against
+# pathological unbounded growth. Overridable via ``ARCHON_SESSION_LOG_MAX_BYTES``.
+_DEFAULT_MAX_BYTES = 1 << 30
+
+
+def _max_bytes() -> int:
+    """Resolve the rotation hard cap in bytes.
+
+    Reads the ``ARCHON_SESSION_LOG_MAX_BYTES`` env var (an int) on each call so
+    the cap can be tuned without restarting. Falls back to ``_DEFAULT_MAX_BYTES``
+    when the var is unset, empty, or not a valid integer.
+
+    Returns:
+        The maximum log size in bytes before a one-shot rotation is triggered.
+    """
+    raw = os.environ.get("ARCHON_SESSION_LOG_MAX_BYTES")
+    if raw is None:
+        return _DEFAULT_MAX_BYTES
+    try:
+        return int(raw)
+    except ValueError:
+        return _DEFAULT_MAX_BYTES
 
 
 class SessionLog:
@@ -95,17 +130,20 @@ class SessionLog:
     def _append(self, line: str) -> None:
         """Append a single line to the log file using ``O_APPEND``.
 
-        Each call performs one ``os.write`` so the line lands atomically. Any
-        I/O error is swallowed to keep the firehose non-fatal for callers.
+        Each call performs one ``os.write`` so the line lands atomically. The
+        file is created owner-only (``0o600``) since it persists cleartext
+        prompts and output. Any I/O error is swallowed to keep the firehose
+        non-fatal for callers.
 
         Args:
             line: The fully serialized JSON record, without a trailing newline.
         """
+        self._maybe_rotate()
         try:
             fd = os.open(
                 self.log_file,
                 os.O_WRONLY | os.O_CREAT | os.O_APPEND,
-                0o644,
+                0o600,
             )
         except OSError:
             return
@@ -116,6 +154,29 @@ class SessionLog:
         finally:
             with contextlib.suppress(OSError):
                 os.close(fd)
+
+    def _maybe_rotate(self) -> None:
+        """Rotate the log once if it has exceeded the high-ceiling hard cap.
+
+        Honors the append-only "never truncate" contract for any realistic run:
+        rotation only fires above a large cap (default 1 GiB, overridable via
+        ``ARCHON_SESSION_LOG_MAX_BYTES``). When tripped, the current
+        ``session.jsonl`` is moved to ``session.jsonl.1`` (overwriting any
+        previous ``.1``) and the next append starts a fresh ``session.jsonl``,
+        so the dashboard tail keeps following the active file by name.
+
+        This is entirely best-effort: any error (including a missing file or a
+        failed rename) is swallowed so the firehose never crashes its caller.
+        """
+        try:
+            size = self.log_file.stat().st_size
+        except OSError:
+            return
+        if size < _max_bytes():
+            return
+        rotated = self.log_file.with_name(self.log_file.name + ".1")
+        with contextlib.suppress(OSError):
+            os.replace(self.log_file, rotated)
 
     # -- Convenience methods ------------------------------------------------
     # Each is a thin wrapper around ``log`` that pins a record ``kind``.

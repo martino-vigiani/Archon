@@ -15,6 +15,31 @@ from typing import Literal
 
 from .config import Config, TerminalID
 
+# Precompiled regexes for parsing contract markdown (compiled once at import,
+# not per call). Used by Contract.from_markdown.
+_RE_ID = re.compile(r"\*\*ID:\*\*\s*`([^`]+)`")
+_RE_NAME = re.compile(r"^#\s*Contract:\s*(.+)$", re.MULTILINE)
+_RE_TYPE = re.compile(r"\*\*Type:\*\*\s*(.+)$", re.MULTILINE)
+_RE_STATUS = re.compile(r"\*\*Status:\*\*\s*(.+)$", re.MULTILINE)
+_RE_PROPOSER = re.compile(r"\*\*Proposer:\*\*\s*(\w+)")
+_RE_IMPLEMENTER = re.compile(r"\*\*Implementer:\*\*\s*(\w+)")
+_RE_CREATED = re.compile(r"\*\*Created:\*\*\s*(.+)$", re.MULTILINE)
+_RE_UPDATED = re.compile(r"\*\*Updated:\*\*\s*(.+)$", re.MULTILINE)
+_RE_AGREED = re.compile(r"\*\*Agreed:\*\*\s*(.+)$", re.MULTILINE)
+_RE_IMPLEMENTED = re.compile(r"\*\*Implemented:\*\*\s*(.+)$", re.MULTILINE)
+_RE_VERIFIED = re.compile(r"\*\*Verified:\*\*\s*(.+)$", re.MULTILINE)
+_RE_TAGS = re.compile(r"\*\*Tags:\*\*\s*(.+)$", re.MULTILINE)
+_RE_DEPS = re.compile(r"\*\*Dependencies:\*\*\s*(.+)$", re.MULTILINE)
+_RE_HISTORY_SECTION = re.compile(r"## Negotiation History\s*\n(.+)", re.DOTALL)
+_RE_HISTORY_ENTRIES = re.compile(
+    r"###\s+(\w+(?:-\w+)?)\s+\((\w+)\s+@\s+(\d+:\d+)\)\s*\n\n(.*?)(?=\n###|\Z)",
+    re.DOTALL,
+)
+_RE_CODE_BLOCK = re.compile(r"```\w*\n(.*?)```", re.DOTALL)
+_RE_QUALITY = re.compile(r"\*\*Quality:\*\*\s*([\d.]+)%")
+_RE_QUALITY_LINE = re.compile(r"\*\*Quality:\*\*.*$", re.MULTILINE)
+_RE_FILE_LINE = re.compile(r"\*\*File:\*\*.*$", re.MULTILINE)
+
 
 class ContractStatus(Enum):
     """Status of a contract in its lifecycle."""
@@ -162,20 +187,20 @@ class Contract:
     @classmethod
     def from_markdown(cls, content: str, file_path: Path) -> "Contract":
         """Parse a contract from markdown content."""
-        # Extract header info
-        id_match = re.search(r"\*\*ID:\*\*\s*`([^`]+)`", content)
-        name_match = re.search(r"^#\s*Contract:\s*(.+)$", content, re.MULTILINE)
-        type_match = re.search(r"\*\*Type:\*\*\s*(.+)$", content, re.MULTILINE)
-        status_match = re.search(r"\*\*Status:\*\*\s*(.+)$", content, re.MULTILINE)
-        proposer_match = re.search(r"\*\*Proposer:\*\*\s*(\w+)", content)
-        implementer_match = re.search(r"\*\*Implementer:\*\*\s*(\w+)", content)
-        created_match = re.search(r"\*\*Created:\*\*\s*(.+)$", content, re.MULTILINE)
-        updated_match = re.search(r"\*\*Updated:\*\*\s*(.+)$", content, re.MULTILINE)
-        agreed_match = re.search(r"\*\*Agreed:\*\*\s*(.+)$", content, re.MULTILINE)
-        implemented_match = re.search(r"\*\*Implemented:\*\*\s*(.+)$", content, re.MULTILINE)
-        verified_match = re.search(r"\*\*Verified:\*\*\s*(.+)$", content, re.MULTILINE)
-        tags_match = re.search(r"\*\*Tags:\*\*\s*(.+)$", content, re.MULTILINE)
-        deps_match = re.search(r"\*\*Dependencies:\*\*\s*(.+)$", content, re.MULTILINE)
+        # Extract header info (regexes precompiled at module level)
+        id_match = _RE_ID.search(content)
+        name_match = _RE_NAME.search(content)
+        type_match = _RE_TYPE.search(content)
+        status_match = _RE_STATUS.search(content)
+        proposer_match = _RE_PROPOSER.search(content)
+        implementer_match = _RE_IMPLEMENTER.search(content)
+        created_match = _RE_CREATED.search(content)
+        updated_match = _RE_UPDATED.search(content)
+        agreed_match = _RE_AGREED.search(content)
+        implemented_match = _RE_IMPLEMENTED.search(content)
+        verified_match = _RE_VERIFIED.search(content)
+        tags_match = _RE_TAGS.search(content)
+        deps_match = _RE_DEPS.search(content)
 
         # Parse status
         status_str = status_match.group(1).strip().lower() if status_match else "negotiating"
@@ -191,13 +216,9 @@ class Contract:
 
         # Parse history entries
         history = []
-        history_section = re.search(r"## Negotiation History\s*\n(.+)", content, re.DOTALL)
+        history_section = _RE_HISTORY_SECTION.search(content)
         if history_section:
-            entries = re.findall(
-                r"###\s+(\w+(?:-\w+)?)\s+\((\w+)\s+@\s+(\d+:\d+)\)\s*\n\n(.*?)(?=\n###|\Z)",
-                history_section.group(1),
-                re.DOTALL,
-            )
+            entries = _RE_HISTORY_ENTRIES.findall(history_section.group(1))
             for action_label, terminal, time, body in entries:
                 action_map = {
                     "Proposal": "proposal",
@@ -211,19 +232,19 @@ class Contract:
                 action = action_map.get(action_label, "response")
 
                 # Extract code block if present
-                code_match = re.search(r"```\w*\n(.*?)```", body, re.DOTALL)
+                code_match = _RE_CODE_BLOCK.search(body)
                 code_block = code_match.group(1).strip() if code_match else None
 
                 # Extract quality if present
-                quality_match = re.search(r"\*\*Quality:\*\*\s*([\d.]+)%", body)
+                quality_match = _RE_QUALITY.search(body)
                 quality = float(quality_match.group(1)) / 100 if quality_match else None
 
                 # Clean content (remove code block and metadata)
                 content_text = body
                 if code_match:
                     content_text = content_text.replace(code_match.group(0), "")
-                content_text = re.sub(r"\*\*Quality:\*\*.*$", "", content_text, flags=re.MULTILINE)
-                content_text = re.sub(r"\*\*File:\*\*.*$", "", content_text, flags=re.MULTILINE)
+                content_text = _RE_QUALITY_LINE.sub("", content_text)
+                content_text = _RE_FILE_LINE.sub("", content_text)
                 content_text = content_text.strip()
 
                 history.append(
@@ -287,6 +308,10 @@ class ContractManager:
             config: Orchestrator configuration
         """
         self.config = config
+        # Cache of parsed contracts keyed by file path, storing (mtime, Contract).
+        # Lets list_contracts skip re-reading/re-parsing files whose mtime is
+        # unchanged; entries for deleted files are dropped on each scan.
+        self._contract_cache: dict[Path, tuple[float, Contract]] = {}
         self._ensure_dirs()
 
     @property
@@ -669,6 +694,47 @@ class ContractManager:
                 return contract
         return None
 
+    def _load_all_contracts(self) -> list[Contract]:
+        """
+        Load every contract on disk, using a per-file mtime cache.
+
+        Only files whose mtime changed (or that are new) are re-read and
+        re-parsed; unchanged files are served from cache. Cache entries for
+        files that no longer exist are dropped, so deletions invalidate too.
+
+        Returns:
+            List of all current contracts (unfiltered, unsorted).
+        """
+        contracts: list[Contract] = []
+        seen: set[Path] = set()
+
+        for path in self.contracts_dir.glob("*.md"):
+            seen.add(path)
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+
+            cached = self._contract_cache.get(path)
+            if cached is not None and cached[0] == mtime:
+                contracts.append(cached[1])
+                continue
+
+            contract = self._load_contract(path)
+            if not contract:
+                # Drop any stale cache entry for an unreadable file.
+                self._contract_cache.pop(path, None)
+                continue
+
+            self._contract_cache[path] = (mtime, contract)
+            contracts.append(contract)
+
+        # Evict cache entries for files that were removed.
+        for stale in self._contract_cache.keys() - seen:
+            del self._contract_cache[stale]
+
+        return contracts
+
     def list_contracts(
         self,
         status: ContractStatus | None = None,
@@ -688,11 +754,7 @@ class ContractManager:
         """
         contracts = []
 
-        for path in self.contracts_dir.glob("*.md"):
-            contract = self._load_contract(path)
-            if not contract:
-                continue
-
+        for contract in self._load_all_contracts():
             # Apply filters
             if status and contract.status != status:
                 continue
@@ -844,6 +906,12 @@ class ContractManager:
         """Save a contract to disk."""
         path = self._get_contract_path(contract.id)
         path.write_text(contract.to_markdown())
+        # Refresh the cache so in-process writes are reflected even when the
+        # filesystem mtime resolution is too coarse to distinguish the rewrite.
+        try:
+            self._contract_cache[path] = (path.stat().st_mtime, contract)
+        except OSError:
+            self._contract_cache.pop(path, None)
         return path
 
     def _load_contract(self, path: Path) -> Contract | None:
@@ -868,6 +936,7 @@ class ContractManager:
         path = self._get_contract_path(contract_id)
         if path.exists():
             path.unlink()
+            self._contract_cache.pop(path, None)
             return True
         return False
 
@@ -875,6 +944,7 @@ class ContractManager:
         """Clear all contracts."""
         for path in self.contracts_dir.glob("*.md"):
             path.unlink()
+        self._contract_cache.clear()
 
     def deprecate_contract(self, contract_id: str, reason: str) -> Contract | None:
         """
