@@ -35,6 +35,26 @@ struct KanbanBoardView: View {
                 message: "Add a card to any column, or ask the Conductor to plan work."
             )
         } else {
+            // Horizontal scroll with column snapping (REQ-UX-050/056): all five
+            // columns stay reachable from 900 pt up to ultrawide. Columns flex to
+            // fill when they all fit; otherwise each keeps ≥ 240 pt and the board
+            // scrolls with a viewport-aligned snap.
+            GeometryReader { geo in
+                board(availableWidth: geo.size.width)
+            }
+        }
+    }
+
+    private func board(availableWidth: CGFloat) -> some View {
+        let count = CGFloat(BoardColumn.allCases.count)
+        let gaps = Space.sm * (count - 1)
+        let inset = Space.md * 2
+        let minColumn: CGFloat = 240
+        let usable = max(0, availableWidth - inset)
+        let fitsAll = usable >= minColumn * count + gaps
+        let columnWidth = fitsAll ? max(minColumn, (usable - gaps) / count) : minColumn
+
+        return ScrollView(.horizontal, showsIndicators: !fitsAll) {
             HStack(alignment: .top, spacing: Space.sm) {
                 ForEach(BoardColumn.allCases) { column in
                     KanbanColumnView(
@@ -42,10 +62,14 @@ struct KanbanBoardView: View {
                         column: column,
                         selectedCardId: $selectedCardId
                     )
+                    .frame(width: columnWidth)
                 }
             }
             .padding(Space.md)
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     }
 
     private var offlineBanner: some View {

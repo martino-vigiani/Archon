@@ -69,8 +69,9 @@ struct LiveTranscriptView: View {
                     .archonText(.captionEmphasis)
                     .foregroundStyle(theme.textPrimary)
                 if let progress = downloadProgress {
-                    ProgressView(value: progress)
-                        .tint(theme.textSecondary)
+                    // Achromatic determinate bar — the stock ProgressView tint is
+                    // the chromatic accent, banned by REQ-DSN-047.
+                    AchromaticProgressBar(value: progress)
                         .frame(maxWidth: 200)
                 }
             }

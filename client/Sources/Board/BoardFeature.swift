@@ -26,11 +26,11 @@ enum BoardFeature {
         registry.register(.main(.memory)) { MemoryView(store: memory) }
         registry.register(.main(.codebase)) { CodebaseView(store: codebase) }
 
-        // REQ-UX-001: the shell's right drawer ("conductor edge") houses the
-        // Kanban board. Register the same board (shared store) there so the
-        // drawer shows live content instead of a placeholder; ⌘4 additionally
-        // surfaces it as a full main pane per the integration directive.
-        registry.register(.conductorEdge) { KanbanBoardView(store: board) }
+        // REQ-UX-001 / §5.10: the shell's right drawer ("conductor edge") shows a
+        // compact single-column "Up Next" agenda over the SAME board store — not
+        // a second copy of the full five-column board (which ⌘4 already surfaces
+        // as the main pane). Shared store → live content, no visual duplication.
+        registry.register(.conductorEdge) { BoardDrawerView(store: board) }
     }
 }
 

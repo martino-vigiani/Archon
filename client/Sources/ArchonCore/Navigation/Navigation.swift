@@ -1,7 +1,7 @@
 import Foundation
 
-/// The three main-pane destinations (REQ-UX-003). Exactly three: reachable via
-/// ⌘1/⌘2/⌘3, a segmented control, and Conductor-driven programmatic navigation.
+/// The five main-pane destinations (REQ-UX-003). Reachable via ⌘1–⌘5, a
+/// segmented control, and Conductor-driven programmatic navigation.
 enum MainPane: String, CaseIterable, Identifiable, Sendable, Hashable {
     case terminals
     case summary

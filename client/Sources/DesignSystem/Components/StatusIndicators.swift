@@ -54,6 +54,8 @@ struct StatusBadge: View {
             Text(status.label)
                 .archonText(.captionEmphasis)
                 .foregroundStyle(emphasized ? theme.textPrimary : theme.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
         }
         .padding(.horizontal, Space.sm)
         .padding(.vertical, Space.xs)

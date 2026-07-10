@@ -62,6 +62,31 @@ extension View {
     }
 }
 
+/// An achromatic keyboard-focus ring (REQ-DSN-047: never the chromatic system
+/// ring). Pair with `.focusable().focusEffectDisabled()` on views that use
+/// `.buttonStyle(.plain)`, which otherwise suppress any focus affordance. The
+/// ring keeps a constant footprint (0-width stroke when unfocused) so gaining
+/// focus never nudges layout.
+private struct ArchonFocusRingModifier: ViewModifier {
+    let isFocused: Bool
+    let cornerRadius: CGFloat
+    @Environment(\.archonTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(theme.selectionBorder, lineWidth: isFocused ? 2 : 0)
+        }
+    }
+}
+
+extension View {
+    /// Draws the app's achromatic focus ring when `isFocused` is true.
+    func archonFocusRing(_ isFocused: Bool, cornerRadius: CGFloat = Radius.input) -> some View {
+        modifier(ArchonFocusRingModifier(isFocused: isFocused, cornerRadius: cornerRadius))
+    }
+}
+
 /// A flat/glass panel container tagged with a single material class.
 struct ArchonPanel<Content: View>: View {
     var material: ArchonMaterial = .flatSurface
