@@ -58,40 +58,15 @@ enum TerminalInkResolver {
     }
 
     /// Builds the attributed representation of one terminal line for CoreText/
-    /// NSString drawing. `paper` is the pane background (for inverse runs).
+    /// NSString drawing. Convenience wrapper over `TerminalInkPalette` (the hot
+    /// render path caches a palette instead of building one per call). `paper` is
+    /// accepted for source compatibility but is derived from `mode`.
     static func attributedString(
         for line: TerminalLine,
         mode: ThemeMode,
         fontSize: CGFloat,
         paper: NSColor
     ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        if line.isMarker {
-            let markerColor = nsColor(.faint, mode: mode)
-            let markerFont = font(size: fontSize, bold: false, italic: true)
-            result.append(NSAttributedString(
-                string: line.plainText,
-                attributes: [.foregroundColor: markerColor, .font: markerFont]
-            ))
-            return result
-        }
-        for run in line.runs {
-            let style = run.style
-            let inkColor = nsColor(style.effectiveInk, mode: mode)
-            var attributes: [NSAttributedString.Key: Any] = [
-                .font: font(size: fontSize, bold: style.bold, italic: style.italic)
-            ]
-            if style.inverse {
-                attributes[.foregroundColor] = paper
-                attributes[.backgroundColor] = inkColor
-            } else {
-                attributes[.foregroundColor] = inkColor
-            }
-            if style.underline {
-                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            }
-            result.append(NSAttributedString(string: run.text, attributes: attributes))
-        }
-        return result
+        TerminalInkPalette(mode: mode, fontSize: fontSize).attributed(for: line)
     }
 }
