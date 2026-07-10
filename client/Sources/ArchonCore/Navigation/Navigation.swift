@@ -6,6 +6,8 @@ enum MainPane: String, CaseIterable, Identifiable, Sendable, Hashable {
     case terminals
     case summary
     case codebase
+    case kanban
+    case memory
 
     var id: String { rawValue }
 
@@ -14,6 +16,8 @@ enum MainPane: String, CaseIterable, Identifiable, Sendable, Hashable {
         case .terminals: return "Terminals"
         case .summary: return "Summary"
         case .codebase: return "Codebase"
+        case .kanban: return "Board"
+        case .memory: return "Memory"
         }
     }
 
@@ -23,15 +27,19 @@ enum MainPane: String, CaseIterable, Identifiable, Sendable, Hashable {
         case .terminals: return "square.grid.2x2"
         case .summary: return "chart.bar"
         case .codebase: return "folder"
+        case .kanban: return "rectangle.split.3x1"
+        case .memory: return "doc.text"
         }
     }
 
-    /// Keyboard shortcut character (⌘1/⌘2/⌘3).
+    /// Keyboard shortcut character (⌘1…⌘5).
     var shortcutKey: Character {
         switch self {
         case .terminals: return "1"
         case .summary: return "2"
         case .codebase: return "3"
+        case .kanban: return "4"
+        case .memory: return "5"
         }
     }
 }
