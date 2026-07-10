@@ -103,9 +103,56 @@ class EchoAdapter:
         return _clean_env(base_env)
 
 
+class SleepAdapter:
+    """Generic adapter that prints, holds the PTY open, then exits (test harness).
+
+    Like :class:`EchoAdapter` it needs no external binary, but it stays alive for
+    ``hold_s`` seconds after its first line so a harness can (a) let it run to a
+    natural ``completed`` exit, or (b) ``kill`` a genuinely-live PTY session and
+    observe ``exit_reason: killed`` — both deterministically and offline. It
+    writes nothing to disk (project tree stays byte-identical).
+    """
+
+    name = "sleep"
+
+    def __init__(self, *, hold_s: float = 2.0) -> None:
+        self.hold_s = hold_s
+
+    def build_argv(self, prompt: str | None) -> list[str]:
+        text = prompt or "archon-e2e"
+        script = (
+            "import sys, time\n"
+            f"print('archon-e2e ready', {text!r}, flush=True)\n"
+            f"time.sleep({float(self.hold_s)!r})\n"
+            "print('archon-e2e done', flush=True)\n"
+            "sys.exit(0)\n"
+        )
+        return [sys.executable, "-c", script]
+
+    def build_env(self, base_env: dict[str, str] | None = None) -> dict[str, str]:
+        return _clean_env(base_env)
+
+
 def default_adapter() -> PTYAdapter:
-    """Return the default adapter (Claude Code)."""
+    """Return the default PTY adapter.
+
+    Production always uses :class:`ClaudeCodeAdapter`. The optional
+    ``ARCHON_V3_ADAPTER`` env var selects a credential-free stub adapter for E2E
+    harnesses driving the real ``python -m orchestrator.v3`` boot without the
+    ``claude`` binary/OAuth (values: ``echo`` → :class:`EchoAdapter`, ``sleep`` →
+    :class:`SleepAdapter`). Unset/unknown → Claude Code (no behavior change).
+    """
+    choice = os.environ.get("ARCHON_V3_ADAPTER", "").strip().lower()
+    if choice == "echo":
+        return EchoAdapter()
+    if choice == "sleep":
+        hold_raw = os.environ.get("ARCHON_V3_STUB_HOLD_S", "2.0")
+        try:
+            hold_s = float(hold_raw)
+        except (TypeError, ValueError):
+            hold_s = 2.0
+        return SleepAdapter(hold_s=hold_s)
     return ClaudeCodeAdapter()
 
 
-__all__ = ["PTYAdapter", "ClaudeCodeAdapter", "EchoAdapter", "default_adapter"]
+__all__ = ["PTYAdapter", "ClaudeCodeAdapter", "EchoAdapter", "SleepAdapter", "default_adapter"]

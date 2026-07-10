@@ -19,11 +19,14 @@ struct OrchestratorLaunchConfig: Sendable, Equatable {
         extraArguments: []
     )
 
-    /// The full argument vector. Integration seam: the exact V3 serve flag is
-    /// confirmed against `orchestrator/v3` — the project dir is passed via
-    /// `--project` and mirrored in the environment.
+    /// The full argument vector. Integration seam: the V3 serve entry point is
+    /// `python -m orchestrator.v3` (see `orchestrator/v3/__main__.py` and
+    /// `create_v3_app` in `app.py`) — NOT the legacy `python -m orchestrator`,
+    /// which is the organic multi-agent CLI and requires a task goal. The bound
+    /// project dir is passed via `--project`; the port is left ephemeral (the
+    /// backend picks one and writes it into `runtime.json`, contract §1.2).
     func arguments(projectPath: String) -> [String] {
-        ["-m", "orchestrator", "--project", projectPath] + extraArguments
+        ["-m", "orchestrator.v3", "--project", projectPath] + extraArguments
     }
 }
 

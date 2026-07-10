@@ -67,9 +67,20 @@ class _MemoryMeta:
     def get(self, key: str) -> dict[str, Any]:
         return self._data.get(key, {"revision": 1, "owner": "user"})
 
+    def set(self, key: str, revision: int, owner: str = "user") -> int:
+        """Store an explicit revision (used to seed a freshly-created file at 1)."""
+        self._data[key] = {"revision": int(revision), "owner": owner}
+        self._save()
+        return int(revision)
+
     def bump(self, key: str, owner: str = "user") -> int:
-        entry = self._data.get(key, {"revision": 0, "owner": owner})
-        entry["revision"] = int(entry.get("revision", 0)) + 1
+        # Untracked keys are reported as revision 1 by ``get`` (the initial
+        # revision of a discovered-but-never-written file), so ``bump`` MUST
+        # start from that same baseline — otherwise the first write of a
+        # discovered file returns 1 again (no increment), silently defeating
+        # optimistic concurrency (contract §2.6: a PUT increments the revision).
+        entry = self._data.get(key, {"revision": 1, "owner": owner})
+        entry["revision"] = int(entry.get("revision", 1)) + 1
         entry["owner"] = owner
         self._data[key] = entry
         self._save()
@@ -163,8 +174,12 @@ class MemoryService:
                 p = d / name
                 if p.is_file():
                     files.append(self._file_object(d, name, "project", p))
-            # Overlay files for this scope.
-            overlay_dir = self._overlay_path(d, "").parent
+            # Overlay files for this scope live in ``$OVERLAY/<rel_dir>/`` — that
+            # is exactly ``_overlay_path(d, "")`` (the scope's own overlay dir).
+            # (The former ``.parent`` walked UP one level, which for the project
+            # root — rel_dir "." — collapsed to the entire state dir and leaked
+            # ``runtime.json``/``kanban.sqlite3`` as bogus overlay memory files.)
+            overlay_dir = self._overlay_path(d, "")
             if overlay_dir.is_dir():
                 for p in sorted(overlay_dir.iterdir()):
                     if p.is_file():
@@ -231,7 +246,8 @@ class MemoryService:
             op = "created"
 
         _atomic_write_bytes(disk, encoded)
-        revision = self._meta.bump(key, owner="user")
+        # A freshly-created file starts at revision 1; an update increments.
+        revision = self._meta.set(key, 1, owner="user") if op == "created" else self._meta.bump(key, owner="user")
         obj = self._file_object(scope, filename, location, disk)
         await self.bus.publish(
             "memory_changed",
