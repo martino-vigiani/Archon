@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query
@@ -34,7 +35,10 @@ async def list_memory(
     scope_dir: str | None = Query(default=None),
     state: V3State = Depends(get_state),
 ) -> dict[str, Any]:
-    return state.memory.list_files(scope_dir)
+    # A full-project listing os.walks the whole tree and stats every memory
+    # file; run it in a worker thread so a large project never stalls the WS
+    # heartbeat / pty_output stream on the event loop.
+    return await asyncio.to_thread(state.memory.list_files, scope_dir)
 
 
 @router.get("/memory/file", dependencies=AUTHORIZED)

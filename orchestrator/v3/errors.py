@@ -36,6 +36,7 @@ ERROR_REGISTRY: dict[str, tuple[int, bool]] = {
     "memory_quota_exceeded": (409, False),
     "path_escape": (400, False),
     "plan_expired": (410, False),
+    "plan_already_confirmed": (409, False),
     "session_not_found": (404, False),
     "rate_limited": (429, True),
     "orchestrator_error": (500, True),

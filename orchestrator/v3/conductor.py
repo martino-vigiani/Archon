@@ -62,6 +62,10 @@ class Conductor:
         self._planning_state = "idle"  # idle | thinking | spawning
         self._error_active = False
         self._by_request: dict[str, tuple[float, dict[str, Any]]] = {}
+        # Confirm idempotency (contract §1.5): request_id → (monotonic_ts, result).
+        # Kept separate from _by_request (which caches *plan* bodies) so a confirm
+        # retry replays its execution result rather than re-running the plan.
+        self._confirm_by_request: dict[str, tuple[float, dict[str, Any]]] = {}
 
     # -- orb state ---------------------------------------------------------
     def current_state(self) -> str:
@@ -101,6 +105,7 @@ class Conductor:
         if not text or not text.strip():
             raise ApiError("validation_error", "Intent text must be non-empty")
 
+        self._prune_expired()
         # Idempotency (REQ-ARCH-021): same request_id returns the same plan body.
         if request_id:
             cached = self._by_request.get(request_id)
@@ -211,20 +216,43 @@ class Conductor:
         cap: int | None = None,
         auto_apply: bool = False,
     ) -> dict[str, Any]:
+        # Idempotent replay (contract §1.5): the Swift APIClient marks confirmPlan
+        # idempotent and auto-retries on transient 5xx/timeout. A completed confirm
+        # for this request_id returns its ORIGINAL result — never a second
+        # execution — even if the plan has since expired and been pruned. Checked
+        # before the plan lookup below so a still-present expired plan yields
+        # ``plan_expired`` (contract 410) rather than being pruned to ``not_found``.
+        if request_id:
+            cached = self._confirm_by_request.get(request_id)
+            if cached and (time.monotonic() - cached[0]) < _IDEMPOTENCY_TTL_S:
+                return cached[1]
+
         stored = self._plans.get(plan_id)
         if stored is None:
             raise ApiError("not_found", "Unknown plan", details={"plan_id": plan_id})
         if time.monotonic() > stored.expires_at_monotonic:
             raise ApiError("plan_expired", "Plan TTL elapsed before confirm", details={"plan_id": plan_id})
-        if stored.status in ("cancelled",):
+        if stored.status == "cancelled":
             raise ApiError("plan_expired", "Plan was cancelled", details={"plan_id": plan_id})
+        # A plan executes at most once. A re-confirm with a *different* (or no)
+        # request_id after the plan is already executing/executed is refused so a
+        # retried/duplicated call can never spawn duplicate agent terminals or
+        # cards (the same-request_id retry is handled by the cache above).
+        if stored.status in ("executing", "partial", "done"):
+            raise ApiError(
+                "plan_already_confirmed",
+                "Plan has already been confirmed",
+                details={"plan_id": plan_id, "status": stored.status},
+            )
 
         plan = stored.plan
         effective_cap = cap if cap is not None else plan["applied_cap"]
         limit = self.ceiling if effective_cap is None else min(effective_cap, self.ceiling)
 
-        await self._set_state("spawning", detail="Executing plan", plan_id=plan_id)
+        # Claim the plan synchronously — no await between the guard above and this
+        # write — so two concurrent confirms cannot both pass the guard and run.
         stored.status = "executing"
+        await self._set_state("spawning", detail="Executing plan", plan_id=plan_id)
 
         created_session_ids: list[str] = []
         created_card_ids: list[str] = []
@@ -319,7 +347,30 @@ class Conductor:
         }
         if any_failed:
             result["action_results"] = action_results
+        if request_id:
+            self._confirm_by_request[request_id] = (time.monotonic(), result)
         return result
+
+    def _prune_expired(self) -> None:
+        """Reclaim expired plans and stale idempotency records (bounded growth).
+
+        TTLs remain authoritative on access; this only drops entries that can no
+        longer be returned, so the in-memory maps don't grow unboundedly across
+        an all-day session. A confirmed plan's result survives in
+        ``_confirm_by_request`` for the full idempotency window even after the
+        plan itself is pruned.
+        """
+        now = time.monotonic()
+        # Keep expired plans for the idempotency window past their TTL so a confirm
+        # shortly after expiry still returns ``plan_expired`` (410) rather than
+        # ``not_found`` (404); only then reclaim them.
+        for pid in [p for p, sp in self._plans.items()
+                    if now > sp.expires_at_monotonic + _IDEMPOTENCY_TTL_S]:
+            del self._plans[pid]
+        for rid in [r for r, (ts, _b) in self._by_request.items() if now - ts >= _IDEMPOTENCY_TTL_S]:
+            del self._by_request[rid]
+        for rid in [r for r, (ts, _r) in self._confirm_by_request.items() if now - ts >= _IDEMPOTENCY_TTL_S]:
+            del self._confirm_by_request[rid]
 
     async def cancel(self, plan_id: str) -> dict[str, Any]:
         stored = self._plans.get(plan_id)
@@ -331,6 +382,8 @@ class Conductor:
 
     async def shutdown(self) -> None:
         self._plans.clear()
+        self._by_request.clear()
+        self._confirm_by_request.clear()
 
     async def _emit_error(self, code: str, message: str) -> None:
         await self._set_state("error", detail=message)

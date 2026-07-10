@@ -101,11 +101,16 @@ async def stream_endpoint(websocket: WebSocket) -> None:
 
     await websocket.accept()
     sub: Subscriber = bus.register()
+    # Serialize every outbound frame through one lock: the sender, the receiver
+    # (pong / resume-hello) and the heartbeat all write to the same socket, and
+    # Starlette does not document concurrent sends as safe (frames could interleave
+    # at the ASGI layer). All sends after the initial hello go through this lock.
+    send_lock = asyncio.Lock()
     try:
         await websocket.send_json(_hello_frame(bus, state.conductor_state()))
-        sender = asyncio.create_task(_sender_loop(websocket, bus, sub))
-        receiver = asyncio.create_task(_receiver_loop(websocket, bus, sub))
-        heartbeat = asyncio.create_task(_heartbeat_loop(websocket, bus))
+        sender = asyncio.create_task(_sender_loop(websocket, bus, sub, send_lock))
+        receiver = asyncio.create_task(_receiver_loop(websocket, bus, sub, send_lock))
+        heartbeat = asyncio.create_task(_heartbeat_loop(websocket, bus, sub, send_lock))
         done, pending = await asyncio.wait(
             {sender, receiver, heartbeat}, return_when=asyncio.FIRST_COMPLETED
         )
@@ -127,33 +132,39 @@ async def stream_endpoint(websocket: WebSocket) -> None:
                 await websocket.close()
 
 
-async def _sender_loop(websocket: WebSocket, bus: EventBus, sub: Subscriber) -> None:
+async def _sender_loop(
+    websocket: WebSocket, bus: EventBus, sub: Subscriber, send_lock: asyncio.Lock
+) -> None:
     """Drain the subscriber queue to the socket, honoring backpressure."""
     while True:
         env = await sub.get()
-        await websocket.send_json(env)
-        # Emit any coalesced pty_output drop markers accumulated during overflow.
-        for marker in sub.take_drop_markers():
-            await websocket.send_json(marker)
+        async with send_lock:
+            await websocket.send_json(env)
+            # Emit any coalesced pty_output drop markers accumulated during overflow.
+            for marker in sub.take_drop_markers():
+                await websocket.send_json(marker)
         # A never-drop topic overflowed → clean disconnect for resync.
         if sub.must_disconnect:
-            with contextlib.suppress(Exception):
-                await websocket.send_json(
-                    {
-                        "v": PROTOCOL_VERSION,
-                        "seq": None,
-                        "ts": now_iso(),
-                        "type": "error",
-                        "payload": error_body(
-                            "rate_limited", "Stream consumer too slow; reconnect and resync."
-                        ),
-                    }
-                )
+            async with send_lock:
+                with contextlib.suppress(Exception):
+                    await websocket.send_json(
+                        {
+                            "v": PROTOCOL_VERSION,
+                            "seq": None,
+                            "ts": now_iso(),
+                            "type": "error",
+                            "payload": error_body(
+                                "rate_limited", "Stream consumer too slow; reconnect and resync."
+                            ),
+                        }
+                    )
             await websocket.close(code=1013)  # try-again-later
             return
 
 
-async def _receiver_loop(websocket: WebSocket, bus: EventBus, sub: Subscriber) -> None:
+async def _receiver_loop(
+    websocket: WebSocket, bus: EventBus, sub: Subscriber, send_lock: asyncio.Lock
+) -> None:
     """Handle client control frames: resume / subscribe / unsubscribe / ping."""
     while True:
         msg = await websocket.receive_json()
@@ -161,7 +172,8 @@ async def _receiver_loop(websocket: WebSocket, bus: EventBus, sub: Subscriber) -
             continue
         mtype = msg.get("type")
         if mtype == "ping":
-            await websocket.send_json(_heartbeat_frame(bus, pong=str(msg.get("id", ""))))
+            async with send_lock:
+                await websocket.send_json(_heartbeat_frame(bus, pong=str(msg.get("id", ""))))
         elif mtype == "subscribe":
             sub.set_topics(_parse_topics(msg.get("topics")))
         elif mtype == "unsubscribe":
@@ -179,14 +191,25 @@ async def _receiver_loop(websocket: WebSocket, bus: EventBus, sub: Subscriber) -
             if truncated:
                 state = getattr(websocket.app.state, "v3", None)
                 cstate = state.conductor_state() if state else "idle"
-                await websocket.send_json(_hello_frame(bus, cstate, truncated=True))
+                async with send_lock:
+                    await websocket.send_json(_hello_frame(bus, cstate, truncated=True))
         # Unknown control frames are ignored (additive-only tolerance).
 
 
-async def _heartbeat_loop(websocket: WebSocket, bus: EventBus) -> None:
+async def _heartbeat_loop(
+    websocket: WebSocket, bus: EventBus, sub: Subscriber, send_lock: asyncio.Lock
+) -> None:
     while True:
         await asyncio.sleep(HEARTBEAT_INTERVAL_S)
-        await websocket.send_json(_heartbeat_frame(bus))
+        async with send_lock:
+            await websocket.send_json(_heartbeat_frame(bus))
+            # Also flush any pending pty_output drop markers here: if the queue
+            # drained right after an overflow burst and the stream went quiet, the
+            # sender loop won't wake until the next event, so the "output truncated"
+            # break would otherwise be withheld indefinitely (heartbeats bypass the
+            # sender queue). Bounding the delay to one heartbeat closes that hole.
+            for marker in sub.take_drop_markers():
+                await websocket.send_json(marker)
 
 
 __all__ = ["router"]
