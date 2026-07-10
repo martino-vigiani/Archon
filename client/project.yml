@@ -49,6 +49,11 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Sources
+    dependencies:
+      # Phase B (VoiceOrb sector): link the already-declared WhisperKit package
+      # so on-device push-to-talk dictation can `import WhisperKit`. Model files
+      # download lazily at first use, never bundled (Addendum §B / REQUIREMENTS §2.C).
+      - package: WhisperKit
     settings:
       base:
         PRODUCT_NAME: Archon
