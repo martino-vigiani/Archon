@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01BB6DEB9295F00370A26861 /* ConductorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C902FA2B8019EE95823DF5 /* ConductorStore.swift */; };
 		06E2EE53BDDDE481B344B6B6 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DC06C36A5510FA50EDD5A3 /* JSONValue.swift */; };
 		0D60DB8DB3E137CF2C8FAE87 /* Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684182A95107CD8D18D72A64 /* Events.swift */; };
 		135669C0FD12FBE6AC88F226 /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13E9752A0BD82B3BB149A42 /* Controls.swift */; };
@@ -15,38 +16,63 @@
 		22652D4F43458C38E9035EE7 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B416F5BEFE5B985D413C58A /* Project.swift */; };
 		22A938655A1EE30F9DD68050 /* Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B3F21356D4C4C671DE4D990 /* Memory.swift */; };
 		2459770C8625F0741705F4D9 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35D088637E37F19E60BF7B8 /* DesignTokens.swift */; };
+		280FFE0EF54D9E9EA28196F2 /* OrbHue.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE3FE44F3FCD45172998078 /* OrbHue.swift */; };
 		2E97BCD51D8F2A5DC2E104DA /* EventDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */; };
 		306F15B32823E8C5A98F73D0 /* AppStateReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41745580EDB1E4C88132D2D8 /* AppStateReducerTests.swift */; };
+		35CC8D8CA239D620CE7835BB /* ConductorSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18B12D7E67BB15BB3956377 /* ConductorSurfaceView.swift */; };
 		36EFA4D99D62034BCC20C97F /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD46851018374A5A5477A3A /* APIError.swift */; };
 		41B63FED230E0D70FD345E06 /* Health.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83EC12E1FEC3BD9D301D9FB1 /* Health.swift */; };
+		43E483D13D80F46D485F70E3 /* OrbRenderModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14397D4F57BBB7771A72A953 /* OrbRenderModel.swift */; };
 		49359E6B3BF321D35A8F7EA0 /* BackoffAndSeqTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F03027C8A76E9EF0A0A008D /* BackoffAndSeqTests.swift */; };
+		49DB15405AF63B7B861808BC /* SpeechTranscribing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57EFADAB1D249236EDA0642 /* SpeechTranscribing.swift */; };
+		4B5BC329FEDC09C4BE8571BC /* PushToTalkController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C5451807B71713E46AB7A43 /* PushToTalkController.swift */; };
+		4E2A3EDB1B1CDA4733DA1D2D /* OrbStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28D5826503E251D42BB727D /* OrbStateMachine.swift */; };
 		4F08071D72C27F4EBD4ADE2C /* ArchonMaterial.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */; };
 		5228735650B621739FBA20FD /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */; };
+		53B0B3A7B48FBB55AD17B312 /* PlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17EFA32BFCA0B71AA67E293F /* PlanView.swift */; };
+		54CA0363725C3B6E558F194D /* OrbPanelHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63FA5B9E029F7889FC8E8BD /* OrbPanelHost.swift */; };
 		5854CEDDFC97C2A5E2F41E0B /* ProjectPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */; };
+		616C489F86F991203357BFD8 /* FloatingOrbPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04799D8F42FC23FA1F74D0BF /* FloatingOrbPanel.swift */; };
 		643681D67D9758DC42C3C9D1 /* ULID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DD67DFCE01F21CFC1293F4 /* ULID.swift */; };
 		655EF1A102C3473AD1680A9C /* ThreePaneShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48C08BFBBD54A0EF2C2FCB3 /* ThreePaneShell.swift */; };
 		67EB9F8A308792DE303CE2D2 /* Conductor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4DDAE17A1EC528F350F280 /* Conductor.swift */; };
+		6C2641BBD963CAC0E6715A85 /* MicrophoneAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = E09AAAD4BE53847694DECD08 /* MicrophoneAuthorization.swift */; };
 		74743BAFFBE1B4626A190C3E /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2332AFA65D47F4226839C200 /* AppState.swift */; };
+		78B184280D1049C49363FF2D /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = D4DE73B4223E05A68AA3AC5C /* WhisperKit */; };
 		80D7D86AB413EB18BF31C457 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC714BB7790DF6FA10DEE89E /* RootView.swift */; };
+		811AA3C25940022C4FBA4430 /* TranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F058613BA196C565AE6AE91 /* TranscriptView.swift */; };
 		87839E6C598352311BEAF301 /* Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79370577EA9C215B93AA4F21 /* Navigation.swift */; };
 		87EB61FA3F49D7EAAA464568 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3074515503F306D9B35C23B9 /* Typography.swift */; };
+		887D124C47E00C0FD82CBE48 /* WhisperKitTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94936016E8E9CA22D6FF42AF /* WhisperKitTranscriber.swift */; };
+		968FC9B84BC48691AED3FBAC /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A01A721C66CBDF017155FF0 /* HotKeyManager.swift */; };
 		96E73C83721115138594AABA /* BackoffPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01C2E745EA9AE70B336DBAF /* BackoffPolicy.swift */; };
 		A00D07F1D198B17F1D23C126 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA0919840B3C42676BD639F /* AppContainer.swift */; };
 		A0991A796CB072B3B25FD1CF /* Kanban.swift in Sources */ = {isa = PBXBuildFile; fileRef = B396BFF76026BF349DDE0E0F /* Kanban.swift */; };
 		A11B148D03E51AE89F522949 /* ProjectIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80175917793628008C1CDB8 /* ProjectIdentity.swift */; };
+		AB6692515BF919C7B78724C9 /* HotKeyBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57FFB3EF9D986C74B40C9E8 /* HotKeyBinding.swift */; };
 		ABD0B0E866263454C50C871C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F391DB5800A824330C61F1 /* APIClient.swift */; };
 		AD2F8611402E971242DB8F38 /* StateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178255FAC4D0DAE20F05518 /* StateViews.swift */; };
+		B14341165D6A12308FEAE6A1 /* VoiceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2CFB7927CFC4FC2855A300 /* VoiceStore.swift */; };
+		B2D62CD754616BBF85EE528E /* OrbState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7588FB633DDD37077DB60A /* OrbState.swift */; };
+		B37AF6E53CE62313E2EA9F20 /* OrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93839BDD1C2E0EAE0FA42488 /* OrbView.swift */; };
 		B409FFD026BDD440436875F9 /* ArchonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCAB0D49209E7010BA8551C6 /* ArchonApp.swift */; };
+		B52FA470BE353E30C24AE1C9 /* VoiceOrbCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFCECB4869D212580EDD8BE /* VoiceOrbCoordinator.swift */; };
+		B68FA50BE68D4B37840BC351 /* OrbPositionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FE1ECBFEBAD1BE8F8720570 /* OrbPositionStore.swift */; };
 		BAC9556CF6077D7FB066588E /* ArchonMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */; };
+		BFB7C6665DC2E823B9A945D7 /* OrbEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F874F9E65E4AD1DB31C23737 /* OrbEnvironment.swift */; };
 		C4209031F0BE9C1E1CEFA5BC /* SeqTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9550ABF0B1B6BAEDA9CA75D2 /* SeqTracker.swift */; };
 		C61830EFA869D1D649E6D6AD /* Runtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E31623100809DF34D5EAAB /* Runtime.swift */; };
 		CB050FE8AE0E9CAA418B849C /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3053130C773FAC4D913001DA /* Session.swift */; };
 		CB8D0C40366066D2270452B3 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4999754A0853874972AA982F /* Spacing.swift */; };
 		D015E0FB78520B8CA85DEAA6 /* OrchestratorSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AAB33B97B048EEAD8A06C3A /* OrchestratorSupervisor.swift */; };
+		D120744D44901B8A168B0101 /* VoiceOrbFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A6866D0C7DC3D5672A99D8 /* VoiceOrbFeature.swift */; };
 		D8B53368C64CD26E79C1D6C7 /* StatusIndicators.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */; };
 		DC50BB2644CC7C31C0B5EC02 /* WSClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F471FE8371BFA1DE9BF7F5 /* WSClient.swift */; };
+		E81F6E14721B3E9EB6578813 /* VoiceOrbTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6609557651F1975B002A3C /* VoiceOrbTests.swift */; };
 		E933F80D23BF5500ECF0C706 /* MotionAndIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57220207B8609E7210FC095 /* MotionAndIDTests.swift */; };
 		F62A8CBB5051CEB8E32E0A1E /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */; };
+		F6BD7578D43188643717DBAA /* ConductorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC78D8AF0A6CA2F540F9AA37 /* ConductorModels.swift */; };
+		F95E0F0612A2AC8E323A5066 /* OrbOverlayContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E7B1C4A88EEEE074842C3C /* OrbOverlayContent.swift */; };
 		FC147400B4515306CA727C9C /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158CF3D6C44D46CF4B1409A1 /* ProjectStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -62,10 +88,16 @@
 
 /* Begin PBXFileReference section */
 		0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDecodingTests.swift; sourceTree = "<group>"; };
+		04799D8F42FC23FA1F74D0BF /* FloatingOrbPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOrbPanel.swift; sourceTree = "<group>"; };
+		0C5451807B71713E46AB7A43 /* PushToTalkController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToTalkController.swift; sourceTree = "<group>"; };
 		12DD67DFCE01F21CFC1293F4 /* ULID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ULID.swift; sourceTree = "<group>"; };
+		14397D4F57BBB7771A72A953 /* OrbRenderModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbRenderModel.swift; sourceTree = "<group>"; };
 		158CF3D6C44D46CF4B1409A1 /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		17EFA32BFCA0B71AA67E293F /* PlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanView.swift; sourceTree = "<group>"; };
 		1B3F21356D4C4C671DE4D990 /* Memory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Memory.swift; sourceTree = "<group>"; };
+		1F058613BA196C565AE6AE91 /* TranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptView.swift; sourceTree = "<group>"; };
 		2332AFA65D47F4226839C200 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		23C902FA2B8019EE95823DF5 /* ConductorStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConductorStore.swift; sourceTree = "<group>"; };
 		3053130C773FAC4D913001DA /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		3074515503F306D9B35C23B9 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		31B27E351025CD9795F8DABC /* ArchonJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonJSON.swift; sourceTree = "<group>"; };
@@ -74,37 +106,67 @@
 		4999754A0853874972AA982F /* Spacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spacing.swift; sourceTree = "<group>"; };
 		4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDecodingTests.swift; sourceTree = "<group>"; };
 		53F391DB5800A824330C61F1 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		5FE1ECBFEBAD1BE8F8720570 /* OrbPositionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbPositionStore.swift; sourceTree = "<group>"; };
 		60E31623100809DF34D5EAAB /* Runtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runtime.swift; sourceTree = "<group>"; };
 		684182A95107CD8D18D72A64 /* Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Events.swift; sourceTree = "<group>"; };
 		6BA0919840B3C42676BD639F /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		79370577EA9C215B93AA4F21 /* Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation.swift; sourceTree = "<group>"; };
 		7AAB33B97B048EEAD8A06C3A /* OrchestratorSupervisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorSupervisor.swift; sourceTree = "<group>"; };
 		83EC12E1FEC3BD9D301D9FB1 /* Health.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Health.swift; sourceTree = "<group>"; };
+		8A01A721C66CBDF017155FF0 /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		8B416F5BEFE5B985D413C58A /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		93839BDD1C2E0EAE0FA42488 /* OrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbView.swift; sourceTree = "<group>"; };
 		941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonMotion.swift; sourceTree = "<group>"; };
+		94936016E8E9CA22D6FF42AF /* WhisperKitTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriber.swift; sourceTree = "<group>"; };
 		9550ABF0B1B6BAEDA9CA75D2 /* SeqTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeqTracker.swift; sourceTree = "<group>"; };
+		9B2CFB7927CFC4FC2855A300 /* VoiceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceStore.swift; sourceTree = "<group>"; };
 		9F03027C8A76E9EF0A0A008D /* BackoffAndSeqTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffAndSeqTests.swift; sourceTree = "<group>"; };
 		A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStoreTests.swift; sourceTree = "<group>"; };
+		AA7588FB633DDD37077DB60A /* OrbState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbState.swift; sourceTree = "<group>"; };
+		ABE3FE44F3FCD45172998078 /* OrbHue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbHue.swift; sourceTree = "<group>"; };
 		B07599873F6CB7CFE8BE63DF /* Archon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Archon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B396BFF76026BF349DDE0E0F /* Kanban.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanban.swift; sourceTree = "<group>"; };
+		B57EFADAB1D249236EDA0642 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
+		B5E7B1C4A88EEEE074842C3C /* OrbOverlayContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbOverlayContent.swift; sourceTree = "<group>"; };
 		BCAB0D49209E7010BA8551C6 /* ArchonApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonApp.swift; sourceTree = "<group>"; };
 		BFD46851018374A5A5477A3A /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		C13E9752A0BD82B3BB149A42 /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
+		C18B12D7E67BB15BB3956377 /* ConductorSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConductorSurfaceView.swift; sourceTree = "<group>"; };
 		C2B8DB296921F435EE1B45CC /* ArchonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArchonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C63FA5B9E029F7889FC8E8BD /* OrbPanelHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbPanelHost.swift; sourceTree = "<group>"; };
 		CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIndicators.swift; sourceTree = "<group>"; };
 		CC4DDAE17A1EC528F350F280 /* Conductor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conductor.swift; sourceTree = "<group>"; };
 		CC714BB7790DF6FA10DEE89E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D48C08BFBBD54A0EF2C2FCB3 /* ThreePaneShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreePaneShell.swift; sourceTree = "<group>"; };
 		D5DC06C36A5510FA50EDD5A3 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
 		D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonMaterial.swift; sourceTree = "<group>"; };
+		D8A6866D0C7DC3D5672A99D8 /* VoiceOrbFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbFeature.swift; sourceTree = "<group>"; };
+		DDFCECB4869D212580EDD8BE /* VoiceOrbCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbCoordinator.swift; sourceTree = "<group>"; };
+		E09AAAD4BE53847694DECD08 /* MicrophoneAuthorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneAuthorization.swift; sourceTree = "<group>"; };
+		E28D5826503E251D42BB727D /* OrbStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbStateMachine.swift; sourceTree = "<group>"; };
 		E80175917793628008C1CDB8 /* ProjectIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectIdentity.swift; sourceTree = "<group>"; };
+		EC78D8AF0A6CA2F540F9AA37 /* ConductorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConductorModels.swift; sourceTree = "<group>"; };
+		EF6609557651F1975B002A3C /* VoiceOrbTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbTests.swift; sourceTree = "<group>"; };
 		EF7DA91D353722DB50A1F1FF /* ShellRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellRegistry.swift; sourceTree = "<group>"; };
 		F01C2E745EA9AE70B336DBAF /* BackoffPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicy.swift; sourceTree = "<group>"; };
 		F178255FAC4D0DAE20F05518 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateViews.swift; sourceTree = "<group>"; };
 		F35D088637E37F19E60BF7B8 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		F57220207B8609E7210FC095 /* MotionAndIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionAndIDTests.swift; sourceTree = "<group>"; };
+		F57FFB3EF9D986C74B40C9E8 /* HotKeyBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyBinding.swift; sourceTree = "<group>"; };
 		F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPicker.swift; sourceTree = "<group>"; };
+		F874F9E65E4AD1DB31C23737 /* OrbEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbEnvironment.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		57C54EBA17BF7EE897455559 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				78B184280D1049C49363FF2D /* WhisperKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1007AA42480B33FB0C26372B /* ArchonCore */ = {
@@ -155,6 +217,19 @@
 			path = Tokens;
 			sourceTree = "<group>";
 		};
+		4D28F2DD1E86DD93B52145AD /* State */ = {
+			isa = PBXGroup;
+			children = (
+				23C902FA2B8019EE95823DF5 /* ConductorStore.swift */,
+				F874F9E65E4AD1DB31C23737 /* OrbEnvironment.swift */,
+				5FE1ECBFEBAD1BE8F8720570 /* OrbPositionStore.swift */,
+				AA7588FB633DDD37077DB60A /* OrbState.swift */,
+				E28D5826503E251D42BB727D /* OrbStateMachine.swift */,
+				9B2CFB7927CFC4FC2855A300 /* VoiceStore.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
 		52120702627458C9DCDF318E /* Supervision */ = {
 			isa = PBXGroup;
 			children = (
@@ -175,6 +250,16 @@
 			path = Networking;
 			sourceTree = "<group>";
 		};
+		6790F1B202609AD9C1D8EDFA /* Speech */ = {
+			isa = PBXGroup;
+			children = (
+				E09AAAD4BE53847694DECD08 /* MicrophoneAuthorization.swift */,
+				B57EFADAB1D249236EDA0642 /* SpeechTranscribing.swift */,
+				94936016E8E9CA22D6FF42AF /* WhisperKitTranscriber.swift */,
+			);
+			path = Speech;
+			sourceTree = "<group>";
+		};
 		73D607881FE2C57EC73325AF /* State */ = {
 			isa = PBXGroup;
 			children = (
@@ -189,6 +274,16 @@
 				D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */,
 			);
 			path = Materials;
+			sourceTree = "<group>";
+		};
+		8EB914F6CB3C8230188610D1 /* Hotkey */ = {
+			isa = PBXGroup;
+			children = (
+				F57FFB3EF9D986C74B40C9E8 /* HotKeyBinding.swift */,
+				8A01A721C66CBDF017155FF0 /* HotKeyManager.swift */,
+				0C5451807B71713E46AB7A43 /* PushToTalkController.swift */,
+			);
+			path = Hotkey;
 			sourceTree = "<group>";
 		};
 		90DD9A412627295B0A991C14 /* DesignSystem */ = {
@@ -209,6 +304,7 @@
 				D6FF530FDDD72346669A71A2 /* App */,
 				1007AA42480B33FB0C26372B /* ArchonCore */,
 				90DD9A412627295B0A991C14 /* DesignSystem */,
+				E5041059D482A324E1B83D92 /* VoiceOrb */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -223,12 +319,35 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		A9D835A5B5666446B11EA5F1 /* Conductor */ = {
+			isa = PBXGroup;
+			children = (
+				EC78D8AF0A6CA2F540F9AA37 /* ConductorModels.swift */,
+				C18B12D7E67BB15BB3956377 /* ConductorSurfaceView.swift */,
+				17EFA32BFCA0B71AA67E293F /* PlanView.swift */,
+				1F058613BA196C565AE6AE91 /* TranscriptView.swift */,
+			);
+			path = Conductor;
+			sourceTree = "<group>";
+		};
 		AF7E82A02426B57B976941F3 /* Motion */ = {
 			isa = PBXGroup;
 			children = (
 				941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */,
 			);
 			path = Motion;
+			sourceTree = "<group>";
+		};
+		BCA39C4198C5AD2E1A04EFCE /* Orb */ = {
+			isa = PBXGroup;
+			children = (
+				04799D8F42FC23FA1F74D0BF /* FloatingOrbPanel.swift */,
+				ABE3FE44F3FCD45172998078 /* OrbHue.swift */,
+				C63FA5B9E029F7889FC8E8BD /* OrbPanelHost.swift */,
+				14397D4F57BBB7771A72A953 /* OrbRenderModel.swift */,
+				93839BDD1C2E0EAE0FA42488 /* OrbView.swift */,
+			);
+			path = Orb;
 			sourceTree = "<group>";
 		};
 		D6FF530FDDD72346669A71A2 /* App */ = {
@@ -249,6 +368,21 @@
 				C2B8DB296921F435EE1B45CC /* ArchonTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E5041059D482A324E1B83D92 /* VoiceOrb */ = {
+			isa = PBXGroup;
+			children = (
+				A9D835A5B5666446B11EA5F1 /* Conductor */,
+				8EB914F6CB3C8230188610D1 /* Hotkey */,
+				BCA39C4198C5AD2E1A04EFCE /* Orb */,
+				6790F1B202609AD9C1D8EDFA /* Speech */,
+				4D28F2DD1E86DD93B52145AD /* State */,
+				B5E7B1C4A88EEEE074842C3C /* OrbOverlayContent.swift */,
+				DDFCECB4869D212580EDD8BE /* VoiceOrbCoordinator.swift */,
+				D8A6866D0C7DC3D5672A99D8 /* VoiceOrbFeature.swift */,
+			);
+			path = VoiceOrb;
 			sourceTree = "<group>";
 		};
 		E790B70EB645C7E011667170 /* Navigation */ = {
@@ -279,6 +413,7 @@
 				0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */,
 				F57220207B8609E7210FC095 /* MotionAndIDTests.swift */,
 				A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */,
+				EF6609557651F1975B002A3C /* VoiceOrbTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -318,6 +453,7 @@
 			buildConfigurationList = 35CCF6356276B6FC33ADA6DC /* Build configuration list for PBXNativeTarget "Archon" */;
 			buildPhases = (
 				BCFB2285EB9E3A79D79A3642 /* Sources */,
+				57C54EBA17BF7EE897455559 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -325,6 +461,7 @@
 			);
 			name = Archon;
 			packageProductDependencies = (
+				D4DE73B4223E05A68AA3AC5C /* WhisperKit */,
 			);
 			productName = Archon;
 			productReference = B07599873F6CB7CFE8BE63DF /* Archon.app */;
@@ -387,31 +524,55 @@
 				BAC9556CF6077D7FB066588E /* ArchonMotion.swift in Sources */,
 				96E73C83721115138594AABA /* BackoffPolicy.swift in Sources */,
 				67EB9F8A308792DE303CE2D2 /* Conductor.swift in Sources */,
+				F6BD7578D43188643717DBAA /* ConductorModels.swift in Sources */,
+				01BB6DEB9295F00370A26861 /* ConductorStore.swift in Sources */,
+				35CC8D8CA239D620CE7835BB /* ConductorSurfaceView.swift in Sources */,
 				135669C0FD12FBE6AC88F226 /* Controls.swift in Sources */,
 				2459770C8625F0741705F4D9 /* DesignTokens.swift in Sources */,
 				0D60DB8DB3E137CF2C8FAE87 /* Events.swift in Sources */,
+				616C489F86F991203357BFD8 /* FloatingOrbPanel.swift in Sources */,
 				41B63FED230E0D70FD345E06 /* Health.swift in Sources */,
+				AB6692515BF919C7B78724C9 /* HotKeyBinding.swift in Sources */,
+				968FC9B84BC48691AED3FBAC /* HotKeyManager.swift in Sources */,
 				06E2EE53BDDDE481B344B6B6 /* JSONValue.swift in Sources */,
 				A0991A796CB072B3B25FD1CF /* Kanban.swift in Sources */,
 				22A938655A1EE30F9DD68050 /* Memory.swift in Sources */,
+				6C2641BBD963CAC0E6715A85 /* MicrophoneAuthorization.swift in Sources */,
 				87839E6C598352311BEAF301 /* Navigation.swift in Sources */,
+				BFB7C6665DC2E823B9A945D7 /* OrbEnvironment.swift in Sources */,
+				280FFE0EF54D9E9EA28196F2 /* OrbHue.swift in Sources */,
+				F95E0F0612A2AC8E323A5066 /* OrbOverlayContent.swift in Sources */,
+				54CA0363725C3B6E558F194D /* OrbPanelHost.swift in Sources */,
+				B68FA50BE68D4B37840BC351 /* OrbPositionStore.swift in Sources */,
+				43E483D13D80F46D485F70E3 /* OrbRenderModel.swift in Sources */,
+				B2D62CD754616BBF85EE528E /* OrbState.swift in Sources */,
+				4E2A3EDB1B1CDA4733DA1D2D /* OrbStateMachine.swift in Sources */,
+				B37AF6E53CE62313E2EA9F20 /* OrbView.swift in Sources */,
 				D015E0FB78520B8CA85DEAA6 /* OrchestratorSupervisor.swift in Sources */,
+				53B0B3A7B48FBB55AD17B312 /* PlanView.swift in Sources */,
 				22652D4F43458C38E9035EE7 /* Project.swift in Sources */,
 				A11B148D03E51AE89F522949 /* ProjectIdentity.swift in Sources */,
 				5854CEDDFC97C2A5E2F41E0B /* ProjectPicker.swift in Sources */,
 				FC147400B4515306CA727C9C /* ProjectStore.swift in Sources */,
+				4B5BC329FEDC09C4BE8571BC /* PushToTalkController.swift in Sources */,
 				80D7D86AB413EB18BF31C457 /* RootView.swift in Sources */,
 				C61830EFA869D1D649E6D6AD /* Runtime.swift in Sources */,
 				C4209031F0BE9C1E1CEFA5BC /* SeqTracker.swift in Sources */,
 				CB050FE8AE0E9CAA418B849C /* Session.swift in Sources */,
 				152474973E3B0B3A6FC082D9 /* ShellRegistry.swift in Sources */,
 				CB8D0C40366066D2270452B3 /* Spacing.swift in Sources */,
+				49DB15405AF63B7B861808BC /* SpeechTranscribing.swift in Sources */,
 				AD2F8611402E971242DB8F38 /* StateViews.swift in Sources */,
 				D8B53368C64CD26E79C1D6C7 /* StatusIndicators.swift in Sources */,
 				655EF1A102C3473AD1680A9C /* ThreePaneShell.swift in Sources */,
+				811AA3C25940022C4FBA4430 /* TranscriptView.swift in Sources */,
 				87EB61FA3F49D7EAAA464568 /* Typography.swift in Sources */,
 				643681D67D9758DC42C3C9D1 /* ULID.swift in Sources */,
+				B52FA470BE353E30C24AE1C9 /* VoiceOrbCoordinator.swift in Sources */,
+				D120744D44901B8A168B0101 /* VoiceOrbFeature.swift in Sources */,
+				B14341165D6A12308FEAE6A1 /* VoiceStore.swift in Sources */,
 				DC50BB2644CC7C31C0B5EC02 /* WSClient.swift in Sources */,
+				887D124C47E00C0FD82CBE48 /* WhisperKitTranscriber.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,6 +586,7 @@
 				5228735650B621739FBA20FD /* ModelDecodingTests.swift in Sources */,
 				E933F80D23BF5500ECF0C706 /* MotionAndIDTests.swift in Sources */,
 				F62A8CBB5051CEB8E32E0A1E /* ProjectStoreTests.swift in Sources */,
+				E81F6E14721B3E9EB6578813 /* VoiceOrbTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -702,6 +864,14 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D4DE73B4223E05A68AA3AC5C /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D66D076A4566CF02BF9665F9 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 393BF1BC6867ACC6AAB848B9 /* Project object */;
 }
