@@ -71,8 +71,7 @@ private struct _TerminalTextRepresentable: NSViewRepresentable {
         let width = scroll.contentSize.width
         let contentHeight = doc.contentHeight()
         let visibleHeight = scroll.contentSize.height
-        doc.frame = NSRect(x: 0, y: 0, width: width, height: max(contentHeight, visibleHeight))
-        doc.needsDisplay = true
+        doc.applyContentChange(width: width, contentHeight: max(contentHeight, visibleHeight))
 
         if followsTail && wasPinned {
             context.coordinator.scrollToBottom(scroll: scroll)
@@ -107,19 +106,28 @@ private struct _TerminalTextRepresentable: NSViewRepresentable {
 final class TerminalDocumentView: NSView {
 
     private weak var session: TerminalSession?
-    private var mode: ThemeMode = .dark
     private var fontSize: CGFloat = 13
     private(set) var lineHeight: CGFloat = 18
-    private var paper: NSColor = .clear
+    /// Per-view raster cache: pre-resolved ink/font palette + id-keyed
+    /// NSAttributedString cache for immutable committed lines (REQ-PERF-002).
+    private var raster: TerminalLineRasterCache?
+
+    // State from the previous render, used to invalidate only what changed.
+    private var renderedLineCount = 0
+    private var renderedEvicted = 0
+    private var renderedWidth: CGFloat = 0
 
     override var isFlipped: Bool { true }
 
     func configure(session: TerminalSession, mode: ThemeMode, fontSize: CGFloat) {
         self.session = session
-        self.mode = mode
         self.fontSize = fontSize
         self.lineHeight = ceil(fontSize * 1.38)
-        self.paper = TerminalInkResolver.paperNSColor(mode: mode)
+        if let raster {
+            raster.reconfigure(mode: mode, fontSize: fontSize)
+        } else {
+            raster = TerminalLineRasterCache(mode: mode, fontSize: fontSize)
+        }
     }
 
     /// Total content height = renderable line count × line height.
@@ -127,10 +135,35 @@ final class TerminalDocumentView: NSView {
         CGFloat(max(1, session?.emulator.lineCount ?? 0)) * lineHeight
     }
 
+    /// Resizes to the new content and invalidates only the region that changed
+    /// since the last render (REQ-PERF-002): normally just the tail band from the
+    /// previously in-progress row downward. A full repaint happens only when
+    /// retained line indices shifted (scrollback eviction) or the pane width
+    /// changed — cases where every row's content-at-y moves.
+    func applyContentChange(width: CGFloat, contentHeight: CGFloat) {
+        frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
+        guard let session, lineHeight > 0 else { needsDisplay = true; return }
+        let count = session.emulator.lineCount
+        let evicted = session.emulator.evictedLineCount
+
+        if width != renderedWidth || evicted != renderedEvicted {
+            needsDisplay = true
+        } else {
+            let firstDirty = max(0, min(renderedLineCount, count) - 1)
+            let y = CGFloat(firstDirty) * lineHeight
+            let dirty = NSRect(x: 0, y: y, width: width, height: max(contentHeight - y, lineHeight))
+            setNeedsDisplay(dirty)
+        }
+        renderedLineCount = count
+        renderedEvicted = evicted
+        renderedWidth = width
+    }
+
     override func draw(_ dirtyRect: NSRect) {
-        guard let session, lineHeight > 0 else { return }
+        guard let session, let raster, lineHeight > 0 else { return }
         let count = session.emulator.lineCount
         guard count > 0 else { return }
+        let liveIndex = count - 1
 
         // Virtualization: only rows intersecting the dirty rect are laid out.
         let first = max(0, Int((dirtyRect.minY / lineHeight).rounded(.down)))
@@ -140,9 +173,7 @@ final class TerminalDocumentView: NSView {
         let textWidth = max(1, bounds.width - 8)
         for index in first..<last {
             let line = session.emulator.line(at: index)
-            let attributed = TerminalInkResolver.attributedString(
-                for: line, mode: mode, fontSize: fontSize, paper: paper
-            )
+            let attributed = raster.attributed(for: line, live: index == liveIndex)
             let y = CGFloat(index) * lineHeight
             let rect = NSRect(x: 4, y: y + 1, width: textWidth, height: lineHeight)
             attributed.draw(with: rect, options: [.usesLineFragmentOrigin], context: nil)

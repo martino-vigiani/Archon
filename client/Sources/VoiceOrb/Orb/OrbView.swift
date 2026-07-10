@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The floating orb (REQ-DSN-051/052/057). The sole animated chromatic field in
 /// the app. Rendered with `TimelineView` + `Canvas`: a two-layer domain-warped
@@ -9,12 +10,31 @@ import SwiftUI
 /// - Low Power → 30 Hz timeline, bloom hidden (REQ-DSN-072).
 /// - Otherwise → animation-cadence timeline (targets 120 Hz, REQ-DSN-053).
 ///
+/// The per-frame CPU loop does NOT run forever: the timeline pauses when the orb
+/// is idle with no voice (after a short graceful settle) and hard-pauses when the
+/// host window is occluded / minimized / hidden (REQ-PERF-015 / REQ-DSN-074), so
+/// steady-state idle CPU stays within budget (REQ-PERF-006).
+///
 /// The disconnected variant dims the whole orb (Addendum §A4) without changing
 /// its hue/state.
 struct OrbView: View {
     var presentation: OrbPresentation
     /// 0…1 voice amplitude envelope for reactive glow/turbulence (REQ-DSN-054).
     var amplitude: Double
+
+    /// Whether the orb's window is on screen (driven by the occlusion probe).
+    @State private var windowVisible = true
+    /// Whether the animation timeline is currently running (settle-gated).
+    @State private var animate = true
+
+    /// Combined idle/occlusion gate key; a change restarts the settle task.
+    private struct GateKey: Equatable { let wants: Bool; let visible: Bool }
+
+    private var wantsAnimation: Bool {
+        OrbRenderGate.wantsAnimation(
+            state: presentation.state, amplitude: amplitude, windowVisible: windowVisible
+        )
+    }
 
     var body: some View {
         let model = OrbRenderModel.model(for: presentation.state)
@@ -33,6 +53,20 @@ struct OrbView: View {
         .saturation(presentation.isDisconnected ? 0.5 : 1)
         .animation(.easeInOut(duration: 0.25), value: presentation.isDisconnected)
         .animation(.easeInOut(duration: 0.5), value: presentation.state)
+        .background(OrbOcclusionProbe { visible in
+            if windowVisible != visible { windowVisible = visible }
+        })
+        .task(id: GateKey(wants: wantsAnimation, visible: windowVisible)) {
+            if wantsAnimation {
+                animate = true                      // resume immediately
+            } else if !windowVisible {
+                animate = false                     // hard pause off-screen, no settle
+            } else {
+                // Quiescent but visible: keep animating briefly, then settle.
+                try? await Task.sleep(for: OrbRenderGate.settle)
+                if !Task.isCancelled { animate = false }
+            }
+        }
         .accessibilityElement()
         .accessibilityLabel(presentation.state.accessibilityLabel)
         .accessibilityAddTraits(.updatesFrequently)
@@ -45,7 +79,7 @@ struct OrbView: View {
         let schedule: OrbTimelineSchedule = presentation.motion.targetHz <= 30
             ? .lowPower
             : .promotion
-        TimelineView(.animation(minimumInterval: schedule.minInterval, paused: false)) { context in
+        TimelineView(.animation(minimumInterval: schedule.minInterval, paused: !animate)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             Canvas(rendersAsynchronously: false) { ctx, size in
                 drawOrb(ctx: &ctx, size: size, time: t, model: model, gradient: gradient)
@@ -82,7 +116,6 @@ struct OrbView: View {
         gradient: OrbGradient
     ) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let flow = time * model.flowSpeed
         let diameter = model.diameter(time: time, amplitude: amplitude)
         let radius = diameter / 2
 
@@ -119,21 +152,21 @@ struct OrbView: View {
             )
 
             // Two-layer domain-warped fluid: several drifting bright blobs
-            // blended additively → non-repeating, physically-plausible motion.
+            // blended additively. Blob motion uses mutually incommensurate
+            // frequencies (OrbFluidField) → quasi-periodic, non-repeating for
+            // ≥ 120 s (REQ-DSN-074).
             var fluid = layer
             fluid.blendMode = .plusLighter
-            let blobCount = 5
-            for i in 0..<blobCount {
-                let phase = Double(i) * 1.7
-                // Layer 1 drift.
-                let ax = sin(flow * 0.6 + phase) * Double(radius) * 0.5 * model.turbulence
-                let ay = cos(flow * 0.5 + phase * 1.3) * Double(radius) * 0.5 * model.turbulence
-                // Layer 2 warp of the drift (domain warp).
-                let wx = sin(flow * 0.9 + ay * 0.03) * Double(radius) * 0.22
-                let wy = cos(flow * 0.8 + ax * 0.03) * Double(radius) * 0.22
-                let bx = center.x + CGFloat(ax + wx)
-                let by = center.y + CGFloat(ay + wy)
-                let blobR = radius * (0.5 + 0.18 * CGFloat(sin(flow + phase)))
+            for i in 0..<OrbFluidField.blobCount {
+                let offset = OrbFluidField.offset(
+                    blob: i, time: time, flowSpeed: model.flowSpeed,
+                    radius: Double(radius), turbulence: model.turbulence
+                )
+                let bx = center.x + CGFloat(offset.x)
+                let by = center.y + CGFloat(offset.y)
+                let blobR = CGFloat(OrbFluidField.blobRadius(
+                    blob: i, time: time, flowSpeed: model.flowSpeed, radius: Double(radius)
+                ))
                 let color = i % 2 == 0 ? gradient.core : gradient.mid
                 let rect = CGRect(x: bx - blobR, y: by - blobR, width: blobR * 2, height: blobR * 2)
                 fluid.fill(
@@ -172,6 +205,97 @@ private enum OrbTimelineSchedule {
         switch self {
         case .promotion: return 1.0 / 120.0
         case .lowPower: return 1.0 / 30.0
+        }
+    }
+}
+
+/// Zero-size AppKit probe that reports whether the orb's host window is actually
+/// visible — not occluded, minimized, or app-hidden — so the render loop can
+/// hard-pause off screen (REQ-DSN-074 / REQ-PERF-015). It observes the window's
+/// occlusion/miniaturize notifications plus app hide/unhide; SwiftUI's own
+/// occlusion pausing is implicit, so this makes the guarantee explicit and lets
+/// the idle-settle gate compose with it.
+private struct OrbOcclusionProbe: NSViewRepresentable {
+    let onChange: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onChange = onChange
+        context.coordinator.attach(to: nsView)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    @MainActor
+    final class Coordinator {
+        var onChange: (Bool) -> Void
+        private weak var view: NSView?
+        private var observers: [NSObjectProtocol] = []
+        private var lastVisible = true
+
+        init(onChange: @escaping (Bool) -> Void) { self.onChange = onChange }
+
+        func attach(to view: NSView) {
+            self.view = view
+            if view.window == nil {
+                // Window is assigned after the view joins the hierarchy.
+                DispatchQueue.main.async { [weak self, weak view] in
+                    guard let self, let view, view.window != nil else { return }
+                    self.installObservers()
+                    self.publish()
+                }
+            } else {
+                installObservers()
+                publish()
+            }
+        }
+
+        private func installObservers() {
+            guard observers.isEmpty else { return }
+            let nc = NotificationCenter.default
+            let names: [NSNotification.Name] = [
+                NSWindow.didChangeOcclusionStateNotification,
+                NSWindow.didMiniaturizeNotification,
+                NSWindow.didDeminiaturizeNotification,
+                NSApplication.didHideNotification,
+                NSApplication.didUnhideNotification
+            ]
+            for name in names {
+                let token = nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.publish() }
+                }
+                observers.append(token)
+            }
+        }
+
+        private func publish() {
+            let visible = Self.isVisible(view?.window)
+            guard visible != lastVisible else { return }
+            lastVisible = visible
+            onChange(visible)
+        }
+
+        static func isVisible(_ window: NSWindow?) -> Bool {
+            guard let window else { return true }
+            if NSApp.isHidden { return false }
+            let target = window.parent ?? window
+            if target.isMiniaturized { return false }
+            return window.occlusionState.contains(.visible)
+        }
+
+        func detach() {
+            let nc = NotificationCenter.default
+            observers.forEach { nc.removeObserver($0) }
+            observers.removeAll()
         }
     }
 }

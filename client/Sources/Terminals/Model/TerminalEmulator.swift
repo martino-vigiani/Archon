@@ -74,6 +74,12 @@ final class TerminalEmulator {
     /// Total renderable lines = committed scrollback + the in-progress line.
     var lineCount: Int { scrollback.count + 1 }
 
+    /// Committed lines evicted from scrollback over the session lifetime. The
+    /// render layer watches this to detect that retained line *indices* shifted
+    /// (an eviction moves every row up one), so it can repaint the whole visible
+    /// band only then instead of on every tick (REQ-PERF-002).
+    var evictedLineCount: Int { scrollback.totalAppended - scrollback.count }
+
     /// The line at render index `0..<lineCount`. The final index is the live,
     /// in-progress current line (rendered so partial output is visible).
     func line(at index: Int) -> TerminalLine {
@@ -156,8 +162,26 @@ final class TerminalEmulator {
 
     private func drainText() {
         guard !textBuffer.isEmpty else { return }
+        // Decode the whole complete prefix in ONE allocation instead of building
+        // a String per scalar (the old hot path allocated one String per byte on
+        // large feeds, dominating the synchronous parse cost — REQ-PERF-014).
+        // Per-scalar cell semantics are preserved by iterating unicode scalars.
+        let complete = completePrefixCount(textBuffer)
+        guard complete > 0 else { return }   // only an incomplete tail is buffered
+        let decoded = String(decoding: textBuffer[0..<complete], as: UTF8.self)
+        for scalar in decoded.unicodeScalars { putChar(Character(scalar)) }
+        if complete == textBuffer.count {
+            textBuffer.removeAll(keepingCapacity: true)
+        } else {
+            textBuffer.removeFirst(complete)
+        }
+    }
+
+    /// Number of leading bytes that form complete UTF-8 sequences; an incomplete
+    /// trailing multi-byte sequence is excluded and kept for the next feed so a
+    /// scalar split across chunk boundaries is never corrupted.
+    private func completePrefixCount(_ bytes: [UInt8]) -> Int {
         var i = 0
-        let bytes = textBuffer
         let n = bytes.count
         while i < n {
             let b = bytes[i]
@@ -166,18 +190,11 @@ final class TerminalEmulator {
             else if b & 0xE0 == 0xC0 { len = 2 }
             else if b & 0xF0 == 0xE0 { len = 3 }
             else if b & 0xF8 == 0xF0 { len = 4 }
-            else { len = 1 }               // invalid lead → emit replacement, resync
+            else { len = 1 }               // invalid lead → replacement, resync
             if i + len > n { break }        // incomplete tail: keep for next feed
-            let scalarBytes = bytes[i..<(i + len)]
-            let s = String(decoding: scalarBytes, as: UTF8.self)
-            for ch in s { putChar(ch) }
             i += len
         }
-        if i == n {
-            textBuffer.removeAll(keepingCapacity: true)
-        } else if i > 0 {
-            textBuffer.removeFirst(i)
-        }
+        return i
     }
 
     // MARK: - Cell writing
