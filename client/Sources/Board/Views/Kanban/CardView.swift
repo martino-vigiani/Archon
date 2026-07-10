@@ -14,6 +14,7 @@ struct CardView: View {
 
     @State private var isEditing = false
     @State private var confirmingDelete = false
+    @FocusState private var isFocused: Bool
     @Environment(\.archonTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -50,16 +51,18 @@ struct CardView: View {
         .archonMaterial(.flatElevated, cornerRadius: Radius.card)
         .overlay {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(
-                    isSelected ? theme.selectionBorder : (isAnimating ? theme.borderStrong : theme.borderSubtle),
-                    lineWidth: isAnimating ? 1.5 : Space.hairline
-                )
+                .strokeBorder(borderColor, lineWidth: borderWidth)
         }
         .scaleEffect(isAnimating && !reduceMotion ? 1.015 : 1.0)
         .archonMotion(.kanbanDragRelease, value: isAnimating)
         .contentShape(Rectangle())
+        .focusable()
+        .focusEffectDisabled()
+        .focused($isFocused)
         .onTapGesture(count: 2) { isEditing = true }
         .onTapGesture { onSelect() }
+        .onKeyPress(.return) { isEditing = true; return .handled }
+        .onKeyPress(.space) { onSelect(); return .handled }
         .popover(isPresented: $isEditing, arrowEdge: .trailing) {
             CardEditor(
                 title: card.title,
@@ -77,11 +80,21 @@ struct CardView: View {
         .accessibilityHint("Double-tap to edit.")
     }
 
+    private var borderColor: Color {
+        if isFocused || isSelected { return theme.selectionBorder }
+        return isAnimating ? theme.borderStrong : theme.borderSubtle
+    }
+
+    private var borderWidth: CGFloat {
+        if isFocused || isSelected { return 2 }
+        return isAnimating ? 1.5 : Space.hairline
+    }
+
     private var header: some View {
         HStack(alignment: .top, spacing: Space.sm) {
             if let priorityGlyph {
                 Image(systemName: priorityGlyph)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: IconSize.caption, weight: .semibold))
                     .foregroundStyle(theme.iconSecondary)
                     .accessibilityLabel(card.priority == .high ? "High priority" : "Low priority")
             }
@@ -98,21 +111,21 @@ struct CardView: View {
     private var footer: some View {
         HStack(spacing: Space.sm) {
             Image(systemName: "clock")
-                .font(.system(size: 10, weight: .regular))
+                .font(.system(size: IconSize.caption, weight: .regular))
                 .foregroundStyle(theme.iconSecondary)
             Text(BoardFormat.shortTime(card.createdAt))
                 .archonText(.monoSm)
                 .foregroundStyle(theme.textSecondary)
             Spacer(minLength: 0)
             Button { isEditing = true } label: {
-                Image(systemName: "pencil").font(.system(size: 11, weight: .medium))
+                Image(systemName: "pencil").font(.system(size: IconSize.caption, weight: .medium))
             }
             .buttonStyle(.plain)
             .foregroundStyle(theme.iconSecondary)
             .accessibilityLabel("Edit card")
 
             Button { confirmingDelete = true } label: {
-                Image(systemName: "trash").font(.system(size: 11, weight: .medium))
+                Image(systemName: "trash").font(.system(size: IconSize.caption, weight: .medium))
             }
             .buttonStyle(.plain)
             .foregroundStyle(theme.iconSecondary)

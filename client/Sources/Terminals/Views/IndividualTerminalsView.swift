@@ -84,11 +84,11 @@ struct IndividualTerminalsView: View {
         } label: {
             HStack(spacing: Space.xs) {
                 Image(systemName: status.systemImageName)
-                    .font(.system(size: IconSize.inline - 2, weight: .medium))
+                    .font(.system(size: IconSize.caption, weight: .medium))
                 Text("Filtered: \(status.label)")
                     .archonText(.captionEmphasis)
                 Image(systemName: "xmark")
-                    .font(.system(size: IconSize.inline - 4, weight: .semibold))
+                    .font(.system(size: IconSize.caption, weight: .semibold))
             }
             .foregroundStyle(theme.textSecondary)
             .padding(.horizontal, Space.sm)

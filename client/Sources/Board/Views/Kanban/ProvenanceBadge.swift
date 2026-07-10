@@ -29,9 +29,11 @@ struct ProvenanceBadge: View {
     var body: some View {
         HStack(spacing: Space.xs) {
             Image(systemName: glyph)
-                .font(.system(size: 9, weight: provenance == .user ? .bold : .regular))
+                .font(.system(size: IconSize.caption, weight: provenance == .user ? .bold : .regular))
             Text(label)
                 .archonText(.monoSm)
+                .lineLimit(1)
+                .fixedSize()
         }
         .foregroundStyle(theme.textSecondary)
         .padding(.horizontal, Space.sm)

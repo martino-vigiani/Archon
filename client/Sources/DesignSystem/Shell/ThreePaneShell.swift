@@ -8,13 +8,38 @@ struct ThreePaneShell: View {
     @Bindable var appState: AppState
     var registry: ShellRegistry
     @Environment(\.archonTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        // Drive the responsive tier from the live window width (REQ-DSN-042):
+        // < 1100 pt collapses the sidebar to an icon rail and auto-hides the
+        // conductor edge so the centre pane always keeps ≥ 420 pt and nothing
+        // clips or wraps letter-by-letter.
+        GeometryReader { geo in
+            let width = geo.size.width
+            let compact = Breakpoint.isCompact(windowWidth: width)
+            let drawerCollapsed = appState.isConductorEdgeCollapsed
+                || Breakpoint.collapsesConductorEdge(windowWidth: width)
+            shell(compact: compact, drawerCollapsed: drawerCollapsed)
+                .animation(MotionEvent.sidebarToggle.animation(reduceMotion: reduceMotion),
+                           value: drawerCollapsed)
+                .animation(MotionEvent.sidebarToggle.animation(reduceMotion: reduceMotion),
+                           value: compact)
+        }
+    }
+
+    @ViewBuilder
+    private func shell(compact: Bool, drawerCollapsed: Bool) -> some View {
         HSplitView {
-            // Left — sidebar
+            // Left — sidebar (icon rail in the compact tier)
             registry.view(for: .sidebar)
-                .frame(minWidth: 200, idealWidth: appState.sidebarWidth, maxWidth: 360)
-                .layoutPriority(1)
+                .environment(\.archonCompactLayout, compact)
+                .frame(
+                    minWidth: compact ? Breakpoint.railWidth : 200,
+                    idealWidth: compact ? Breakpoint.railWidth : appState.sidebarWidth,
+                    maxWidth: compact ? Breakpoint.railWidth : 360
+                )
+                .layoutPriority(compact ? 0 : 1)
 
             // Center — view switcher + main pane
             VStack(spacing: 0) {
@@ -30,8 +55,8 @@ struct ThreePaneShell: View {
             .frame(minWidth: 420, maxWidth: .infinity)
             .layoutPriority(2)
 
-            // Right — conductor edge (Kanban), collapsible to zero width
-            if !appState.isConductorEdgeCollapsed {
+            // Right — conductor edge (compact agenda), collapsible to zero width
+            if !drawerCollapsed {
                 registry.view(for: .conductorEdge)
                     .frame(minWidth: 280, idealWidth: appState.conductorEdgeWidth, maxWidth: 520)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -60,7 +85,7 @@ struct ThreePaneShell: View {
         }
     }
 
-    /// ⌘1/⌘2/⌘3 destinations (REQ-UX-003), kept active but invisible.
+    /// ⌘1–⌘5 destinations (REQ-UX-003), kept active but invisible.
     private var paneShortcuts: some View {
         ZStack {
             ForEach(MainPane.allCases) { pane in
@@ -74,7 +99,7 @@ struct ThreePaneShell: View {
     }
 }
 
-/// The three-destination segmented view switcher (REQ-UX-003).
+/// The five-destination segmented view switcher (REQ-UX-003).
 struct ViewSwitcher: View {
     @Binding var selected: MainPane
 

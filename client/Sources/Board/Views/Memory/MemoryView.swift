@@ -39,7 +39,7 @@ struct MemoryView: View {
                     newFilename = ""
                     creating = true
                 } label: {
-                    Image(systemName: "plus").font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "plus").font(.system(size: IconSize.caption, weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(theme.iconSecondary)
@@ -110,7 +110,7 @@ struct MemoryView: View {
                         .lineLimit(1)
                     if !store.proposals(for: file).isEmpty {
                         Image(systemName: "sparkles")
-                            .font(.system(size: 9, weight: .regular))
+                            .font(.system(size: IconSize.caption, weight: .regular))
                             .foregroundStyle(theme.iconSecondary)
                             .accessibilityLabel("Has a Conductor proposal")
                     }
@@ -159,7 +159,7 @@ struct MemoryView: View {
                 .foregroundStyle(theme.textSecondary)
             Spacer(minLength: 0)
             Button { store.clearError() } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                Image(systemName: "xmark").font(.system(size: IconSize.caption, weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(theme.iconSecondary)

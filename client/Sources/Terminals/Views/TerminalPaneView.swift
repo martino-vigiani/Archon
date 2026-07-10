@@ -51,7 +51,7 @@ struct TerminalPaneView: View {
                         .truncationMode(.middle)
                     if session.idleFlagged {
                         Image(systemName: "flag.fill")
-                            .font(.system(size: IconSize.inline - 2, weight: .medium))
+                            .font(.system(size: IconSize.caption, weight: .medium))
                             .foregroundStyle(theme.iconSecondary)
                             .accessibilityLabel("Flagged idle")
                     }
@@ -60,6 +60,8 @@ struct TerminalPaneView: View {
                     Text(session.agentType)
                         .archonText(.caption)
                         .foregroundStyle(theme.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(TerminalFormat.elapsed(session.elapsedSeconds(now: store.now)))
                         .archonText(.caption)
                         .foregroundStyle(theme.textSecondary)

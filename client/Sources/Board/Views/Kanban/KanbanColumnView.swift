@@ -43,6 +43,8 @@ struct KanbanColumnView: View {
             Text(column.title)
                 .archonText(.captionEmphasis)
                 .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
             Text("\(columnCards.count)")
                 .archonText(.monoSm)
                 .foregroundStyle(theme.textSecondary)
@@ -101,7 +103,7 @@ struct KanbanColumnView: View {
     private var addRow: some View {
         HStack(spacing: Space.sm) {
             Image(systemName: "plus")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: IconSize.caption, weight: .semibold))
                 .foregroundStyle(theme.iconSecondary)
             TextField("Add card", text: $newTitle)
                 .textFieldStyle(.plain)

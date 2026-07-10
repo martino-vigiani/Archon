@@ -13,16 +13,76 @@ struct TerminalsSidebarView: View {
     let store: TerminalsStore
 
     @Environment(\.archonTheme) private var theme
+    @Environment(\.archonCompactLayout) private var compact
+    @FocusState private var focusedRowId: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider().overlay(theme.hairline)
-            list
+        Group {
+            if compact {
+                rail
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    Divider().overlay(theme.hairline)
+                    list
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .archonMaterial(.glassSidebar)
     }
+
+    // MARK: - Compact icon rail (< 1100 pt, REQ-DSN-042)
+
+    private var rail: some View {
+        VStack(spacing: Space.sm) {
+            Text("\(store.liveSessions.count)")
+                .archonText(.monoSm)
+                .foregroundStyle(theme.textSecondary)
+                .monospacedDigit()
+                .padding(.top, Space.sm)
+                .accessibilityLabel("\(store.liveSessions.count) live sessions")
+            Divider().overlay(theme.hairline)
+            if store.orderedSessions.isEmpty {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: IconSize.row, weight: .light))
+                    .foregroundStyle(theme.iconSecondary)
+                    .padding(.top, Space.sm)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: Space.xs) {
+                        ForEach(store.orderedSessions) { session in
+                            railDot(session)
+                        }
+                    }
+                    .padding(.vertical, Space.xs)
+                }
+            }
+        }
+    }
+
+    private func railDot(_ session: TerminalSession) -> some View {
+        Button {
+            store.select(session.id)
+        } label: {
+            StatusDot(status: session.status)
+                .frame(width: 32, height: 32)
+                .background {
+                    RoundedRectangle(cornerRadius: Radius.badge, style: .continuous)
+                        .fill(store.selectedSessionId == session.id ? theme.selectionFill : .clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .focused($focusedRowId, equals: session.id)
+        .archonFocusRing(focusedRowId == session.id, cornerRadius: Radius.badge)
+        .help("#\(session.index) \(session.displayName) — \(session.status.label)")
+        .accessibilityLabel("Session \(session.index), \(session.displayName), \(session.status.label)")
+    }
+
+    // MARK: - Full list
 
     private var header: some View {
         HStack(spacing: Space.sm) {
@@ -30,10 +90,11 @@ struct TerminalsSidebarView: View {
                 .archonText(.captionEmphasis)
                 .foregroundStyle(theme.textSecondary)
             Spacer(minLength: 0)
-            Text("\(store.liveSessions.count)")
+            Text("\(store.liveSessions.count) live · \(store.orderedSessions.count) total")
                 .archonText(.caption)
                 .foregroundStyle(theme.textSecondary)
                 .monospacedDigit()
+                .lineLimit(1)
         }
         .padding(.horizontal, Space.md)
         .padding(.vertical, Space.sm)
@@ -85,7 +146,7 @@ struct TerminalsSidebarView: View {
                             .truncationMode(.middle)
                         if session.idleFlagged {
                             Image(systemName: "flag.fill")
-                                .font(.system(size: IconSize.inline - 4, weight: .medium))
+                                .font(.system(size: IconSize.caption, weight: .medium))
                                 .foregroundStyle(theme.iconSecondary)
                         }
                     }
@@ -105,6 +166,9 @@ struct TerminalsSidebarView: View {
             }
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .focused($focusedRowId, equals: session.id)
+        .archonFocusRing(focusedRowId == session.id)
         .accessibilityLabel("Session \(session.index), \(session.displayName), \(session.status.label)")
     }
 }

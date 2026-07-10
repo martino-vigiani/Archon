@@ -16,6 +16,7 @@
 		135669C0FD12FBE6AC88F226 /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13E9752A0BD82B3BB149A42 /* Controls.swift */; };
 		13A2D5E32B8C0B70397ECAF2 /* ArchonJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B27E351025CD9795F8DABC /* ArchonJSON.swift */; };
 		152474973E3B0B3A6FC082D9 /* ShellRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7DA91D353722DB50A1F1FF /* ShellRegistry.swift */; };
+		1DDABFB207466D714798B1F9 /* DesignLintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB43EBF3DFDF2E2B547E3254 /* DesignLintTests.swift */; };
 		1DDE6233A5CEEDE7484B187B /* TerminalEmulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56742C1F2BF7D9C4316CEA12 /* TerminalEmulatorTests.swift */; };
 		2176AADBA587FA91D79BC608 /* BoardServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6329A74321394DCC31329DF /* BoardServices.swift */; };
 		21AF3DCF33B46D7D8C3B855D /* ScrollbackBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DA3B560E3708AA69F7B902 /* ScrollbackBufferTests.swift */; };
@@ -114,6 +115,7 @@
 		D120744D44901B8A168B0101 /* VoiceOrbFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A6866D0C7DC3D5672A99D8 /* VoiceOrbFeature.swift */; };
 		D6291221664758D59F9C9344 /* PTYStreamAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A021C9C090A39FF5D508BCF /* PTYStreamAssemblerTests.swift */; };
 		D8B53368C64CD26E79C1D6C7 /* StatusIndicators.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */; };
+		DB0333B52315E49BACAB6772 /* BoardDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8656C1068BA1E1E13B050716 /* BoardDrawerView.swift */; };
 		DBB5A34BCE62C621DDA17953 /* SummaryDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3518417BB19A2A36245ACDDF /* SummaryDashboardView.swift */; };
 		DC50BB2644CC7C31C0B5EC02 /* WSClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F471FE8371BFA1DE9BF7F5 /* WSClient.swift */; };
 		E05BB61A13F7EEAA6A7DC47E /* TerminalEmulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E1CF33F5AC3CEE2AA89A49 /* TerminalEmulator.swift */; };
@@ -197,6 +199,7 @@
 		817D8AA3A61A0DF1C4528D15 /* NewSessionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewSessionSheet.swift; sourceTree = "<group>"; };
 		83A7140A3B69E66E6339FE34 /* TerminalRenderPerfTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRenderPerfTests.swift; sourceTree = "<group>"; };
 		83EC12E1FEC3BD9D301D9FB1 /* Health.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Health.swift; sourceTree = "<group>"; };
+		8656C1068BA1E1E13B050716 /* BoardDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardDrawerView.swift; sourceTree = "<group>"; };
 		8A01A721C66CBDF017155FF0 /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		8B416F5BEFE5B985D413C58A /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		8C155AE735BD6340B57E0A66 /* KanbanColumnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanColumnView.swift; sourceTree = "<group>"; };
@@ -265,6 +268,7 @@
 		F6C95B38F9E6607EDC66980F /* WSClientResilienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSClientResilienceTests.swift; sourceTree = "<group>"; };
 		F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPicker.swift; sourceTree = "<group>"; };
 		F874F9E65E4AD1DB31C23737 /* OrbEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbEnvironment.swift; sourceTree = "<group>"; };
+		FB43EBF3DFDF2E2B547E3254 /* DesignLintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignLintTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -575,6 +579,7 @@
 		CFE9B5630F1AC8AE0BB2EE83 /* Kanban */ = {
 			isa = PBXGroup;
 			children = (
+				8656C1068BA1E1E13B050716 /* BoardDrawerView.swift */,
 				A7576DD2C812D03493245307 /* BoardFormat.swift */,
 				124954495371E6D2D9E6AD99 /* CardEditor.swift */,
 				2228F770456B565CF8928CA8 /* CardView.swift */,
@@ -670,6 +675,7 @@
 				A653CCCA1C91E46DCF6F395D /* CodebaseTests.swift */,
 				EBF309985A00169CF9E79FFE /* ConductorStoreTests.swift */,
 				0C01C31FB76C1D1DAF498F4A /* ContractConformanceTests.swift */,
+				FB43EBF3DFDF2E2B547E3254 /* DesignLintTests.swift */,
 				4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */,
 				A9AF7CCD77C2DA6E717C6B2D /* MemoryStoreTests.swift */,
 				0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */,
@@ -792,6 +798,7 @@
 				4F08071D72C27F4EBD4ADE2C /* ArchonMaterial.swift in Sources */,
 				BAC9556CF6077D7FB066588E /* ArchonMotion.swift in Sources */,
 				96E73C83721115138594AABA /* BackoffPolicy.swift in Sources */,
+				DB0333B52315E49BACAB6772 /* BoardDrawerView.swift in Sources */,
 				0D88C0E4640370993AEC70B4 /* BoardFeature.swift in Sources */,
 				B6570CE19B82891D32429F37 /* BoardFormat.swift in Sources */,
 				2176AADBA587FA91D79BC608 /* BoardServices.swift in Sources */,
@@ -898,6 +905,7 @@
 				73A4E9EA8FD864983E6163E1 /* CodebaseTests.swift in Sources */,
 				4E99811D8A5EE6C8B85E5F5C /* ConductorStoreTests.swift in Sources */,
 				4FAA61C1AD49DACAFF164AEB /* ContractConformanceTests.swift in Sources */,
+				1DDABFB207466D714798B1F9 /* DesignLintTests.swift in Sources */,
 				2E97BCD51D8F2A5DC2E104DA /* EventDecodingTests.swift in Sources */,
 				553C73C61974B74212ADADC6 /* MemoryStoreTests.swift in Sources */,
 				5228735650B621739FBA20FD /* ModelDecodingTests.swift in Sources */,

@@ -24,6 +24,10 @@ enum Radius {
 
 /// Icon sizes aligned to the grid (REQ-DSN-049).
 enum IconSize {
+    /// Tiny inline caption-accent glyph (badge glyphs, disclosure chevrons,
+    /// small controls). A 12-pt tier that amends the REQ-DSN-049 set so these
+    /// glyphs come from a token instead of scattered raw sizes / arithmetic.
+    static let caption: CGFloat = 12
     static let inline: CGFloat = 16     // inline / caption
     static let row: CGFloat = 20        // toolbar / row actions
     static let nav: CGFloat = 24        // primary nav
@@ -39,9 +43,24 @@ enum Breakpoint {
     static let regularMax: CGFloat = 1599        // 1100–1599 → sidebar 220
     // ≥ 1600 → Wide (sidebar 260 + optional inspector)
 
+    /// The compact-tier icon-rail width (< 1100 pt).
+    static let railWidth: CGFloat = 48
+
     static func sidebarWidth(forWindowWidth width: CGFloat) -> CGFloat {
-        if width < 1100 { return 48 }       // icon rail
+        if width < 1100 { return railWidth } // icon rail
         if width < 1600 { return 220 }
         return 260
+    }
+
+    /// Whether the window is in the compact tier: feature sidebars collapse to
+    /// an icon rail and the conductor-edge drawer auto-hides so the centre pane
+    /// never starves (no clipping / overlap at any size ≥ 900 pt, REQ-DSN-042).
+    static func isCompact(windowWidth width: CGFloat) -> Bool {
+        width <= compactMax
+    }
+
+    /// The conductor-edge drawer auto-collapses below the Regular breakpoint.
+    static func collapsesConductorEdge(windowWidth width: CGFloat) -> Bool {
+        isCompact(windowWidth: width)
     }
 }

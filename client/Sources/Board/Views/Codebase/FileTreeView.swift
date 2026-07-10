@@ -151,12 +151,12 @@ private struct FileTreeRow: View {
             HStack(spacing: Space.xs) {
                 if node.isDirectory {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: IconSize.caption, weight: .semibold))
                         .foregroundStyle(theme.iconSecondary)
                         .rotationEffect(.degrees(node.isExpanded ? 90 : 0))
-                        .frame(width: 10)
+                        .frame(width: 12)
                 } else {
-                    Color.clear.frame(width: 10)
+                    Color.clear.frame(width: 12)
                 }
                 Image(systemName: glyph)
                     .font(.system(size: IconSize.inline, weight: .regular))

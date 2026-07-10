@@ -88,15 +88,21 @@ extension EnvironmentValues {
     /// The active theme. Injected at the root by `RootView` and read by every
     /// component. Defaults to dark (REQ-DSN-081).
     @Entry var archonTheme: Theme = Theme(mode: .dark)
+
+    /// True when the shell is in the compact tier (< 1100 pt): feature sidebars
+    /// render an icon rail instead of full rows (REQ-DSN-042). Set by the shell.
+    @Entry var archonCompactLayout: Bool = false
 }
 
 extension View {
     /// Injects a resolved theme (and the matching color scheme) into the
-    /// environment for a subtree.
+    /// environment for a subtree. Mode changes cross-fade over 200 ms so a
+    /// light/dark toggle animates rather than snapping (REQ-DSN-083).
     func archonTheme(_ mode: ThemeMode) -> some View {
         self
             .environment(\.archonTheme, Theme(mode: mode))
             .environment(\.colorScheme, mode.colorScheme)
             .preferredColorScheme(mode.colorScheme)
+            .animation(.easeInOut(duration: 0.2), value: mode)
     }
 }

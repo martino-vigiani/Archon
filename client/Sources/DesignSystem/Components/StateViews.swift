@@ -118,6 +118,31 @@ struct ErrorStateView: View {
     }
 }
 
+/// A determinate progress bar in the achromatic palette (REQ-DSN-047: the stock
+/// `ProgressView` fill/tint is the chromatic accent). Track + fill only.
+struct AchromaticProgressBar: View {
+    /// Progress in 0…1.
+    var value: Double
+    @Environment(\.archonTheme) private var theme
+
+    var body: some View {
+        GeometryReader { geo in
+            let clamped = min(max(value, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(theme.borderSubtle)
+                Capsule(style: .continuous)
+                    .fill(theme.textSecondary)
+                    .frame(width: geo.size.width * clamped)
+            }
+        }
+        .frame(height: 4)
+        .accessibilityElement()
+        .accessibilityLabel("Progress")
+        .accessibilityValue("\(Int((min(max(value, 0), 1)) * 100)) percent")
+    }
+}
+
 /// Persistent non-modal disconnection banner (REQ-UX-092).
 struct DisconnectedBanner: View {
     var message: String = "Disconnected from orchestrator — reconnecting…"
