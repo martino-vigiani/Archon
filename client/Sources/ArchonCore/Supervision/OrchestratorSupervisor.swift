@@ -6,18 +6,82 @@ import Foundation
 /// reads the `0600` token file, health-checks, and restarts. The key stays
 /// server-side (REQ-VIS-002 / REQ-ARCH-040).
 struct OrchestratorLaunchConfig: Sendable, Equatable {
-    /// Interpreter: `/Users/martinovigiani/lab/Archon/.venv/bin/python`.
+    /// Python interpreter that runs `-m orchestrator.v3`.
     var pythonURL: URL
     /// Working directory so `python -m orchestrator` resolves the package.
     var workingDirectory: URL
     /// Extra arguments appended after `-m orchestrator --project <path>`.
     var extraArguments: [String]
 
-    static let `default` = OrchestratorLaunchConfig(
-        pythonURL: URL(fileURLWithPath: "/Users/martinovigiani/lab/Archon/.venv/bin/python"),
-        workingDirectory: URL(fileURLWithPath: "/Users/martinovigiani/lab/Archon"),
-        extraArguments: []
-    )
+    /// Resolves the interpreter + repo without shipping a developer's absolute
+    /// paths in the binary. Resolution order (first hit wins):
+    ///   1. Env override: `ARCHON_REPO` (and optional `ARCHON_PYTHON`) — CI,
+    ///      packaging, and power users. This is also what makes a non-loopback
+    ///      install work on any machine.
+    ///   2. Bundled runtime shipped inside the app
+    ///      (`Resources/orchestrator-runtime/.venv/bin/python`).
+    ///   3. Auto-discovery: walk up from the running binary looking for a repo
+    ///      root that has both `.venv/bin/python` and `orchestrator/v3` (covers
+    ///      in-tree `swift`/xcode dev builds).
+    ///   4. A last-resort dev fallback (the historical hardcode), used ONLY when
+    ///      nothing above resolves — keeps this developer's machine working.
+    static let `default` = resolve()
+
+    static func resolve(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundle: Bundle = .main,
+        fileManager: FileManager = .default
+    ) -> OrchestratorLaunchConfig {
+        func makeConfig(repo: URL, python: URL? = nil) -> OrchestratorLaunchConfig {
+            OrchestratorLaunchConfig(
+                pythonURL: python ?? repo.appendingPathComponent(".venv/bin/python"),
+                workingDirectory: repo,
+                extraArguments: []
+            )
+        }
+        func hasRepoLayout(_ dir: URL) -> Bool {
+            fileManager.isExecutableFile(atPath: dir.appendingPathComponent(".venv/bin/python").path)
+                && fileManager.fileExists(atPath: dir.appendingPathComponent("orchestrator/v3").path)
+        }
+
+        // 1. Explicit environment override.
+        if let repoPath = environment["ARCHON_REPO"], !repoPath.isEmpty {
+            let repo = URL(fileURLWithPath: repoPath)
+            let python = environment["ARCHON_PYTHON"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            return makeConfig(repo: repo, python: python)
+        }
+        if let pythonPath = environment["ARCHON_PYTHON"], !pythonPath.isEmpty {
+            // Interpreter given without a repo: assume `<repo>/.venv/bin/python`.
+            let python = URL(fileURLWithPath: pythonPath)
+            let repo = python.deletingLastPathComponent()   // bin
+                .deletingLastPathComponent()                // .venv
+                .deletingLastPathComponent()                // repo
+            return makeConfig(repo: repo, python: python)
+        }
+
+        // 2. Bundled runtime shipped with the app.
+        if let resources = bundle.resourceURL {
+            let bundledRepo = resources.appendingPathComponent("orchestrator-runtime")
+            if hasRepoLayout(bundledRepo) {
+                return makeConfig(repo: bundledRepo)
+            }
+        }
+
+        // 3. Auto-discover an in-tree repo root above the running binary.
+        var dir = bundle.bundleURL.resolvingSymlinksInPath()
+        for _ in 0..<12 {
+            if hasRepoLayout(dir) {
+                return makeConfig(repo: dir)
+            }
+            let parent = dir.deletingLastPathComponent()
+            if parent == dir { break }
+            dir = parent
+        }
+
+        // 4. Last-resort dev fallback (historical hardcode).
+        let devRepo = URL(fileURLWithPath: "/Users/martinovigiani/lab/Archon")
+        return makeConfig(repo: devRepo)
+    }
 
     /// The full argument vector. Integration seam: the V3 serve entry point is
     /// `python -m orchestrator.v3` (see `orchestrator/v3/__main__.py` and

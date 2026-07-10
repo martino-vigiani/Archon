@@ -65,11 +65,29 @@ struct SeqTrackerTests {
         #expect(tracker.lastSeq == 12)
     }
 
-    @Test("a skip is a gap reporting the missing seq")
+    @Test("a skip is a gap reporting the missing seq WITHOUT advancing the cursor")
     func gap() {
         var tracker = SeqTracker(lastSeq: 10)
         #expect(tracker.observe(13) == .gap(expected: 11))
-        #expect(tracker.lastSeq == 13)   // advances so resume recovers the range
+        // Must NOT advance: resume(after_seq: lastSeq) has to re-request the whole
+        // [11, 13] range. Advancing to 13 would make the replay look duplicate.
+        #expect(tracker.lastSeq == 10)
+    }
+
+    @Test("resume after a gap redelivers the missing range in order")
+    func gapThenResumeRecovers() {
+        var tracker = SeqTracker(lastSeq: 10)
+        // Live frame 13 skips ahead → gap; cursor stays at 10, resume from 10.
+        #expect(tracker.observe(13) == .gap(expected: 11))
+        #expect(tracker.lastSeq == 10)
+        // Server replays 11, 12, 13 in order — each is now in-order and delivered
+        // exactly once, advancing the cursor one step at a time.
+        #expect(tracker.observe(11) == .inOrder)
+        #expect(tracker.observe(12) == .inOrder)
+        #expect(tracker.observe(13) == .inOrder)
+        #expect(tracker.lastSeq == 13)
+        // Live resumes cleanly.
+        #expect(tracker.observe(14) == .inOrder)
     }
 
     @Test("a replayed/duplicate seq is dropped, lastSeq unchanged")

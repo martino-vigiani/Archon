@@ -152,7 +152,16 @@ final class ConductorStore {
         let planId = plan.planId
         clearPlan()
         appendConductor("Cancelled.")
-        Task { _ = try? await api.cancelPlan(planId) }
+        Task { [weak self] in
+            do {
+                _ = try await api.cancelPlan(planId)
+            } catch {
+                // The local plan is already discarded; surface the server-side
+                // cancel failure so a still-pending plan isn't invisibly swallowed
+                // (Addendum §A4 typed-error surface).
+                self?.handle(error: error)
+            }
+        }
     }
 
     // MARK: - Resilience (Addendum §A4)

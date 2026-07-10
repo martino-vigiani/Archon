@@ -28,6 +28,11 @@ final class AppContainer {
     private var eventTask: Task<Void, Never>?
     private var didRegisterFeatures = false
 
+    /// The handshake the transport clients are currently wired against. Guards
+    /// `rewire(to:)` so the initial `.ready` and every crash-restart `.ready`
+    /// share one wiring path without double-wiring an unchanged handshake.
+    private var wiredHandshake: RuntimeHandshake?
+
     init() {
         let store = ProjectStore()
         self.projectStore = store
@@ -82,20 +87,12 @@ final class AppContainer {
         recentProjects = projectStore.recordOpenedProject(at: url)
 
         do {
-            let handshake = try await supervisor.start(projectURL: url)
-            let api = APIClient(
-                baseURL: APIClient.baseURL(port: handshake.port),
-                token: handshake.token
-            )
-            apiClient = api
-            await refreshSnapshots(using: api)
-
-            await wsClient.start(
-                baseURL: WSClient.baseURL(port: handshake.port),
-                token: handshake.token,
-                resumeFrom: nil
-            )
-            startEventPump()
+            // Boot/supervise the orchestrator. The transport clients
+            // (APIClient/WSClient), snapshot refresh, and event pump are wired by
+            // `observeSupervisor()` on the resulting `.ready(handshake)` — the
+            // SAME path that fires on every crash-restart — so first-open and
+            // recovery cannot diverge.
+            _ = try await supervisor.start(projectURL: url)
         } catch ArchonClientError.incompatibleVersion {
             appState.connectionState = .incompatible
         } catch {
@@ -114,6 +111,7 @@ final class AppContainer {
         await wsClient.stop()
         await supervisor.stop()
         apiClient = nil
+        wiredHandshake = nil
         appState.currentProjectURL = nil
         appState.projectInfo = nil
         appState.resetRuntimeState()
@@ -146,8 +144,38 @@ final class AppContainer {
             let stream = await self.supervisor.stateStream()
             for await state in stream {
                 self.appState.supervisorState = state
+                // The orchestrator is healthy on a NEW handshake (initial launch
+                // OR a crash-restart with a fresh ephemeral port + bearer token).
+                // Rebuild the transport clients against it so recovery actually
+                // completes instead of reconnect-looping the dead port forever.
+                if case .ready(let handshake) = state {
+                    await self.rewire(to: handshake)
+                }
             }
         }
+    }
+
+    /// (Re)builds the REST/WS clients against `handshake`, refreshes snapshots,
+    /// and restarts the event pump. Idempotent per handshake.
+    private func rewire(to handshake: RuntimeHandshake) async {
+        guard wiredHandshake != handshake else { return }
+        wiredHandshake = handshake
+
+        let api = APIClient(
+            baseURL: APIClient.baseURL(port: handshake.port),
+            token: handshake.token
+        )
+        apiClient = api
+        await refreshSnapshots(using: api)
+
+        // `reconfigure` drops the stale resume cursor (a restarted orchestrator
+        // resets `seq` to 0) and reconnects immediately; the snapshot refresh
+        // above resyncs authoritative state (REQ-ARCH-008).
+        await wsClient.reconfigure(
+            baseURL: WSClient.baseURL(port: handshake.port),
+            token: handshake.token
+        )
+        startEventPump()
     }
 
     private func observeConnection() {

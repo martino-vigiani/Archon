@@ -214,6 +214,7 @@ final class TerminalsStore {
                 register(session)
             }
         }
+        pruneDeadSessions()
         recomputeKPI()
     }
 
@@ -256,6 +257,7 @@ final class TerminalsStore {
             let created = register(session)
             appendTimeline(created, kind: .spawned, at: session.createdAt)
         }
+        pruneDeadSessions()
         recomputeKPI()
     }
 
@@ -303,6 +305,26 @@ final class TerminalsStore {
         nextIndex = 1
     }
 
+    /// Cap the number of retained TERMINATED sessions. Per-session scrollback is
+    /// already a bounded 10k-line ring (REQ-PERF-022), but mirroring every dead
+    /// session forever grows unboundedly over an all-day run; keep the most
+    /// recent terminated transcripts and drop the oldest. Live sessions are never
+    /// evicted, and the lifetime `totalSpawned` KPI is preserved (`seenSessionIds`
+    /// is intentionally not pruned).
+    static let maxRetainedDeadSessions = 64
+
+    private func pruneDeadSessions() {
+        let dead = sessionsById.values.filter { $0.isTerminal }
+        guard dead.count > Self.maxRetainedDeadSessions else { return }
+        let evictable = dead.sorted { $0.index < $1.index }
+            .prefix(dead.count - Self.maxRetainedDeadSessions)
+        for session in evictable {
+            sessionsById[session.id] = nil
+            if selectedSessionId == session.id { selectedSessionId = nil }
+            if focusedSessionId == session.id { focusedSessionId = nil }
+        }
+    }
+
     // MARK: - Actions (routed through APIClient with initiator: .user)
 
     func spawnSession(prompt: String) async {
@@ -329,7 +351,11 @@ final class TerminalsStore {
             _ = try await api.killSession(sessionId)
         } catch let error as ArchonClientError {
             surface(error)
-        } catch { }
+        } catch {
+            // A failed kill leaves a live-looking session with no feedback; surface
+            // it as a typed error (Addendum §A4) instead of swallowing it.
+            surface(unexpected: error)
+        }
     }
 
     func stopAll() async {
@@ -347,7 +373,27 @@ final class TerminalsStore {
         do {
             let response = try await api.flagIdle(sessionId, request: FlagIdleRequest(flagged: flagged))
             sessionsById[sessionId]?.setIdleFlagged(response.idleFlagged)
-        } catch { }
+        } catch let error as ArchonClientError {
+            surface(error)
+        } catch {
+            // The toggle silently reverts on failure otherwise (Addendum §A4).
+            surface(unexpected: error)
+        }
+    }
+
+    /// Routes an arbitrary (non-`ArchonClientError`) failure through the typed
+    /// error surface rather than swallowing it (Addendum §A4).
+    private func surface(unexpected error: Error) {
+        if let clientError = error as? ArchonClientError {
+            surface(clientError)
+            return
+        }
+        container.appState.lastError = APIError(
+            code: .orchestratorError,
+            message: error.localizedDescription,
+            retriable: false,
+            details: nil
+        )
     }
 
     private func surface(_ error: ArchonClientError) {
