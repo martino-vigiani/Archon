@@ -23,6 +23,29 @@ struct ProjectStoreTests {
         #expect(id == ProjectIdentity.projectID(for: url))
     }
 
+    @Test("canonicalPath matches os.path.realpath (firmlink /private/tmp ⇄ /tmp)")
+    func canonicalPathMatchesRealpath() throws {
+        // Regression for the client⇄orchestrator project_id seam: the orchestrator
+        // uses os.path.realpath (which resolves /tmp → /private/tmp). Foundation's
+        // resolvingSymlinksInPath() resolves the /private form the OPPOSITE way
+        // (/private/tmp → /tmp), so the two sides derived different project_ids and
+        // the runtime handshake was never discovered. canonicalPath now uses
+        // realpath(3) and MUST yield the /private form for BOTH input spellings.
+        let name = "archon-canon-\(UUID().uuidString)"
+        let real = URL(fileURLWithPath: "/private/tmp").appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: real) }
+
+        let expected = "/private/tmp/\(name)"
+        let fromPrivate = ProjectIdentity.canonicalPath(for: URL(fileURLWithPath: "/private/tmp/\(name)"))
+        let fromTmp = ProjectIdentity.canonicalPath(for: URL(fileURLWithPath: "/tmp/\(name)"))
+        #expect(fromPrivate == expected)   // failed before the fix (was "/tmp/…")
+        #expect(fromTmp == expected)
+        // Both spellings therefore agree on project_id (the invariant the seam needs).
+        #expect(ProjectIdentity.projectID(for: URL(fileURLWithPath: "/tmp/\(name)"))
+                == ProjectIdentity.projectID(for: URL(fileURLWithPath: "/private/tmp/\(name)")))
+    }
+
     @Test("state dir lives under support/projects/<project_id>")
     func stateDirectoryLayout() throws {
         let (store, base) = try makeTempStore()
