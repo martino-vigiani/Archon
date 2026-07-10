@@ -329,7 +329,13 @@ class MemoryService:
         if location == "project":
             siblings = [scope / n for n in ("CLAUDE.md", "AGENTS.md")]
         else:
-            odir = self._overlay_path(scope, "").parent
+            # The scope's own overlay dir — exactly ``_overlay_path(scope, "")``,
+            # matching list_files(). The former ``.parent`` walked UP one level:
+            # for the project root that collapsed to the whole state dir (counting
+            # runtime.json/kanban.sqlite3/audit.log toward the 32 MB quota), and
+            # for subdir scopes it pointed at the parent overlay dir whose children
+            # are directories, so real overlay files were never counted at all.
+            odir = self._overlay_path(scope, "")
             siblings = list(odir.iterdir()) if odir.is_dir() else []
         existing = [p for p in siblings if p.is_file()]
         total = 0

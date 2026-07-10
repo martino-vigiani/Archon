@@ -10,6 +10,7 @@ the stream alone (REQ-BE-016).
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import threading
 from pathlib import Path
@@ -68,6 +69,11 @@ class KanbanStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        # WAL keeps reads from blocking the single writer; busy_timeout lets a
+        # transient lock (e.g. an OS-level flush) retry instead of erroring.
+        with contextlib.suppress(sqlite3.Error):
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
         self._init_schema()
 
     def _init_schema(self) -> None:

@@ -116,6 +116,7 @@ Every non-2xx REST response and every WS `error` payload uses:
 | `memory_quota_exceeded` | 409 | false | Scope file/byte quota exceeded |
 | `path_escape` | 400 | false | Path resolves outside the declared scope |
 | `plan_expired` | 410 | false | Plan TTL elapsed before confirm |
+| `plan_already_confirmed` | 409 | false | Plan already executed; re-confirm refused (retry with the same `request_id` replays the original result) |
 | `session_not_found` | 404 | false | Unknown `session_id` |
 | `rate_limited` | 429 | true | Too many requests |
 | `orchestrator_error` | 500 | true | Internal failure |
@@ -315,7 +316,7 @@ Body (optional overrides): `{ "request_id": "01J8U...", "cap": 2, "auto_apply": 
   "final_count": 2
 }
 ```
-Applied actions then surface as `session_spawned` / `kanban_updated` events. **410** `plan_expired` if past `expires_at`. Partial application reports per-action results in `status: "partial"` with an `action_results` array `[{action_id, ok, error?}]` (REQ-ARCH-085).
+Applied actions then surface as `session_spawned` / `kanban_updated` events. **410** `plan_expired` if past `expires_at`. Partial application reports per-action results in `status: "partial"` with an `action_results` array `[{action_id, ok, error?}]` (REQ-ARCH-085). **Idempotent (§1.4):** re-sending the same `request_id` replays the original confirm result and never re-executes; a plan executes at most once, so a re-confirm with a *different* `request_id` after execution returns **409** `plan_already_confirmed`.
 
 #### `POST /v3/conductor/plans/{plan_id}/cancel` — discard an unconfirmed/executing plan
 **200** `{ "plan_id": "...", "status": "cancelled" }`. Cancels planning (REQ-UX-043) without killing already-running sessions unless the action was `destructive` and not yet applied.

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import logging
 import os
 import pty
 import signal
@@ -32,9 +33,16 @@ from .ids import new_ulid
 from .storage import StatePaths
 from .util import now_iso
 
+_log = logging.getLogger(__name__)
+
 #: Coalescing window (one 60 Hz frame) and max bytes per pty_output chunk.
 COALESCE_S = 0.016
 MAX_CHUNK_BYTES = 32 * 1024
+
+#: Cap on retained *terminal* (completed/failed/killed) sessions so a long-running
+#: instance doesn't accumulate session metadata forever. Live sessions are never
+#: evicted; only the oldest-ended terminal ones beyond this cap are dropped.
+MAX_TERMINAL_SESSIONS = 256
 
 #: Per-session limits (REQ-BE-034).
 DEFAULT_MAX_RSS_BYTES = 1_500 * 1024 * 1024  # 1.5 GB
@@ -139,6 +147,9 @@ class SessionManager:
         self._deferred: list[dict[str, Any]] = []
         self._lock = asyncio.Lock()
         self._idle_monitor: asyncio.Task | None = None
+        #: Strong refs to eager-flush tasks so they are not GC'd mid-flight and
+        #: their exceptions are observed (documented asyncio fire-and-forget pitfall).
+        self._eager_flush_tasks: set[asyncio.Task] = set()
 
     # -- lifecycle ---------------------------------------------------------
     async def start(self) -> None:
@@ -154,6 +165,11 @@ class SessionManager:
         for sid in list(self._sessions):
             with contextlib.suppress(Exception):
                 await self.kill(sid, grace_ms=500)
+        for task in list(self._eager_flush_tasks):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+        self._eager_flush_tasks.clear()
 
     # -- inspection --------------------------------------------------------
     def live_count(self) -> int:
@@ -356,9 +372,21 @@ class SessionManager:
             return
         sess.buffer.extend(data)
         sess._last_activity_monotonic = time.monotonic()
-        # Bound buffer: flush eagerly if it grows past the max chunk.
+        # Bound buffer: flush eagerly if it grows past the max chunk. Keep a strong
+        # reference (and observe the result) so the task is not garbage-collected
+        # mid-flight and its exceptions are never silently swallowed.
         if len(sess.buffer) >= MAX_CHUNK_BYTES:
-            asyncio.create_task(self._flush(session_id))
+            task = asyncio.create_task(self._flush(session_id))
+            self._eager_flush_tasks.add(task)
+            task.add_done_callback(self._on_eager_flush_done)
+
+    def _on_eager_flush_done(self, task: asyncio.Task) -> None:
+        self._eager_flush_tasks.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            _log.warning("eager pty flush failed: %r", exc)
 
     async def _flush_loop(self, session_id: str) -> None:
         while True:
@@ -433,23 +461,51 @@ class SessionManager:
             sess.state = "failed"
             sess.exit_reason = "normal"
         await self._emit_state(sess)
+        # Bound retained terminal-session metadata (never touches live sessions).
+        self._compact_sessions()
         # A slot freed → try draining deferred spawns (REQ-BE-006).
         await self._drain_deferred()
 
+    def _compact_sessions(self) -> None:
+        """Drop the oldest-ended terminal sessions beyond ``MAX_TERMINAL_SESSIONS``.
+
+        Synchronous (no await) so it runs atomically w.r.t. the spawn critical
+        section. Live sessions are always retained; ``list_sessions`` continues to
+        show the most-recent terminal sessions (contract-visible behavior).
+        """
+        terminal = [s for s in self._sessions.values() if s.state not in _LIVE_STATES]
+        excess = len(terminal) - MAX_TERMINAL_SESSIONS
+        if excess <= 0:
+            return
+        terminal.sort(key=lambda s: s._ended_monotonic if s._ended_monotonic is not None else 0.0)
+        for sess in terminal[:excess]:
+            self._sessions.pop(sess.session_id, None)
+            if sess.request_id and self._by_request.get(sess.request_id) == sess.session_id:
+                del self._by_request[sess.request_id]
+
     async def _drain_deferred(self) -> None:
-        while self._deferred and self.live_count() < self._effective_limit():
-            admitted, _reason = self._admit()
-            if not admitted:
-                return
-            params = self._deferred.pop(0)
-            with contextlib.suppress(ApiError):
-                await self._launch(
-                    request_id=params["request_id"],
-                    cwd=params["cwd"],
-                    card_id=params["card_id"],
-                    initiator=params["initiator"],
-                    prompt=params["prompt"],
-                )
+        # Every admission decision + launch in ``spawn`` runs under ``self._lock``
+        # (the single-spawn-authority invariant, REQ-BE-001/003/004). Draining a
+        # deferred spawn must take the same lock and re-check ``live_count`` inside
+        # it, so a concurrent ``spawn`` can never interleave its cap/ceiling check
+        # with a drain's launch and admit one over the limit. ``_finalize`` (the
+        # sole caller) never holds the lock, so this cannot deadlock.
+        while True:
+            async with self._lock:
+                if not self._deferred or self.live_count() >= self._effective_limit():
+                    return
+                admitted, _reason = self._admit()
+                if not admitted:
+                    return
+                params = self._deferred.pop(0)
+                with contextlib.suppress(ApiError):
+                    await self._launch(
+                        request_id=params["request_id"],
+                        cwd=params["cwd"],
+                        card_id=params["card_id"],
+                        initiator=params["initiator"],
+                        prompt=params["prompt"],
+                    )
 
     # -- kill / flag -------------------------------------------------------
     async def kill(self, session_id: str, *, grace_ms: int = DEFAULT_GRACE_MS, force: bool = True) -> dict[str, Any]:

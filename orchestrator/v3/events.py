@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import threading
+import time
 from typing import Any
 
 from . import PROTOCOL_VERSION, REPLAY_MAX_EVENTS, REPLAY_WINDOW_S
@@ -165,6 +166,10 @@ class EventBus:
         self._lock = threading.Lock()
         self._seq = 0
         self._ring: collections.deque[dict[str, Any]] = collections.deque(maxlen=replay_max_events)
+        # Monotonic append-times aligned 1:1 with ``_ring`` (same maxlen → they
+        # evict in lockstep). Age-pruning compares these floats instead of
+        # re-parsing each envelope's ISO ``ts`` on every publish (hot path).
+        self._ring_mono: collections.deque[float] = collections.deque(maxlen=replay_max_events)
         self._replay_window_s = replay_window_s
         self._subscribers: set[Subscriber] = set()
 
@@ -199,34 +204,22 @@ class EventBus:
             if plan_id is not None:
                 env["plan_id"] = plan_id
             self._ring.append(env)
+            self._ring_mono.append(time.monotonic())
             self._prune_locked()
             return env
 
     def _prune_locked(self) -> None:
-        """Drop ring entries older than the replay window (best-effort, lock held)."""
-        if not self._ring:
-            return
-        # deque already bounds by count (maxlen); additionally bound by age.
-        try:
-            cutoff_ok = True
-            # Compare ISO strings lexicographically is unsafe across 'Z'; parse cheaply.
-            from datetime import datetime, timedelta, timezone
+        """Drop ring entries older than the replay window (best-effort, lock held).
 
-            now = datetime.now(timezone.utc)
-            horizon = now - timedelta(seconds=self._replay_window_s)
-            while self._ring:
-                ts = self._ring[0].get("ts", "")
-                try:
-                    dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-                except ValueError:
-                    break
-                if dt < horizon:
-                    self._ring.popleft()
-                else:
-                    break
-            _ = cutoff_ok
-        except Exception:  # noqa: BLE001 - pruning must never break publish
-            return
+        The deque already bounds by count (``maxlen``); this additionally bounds
+        by age. Timestamps are the monotonic floats captured at append time, so
+        this compares numbers rather than importing datetime and parsing an ISO
+        ``ts`` on every publish (the hot path shared by all sessions' output).
+        """
+        horizon = time.monotonic() - self._replay_window_s
+        while self._ring_mono and self._ring_mono[0] < horizon:
+            self._ring_mono.popleft()
+            self._ring.popleft()
 
     async def publish(
         self,
