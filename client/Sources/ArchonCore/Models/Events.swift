@@ -8,7 +8,13 @@ import Foundation
 /// consumers (never disconnect — REQ-ARCH-006).
 struct EventEnvelope: Decodable, Sendable, Equatable {
     var v: Int
-    var seq: Int64
+    /// `nil` for connection-local repair frames that are NOT part of the
+    /// replayable stream: `pty_output` drop-markers (`take_drop_markers()`) and
+    /// the `rate_limited` pre-close `error` frame both carry `seq: null` on the
+    /// wire (orchestrator/v3/events.py + stream.py). Decoding this as
+    /// non-optional made those frames fail to decode and be silently dropped, so
+    /// the "output truncated" marker and the rate-limit notice never rendered.
+    var seq: Int64?
     var ts: Date
     var type: String
     var sessionId: String?
@@ -23,7 +29,7 @@ struct EventEnvelope: Decodable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         v = try c.decodeIfPresent(Int.self, forKey: .v) ?? 1
-        seq = try c.decode(Int64.self, forKey: .seq)
+        seq = try c.decodeIfPresent(Int64.self, forKey: .seq)
         ts = try c.decode(Date.self, forKey: .ts)
         type = try c.decode(String.self, forKey: .type)
         sessionId = try c.decodeIfPresent(String.self, forKey: .sessionId)
@@ -60,7 +66,7 @@ struct EventEnvelope: Decodable, Sendable, Equatable {
     /// Convenience initialiser for tests and synthetic events.
     init(
         v: Int = 1,
-        seq: Int64,
+        seq: Int64?,
         ts: Date = Date(),
         type: String,
         sessionId: String? = nil,
@@ -146,7 +152,11 @@ struct PTYOutputPayload: Decodable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        streamSeq = try c.decode(Int64.self, forKey: .streamSeq)
+        // Drop-marker frames carry `stream_seq: null` (they reset per-session
+        // continuity rather than occupy a slot). `dropped: true` short-circuits
+        // the assembler before `streamSeq` is compared, and the sentinel keeps a
+        // following real chunk from being mis-classified as a duplicate.
+        streamSeq = try c.decodeIfPresent(Int64.self, forKey: .streamSeq) ?? -1
         encoding = try c.decodeIfPresent(String.self, forKey: .encoding) ?? "base64"
         bytes = try c.decodeIfPresent(String.self, forKey: .bytes) ?? ""
         dropped = try c.decodeIfPresent(Bool.self, forKey: .dropped) ?? false

@@ -22,8 +22,12 @@ struct SeqTracker: Sendable, Equatable {
     }
 
     /// Observes an incoming `seq`, returning whether it is in order, a gap, or a
-    /// duplicate. Advances `lastSeq` for in-order and gap observations (so a
-    /// single `resume` recovers the missing range), never regresses it.
+    /// duplicate. Advances `lastSeq` only for in-order observations; on a gap the
+    /// cursor is left at the last good seq so that a single
+    /// `resume(after_seq: lastSeq)` redelivers the WHOLE missing range in order
+    /// (each replayed frame then arrives in-order and advances the cursor one
+    /// step at a time). Advancing past the gap here would make the replayed
+    /// events look like duplicates and drop them (REQ-ARCH-005).
     mutating func observe(_ seq: Int64) -> SeqObservation {
         guard let last = lastSeq else {
             lastSeq = seq
@@ -36,10 +40,9 @@ struct SeqTracker: Sendable, Equatable {
         if seq <= last {
             return .duplicate
         }
-        // seq > last + 1 → a gap. Advance so we resume from `last`.
-        let expected = last + 1
-        lastSeq = seq
-        return .gap(expected: expected)
+        // seq > last + 1 → a gap. Do NOT advance; resume from `last` recovers
+        // [last + 1, seq] in order.
+        return .gap(expected: last + 1)
     }
 
     mutating func reset(to seq: Int64? = nil) {

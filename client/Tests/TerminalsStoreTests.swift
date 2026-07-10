@@ -136,6 +136,29 @@ struct TerminalsStoreTests {
         #expect(store.kpi.totalSpawned == 2)
     }
 
+    // MARK: - Retention pruning (unbounded-growth finding)
+
+    @Test("terminated sessions are capped; live sessions and lifetime count are preserved")
+    func prunesDeadSessions() {
+        let store = makeStore()
+        let cap = TerminalsStore.maxRetainedDeadSessions
+        let deadCount = cap + 10
+        for i in 0..<deadCount {
+            store.apply(spawn(Int64(i + 1), session("dead-\(i)", state: .completed, status: .done)))
+        }
+        // One live session must never be evicted.
+        store.apply(spawn(Int64(deadCount + 1), session("live-1", status: .running)))
+
+        let retainedDead = store.orderedSessions.filter { $0.isTerminal }
+        #expect(retainedDead.count == cap)
+        #expect(store.sessionsById["live-1"] != nil)
+        // The oldest dead sessions are the ones dropped; the most recent are kept.
+        #expect(store.sessionsById["dead-0"] == nil)
+        #expect(store.sessionsById["dead-\(deadCount - 1)"] != nil)
+        // Lifetime spawn count is not pruned.
+        #expect(store.kpi.totalSpawned == deadCount + 1)
+    }
+
     // MARK: - Conductor log + navigation
 
     @Test("conductor_state detail updates the last-decision log")

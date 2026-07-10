@@ -113,6 +113,42 @@ struct EventDecodingTests {
         #expect(error.retriable)
     }
 
+    @Test("pty_output drop-marker with seq:null + stream_seq:null decodes (finding: silent hole)")
+    func ptyDropMarkerNullSeqDecodes() throws {
+        // Exact shape of EventBus.Subscriber.take_drop_markers() in
+        // orchestrator/v3/events.py: a connection-local repair frame with no
+        // global seq and no per-session stream_seq. Non-optional seq previously
+        // failed to decode, so the "output truncated" break never rendered.
+        let json = """
+        { "v":1, "seq":null, "ts":"2026-07-10T14:05:02.900Z", "type":"pty_output",
+          "session_id":"01J8Z",
+          "payload": { "stream_seq":null, "encoding":"base64", "bytes":"",
+            "dropped":true, "dropped_bytes":8192 } }
+        """
+        let env = try decodeEnvelope(json)
+        #expect(env.seq == nil)
+        #expect(env.sessionId == "01J8Z")
+        guard case .ptyOutput(let p) = env.event else { Issue.record("not pty_output"); return }
+        #expect(p.dropped == true)
+        #expect(p.droppedBytes == 8192)
+    }
+
+    @Test("rate_limited error frame with seq:null decodes (finding: invisible pre-close error)")
+    func rateLimitedNullSeqDecodes() throws {
+        // Exact shape of the pre-close frame in orchestrator/v3/stream.py.
+        let json = """
+        { "v":1, "seq":null, "ts":"2026-07-10T14:05:02.900Z", "type":"error",
+          "payload": { "error": { "code":"rate_limited",
+            "message":"Stream consumer too slow; reconnect and resync.",
+            "retriable":true } } }
+        """
+        let env = try decodeEnvelope(json)
+        #expect(env.seq == nil)
+        guard case .error(let error) = env.event else { Issue.record("not error"); return }
+        #expect(error.code == .rateLimited)
+        #expect(error.retriable)
+    }
+
     @Test("unknown event type does not throw (REQ-ARCH-006)")
     func unknownTypeIgnored() throws {
         let json = """

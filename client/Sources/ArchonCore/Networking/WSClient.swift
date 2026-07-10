@@ -39,6 +39,16 @@ actor WSClient {
     private var stateSubscribers: [UUID: AsyncStream<WSConnectionState>.Continuation] = [:]
     private var currentState: WSConnectionState = .idle
 
+    /// Per-subscriber fan-out buffer bound (REQ-ARCH-009: the client never uses
+    /// an unbounded queue). A consumer that falls this far behind is already
+    /// broken; we drop the oldest events for it (the server's own
+    /// drop-with-marker + a reconnect REST resync recover authoritative state)
+    /// rather than let a busy `@MainActor` grow the buffer without bound. Sized
+    /// so the aggregate across the handful of live subscribers (terminals,
+    /// board, conductor, container pump) stays under the §3.5 64 MiB ceiling even
+    /// at the ~44 KiB base64 of a 32 KiB max `pty_output` chunk
+    /// (≈ 4 × 256 × 44 KiB ≈ 44 MiB worst case).
+
     init(backoff: BackoffPolicy = .reconnect, staleTimeout: Duration = .seconds(30)) {
         self.backoff = backoff
         self.staleTimeout = staleTimeout
@@ -48,8 +58,13 @@ actor WSClient {
 
     /// A new independent stream of decoded events. Multiple consumers are
     /// supported (grid, dashboard, board can each subscribe).
+    static let fanOutBufferBound = 256
+
     func events() -> AsyncStream<EventEnvelope> {
-        let (stream, continuation) = AsyncStream.makeStream(of: EventEnvelope.self)
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: EventEnvelope.self,
+            bufferingPolicy: .bufferingNewest(Self.fanOutBufferBound)
+        )
         let id = UUID()
         eventSubscribers[id] = continuation
         continuation.onTermination = { [weak self] _ in
@@ -101,6 +116,31 @@ actor WSClient {
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
         updateState(.disconnected)
+    }
+
+    /// Re-point the socket at a freshly (re)launched orchestrator instance and
+    /// reconnect immediately (no backoff wait). Used by the supervisor
+    /// crash-restart path: a restarted orchestrator is a BRAND-NEW event bus
+    /// whose `seq` resets to 0, so the resume cursor MUST be dropped — otherwise
+    /// every new event (seq ≤ the stale cursor) would be treated as a duplicate
+    /// and silently discarded, and the app would stay stuck reconnecting. The
+    /// caller re-fetches full REST snapshots to resync (REQ-ARCH-008).
+    func reconfigure(baseURL: URL, token: String) {
+        // Tear down the loop/socket pointed at the dead endpoint.
+        runTask?.cancel()
+        runTask = nil
+        watchdog?.cancel()
+        watchdog = nil
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        // New endpoint + fresh replay cursor.
+        self.baseURL = baseURL
+        self.token = token
+        seqTracker.reset(to: nil)
+        isActive = true
+        runTask = Task { [weak self] in
+            await self?.runLoop()
+        }
     }
 
     /// The highest globally-ordered `seq` observed (the resume cursor).
@@ -157,7 +197,13 @@ actor WSClient {
             updateState(.reconnecting(attempt: attempt))
             try? await Task.sleep(for: delay)
         }
-        updateState(.disconnected)
+        // Only report a terminal .disconnected when we were actually stopped.
+        // A `reconfigure()` cancels this loop while `isActive` stays true and
+        // spins up a fresh loop; that replacement owns the connection state, so
+        // the cancelled loop must not clobber it with .disconnected.
+        if !isActive {
+            updateState(.disconnected)
+        }
     }
 
     private enum ClosureKind { case failure, incompatible }
@@ -227,25 +273,33 @@ actor WSClient {
             return nil
         }
 
+        // Connection-local repair frames (drop-markers, `rate_limited`) carry
+        // `seq: null`: they are NOT part of the replayable stream, so deliver
+        // them without gap tracking (REQ-ARCH-006).
+        guard let seq = envelope.seq else {
+            fanOut(envelope)
+            return nil
+        }
+
         // Gap detection on the globally-ordered seq (REQ-ARCH-005).
-        switch seqTracker.observe(envelope.seq) {
+        switch seqTracker.observe(seq) {
         case .inOrder:
             fanOut(envelope)
-        case .gap:
-            fanOut(envelope)
+        case .gap(let expected):
+            // Do NOT deliver this frame yet and do NOT advance the cursor: a
+            // single resume redelivers [expected, seq] in order (the replayed
+            // frames arrive in-order and are fanned out exactly once). Resuming
+            // from `expected - 1` re-requests the missing range starting at
+            // `expected` (REQ-ARCH-005).
+            let afterSeq = expected - 1
             Task { [weak self] in
-                guard let self, let last = await self.lastSeqForResume() else { return }
-                await self.send(.resume(afterSeq: last))
+                await self?.send(.resume(afterSeq: afterSeq))
             }
         case .duplicate:
             // Already delivered during a prior replay; drop.
             break
         }
         return nil
-    }
-
-    private func lastSeqForResume() -> Int64? {
-        seqTracker.lastSeq
     }
 
     private func fanOut(_ envelope: EventEnvelope) {
