@@ -1,0 +1,116 @@
+name: Archon
+
+# ---------------------------------------------------------------------------
+# Archon V3 — native macOS client (phase A: foundation)
+#
+# Directory-based sources: `sources` points at the *folders* Sources/ and
+# Tests/. xcodegen globs them at generation time, so later phases can add new
+# .swift files anywhere under Sources/ (App, ArchonCore, DesignSystem,
+# Terminals, Board, VoiceOrb) and a plain `xcodegen generate` picks them up —
+# NO edits to this file are required to include new source files.
+# ---------------------------------------------------------------------------
+
+options:
+  bundleIdPrefix: com.subralabs
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"                 # Swift 6 language mode
+    SWIFT_STRICT_CONCURRENCY: complete   # strict concurrency checking
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    SWIFT_UPCOMING_FEATURE_FLAGS: ""
+    ENABLE_HARDENED_RUNTIME: NO          # dev builds; notarized hardened build is a later phase
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"              # ad-hoc local signing (no dev team needed to build/run)
+    DEVELOPMENT_TEAM: ""
+    DEAD_CODE_STRIPPING: YES
+    CLANG_ENABLE_MODULES: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+# WhisperKit is DECLARED here for phase B. In phase A no target links its
+# product, so WhisperKit resolves (Package.resolved) but is not compiled into
+# the app — keeping the foundation build fast and free of external compile
+# risk. VoiceOrb (phase B) adds `- package: WhisperKit` under its file group's
+# target dependencies to actually link it.
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: "0.9.0"
+
+targets:
+  Archon:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_NAME: Archon
+        PRODUCT_BUNDLE_IDENTIFIER: com.subralabs.archon
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        COMBINE_HIDPI_IMAGES: YES
+        LSMINIMUMSYSTEMVERSION: "26.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleName: Archon
+        CFBundleDisplayName: Archon
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "Archon — local-first multi-agent orchestration."
+        NSMicrophoneUsageDescription: "Archon uses the microphone for on-device voice dictation (WhisperKit). Audio is transcribed locally and never leaves your Mac."
+        NSHighResolutionCapable: true
+        NSMainNibFile: ""
+        NSPrincipalClass: ""
+    entitlements:
+      path: Config/Archon.entitlements
+      properties:
+        # Non-sandboxed: the app needs arbitrary-directory access (any project
+        # picked via NSOpenPanel) and must spawn the orchestrator process.
+        com.apple.security.app-sandbox: false
+        com.apple.security.device.audio-input: true
+
+  ArchonTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Archon
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.subralabs.archon.tests
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+
+schemes:
+  Archon:
+    build:
+      targets:
+        Archon: all
+        ArchonTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - ArchonTests
+    profile:
+      config: Release
+    archive:
+      config: Release

@@ -1,0 +1,707 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06E2EE53BDDDE481B344B6B6 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DC06C36A5510FA50EDD5A3 /* JSONValue.swift */; };
+		0D60DB8DB3E137CF2C8FAE87 /* Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684182A95107CD8D18D72A64 /* Events.swift */; };
+		135669C0FD12FBE6AC88F226 /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13E9752A0BD82B3BB149A42 /* Controls.swift */; };
+		13A2D5E32B8C0B70397ECAF2 /* ArchonJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B27E351025CD9795F8DABC /* ArchonJSON.swift */; };
+		152474973E3B0B3A6FC082D9 /* ShellRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7DA91D353722DB50A1F1FF /* ShellRegistry.swift */; };
+		22652D4F43458C38E9035EE7 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B416F5BEFE5B985D413C58A /* Project.swift */; };
+		22A938655A1EE30F9DD68050 /* Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B3F21356D4C4C671DE4D990 /* Memory.swift */; };
+		2459770C8625F0741705F4D9 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35D088637E37F19E60BF7B8 /* DesignTokens.swift */; };
+		2E97BCD51D8F2A5DC2E104DA /* EventDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */; };
+		306F15B32823E8C5A98F73D0 /* AppStateReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41745580EDB1E4C88132D2D8 /* AppStateReducerTests.swift */; };
+		36EFA4D99D62034BCC20C97F /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD46851018374A5A5477A3A /* APIError.swift */; };
+		41B63FED230E0D70FD345E06 /* Health.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83EC12E1FEC3BD9D301D9FB1 /* Health.swift */; };
+		49359E6B3BF321D35A8F7EA0 /* BackoffAndSeqTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F03027C8A76E9EF0A0A008D /* BackoffAndSeqTests.swift */; };
+		4F08071D72C27F4EBD4ADE2C /* ArchonMaterial.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */; };
+		5228735650B621739FBA20FD /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */; };
+		5854CEDDFC97C2A5E2F41E0B /* ProjectPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */; };
+		643681D67D9758DC42C3C9D1 /* ULID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DD67DFCE01F21CFC1293F4 /* ULID.swift */; };
+		655EF1A102C3473AD1680A9C /* ThreePaneShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48C08BFBBD54A0EF2C2FCB3 /* ThreePaneShell.swift */; };
+		67EB9F8A308792DE303CE2D2 /* Conductor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4DDAE17A1EC528F350F280 /* Conductor.swift */; };
+		74743BAFFBE1B4626A190C3E /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2332AFA65D47F4226839C200 /* AppState.swift */; };
+		80D7D86AB413EB18BF31C457 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC714BB7790DF6FA10DEE89E /* RootView.swift */; };
+		87839E6C598352311BEAF301 /* Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79370577EA9C215B93AA4F21 /* Navigation.swift */; };
+		87EB61FA3F49D7EAAA464568 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3074515503F306D9B35C23B9 /* Typography.swift */; };
+		96E73C83721115138594AABA /* BackoffPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01C2E745EA9AE70B336DBAF /* BackoffPolicy.swift */; };
+		A00D07F1D198B17F1D23C126 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA0919840B3C42676BD639F /* AppContainer.swift */; };
+		A0991A796CB072B3B25FD1CF /* Kanban.swift in Sources */ = {isa = PBXBuildFile; fileRef = B396BFF76026BF349DDE0E0F /* Kanban.swift */; };
+		A11B148D03E51AE89F522949 /* ProjectIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80175917793628008C1CDB8 /* ProjectIdentity.swift */; };
+		ABD0B0E866263454C50C871C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F391DB5800A824330C61F1 /* APIClient.swift */; };
+		AD2F8611402E971242DB8F38 /* StateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178255FAC4D0DAE20F05518 /* StateViews.swift */; };
+		B409FFD026BDD440436875F9 /* ArchonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCAB0D49209E7010BA8551C6 /* ArchonApp.swift */; };
+		BAC9556CF6077D7FB066588E /* ArchonMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */; };
+		C4209031F0BE9C1E1CEFA5BC /* SeqTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9550ABF0B1B6BAEDA9CA75D2 /* SeqTracker.swift */; };
+		C61830EFA869D1D649E6D6AD /* Runtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E31623100809DF34D5EAAB /* Runtime.swift */; };
+		CB050FE8AE0E9CAA418B849C /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3053130C773FAC4D913001DA /* Session.swift */; };
+		CB8D0C40366066D2270452B3 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4999754A0853874972AA982F /* Spacing.swift */; };
+		D015E0FB78520B8CA85DEAA6 /* OrchestratorSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AAB33B97B048EEAD8A06C3A /* OrchestratorSupervisor.swift */; };
+		D8B53368C64CD26E79C1D6C7 /* StatusIndicators.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */; };
+		DC50BB2644CC7C31C0B5EC02 /* WSClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F471FE8371BFA1DE9BF7F5 /* WSClient.swift */; };
+		E933F80D23BF5500ECF0C706 /* MotionAndIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57220207B8609E7210FC095 /* MotionAndIDTests.swift */; };
+		F62A8CBB5051CEB8E32E0A1E /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */; };
+		FC147400B4515306CA727C9C /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158CF3D6C44D46CF4B1409A1 /* ProjectStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0C2DC5C0EE6D8E0C60784337 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 393BF1BC6867ACC6AAB848B9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E9CAE94E668323B588125EFC;
+			remoteInfo = Archon;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDecodingTests.swift; sourceTree = "<group>"; };
+		12DD67DFCE01F21CFC1293F4 /* ULID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ULID.swift; sourceTree = "<group>"; };
+		158CF3D6C44D46CF4B1409A1 /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		1B3F21356D4C4C671DE4D990 /* Memory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Memory.swift; sourceTree = "<group>"; };
+		2332AFA65D47F4226839C200 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		3053130C773FAC4D913001DA /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		3074515503F306D9B35C23B9 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		31B27E351025CD9795F8DABC /* ArchonJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonJSON.swift; sourceTree = "<group>"; };
+		37F471FE8371BFA1DE9BF7F5 /* WSClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSClient.swift; sourceTree = "<group>"; };
+		41745580EDB1E4C88132D2D8 /* AppStateReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateReducerTests.swift; sourceTree = "<group>"; };
+		4999754A0853874972AA982F /* Spacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spacing.swift; sourceTree = "<group>"; };
+		4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDecodingTests.swift; sourceTree = "<group>"; };
+		53F391DB5800A824330C61F1 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		60E31623100809DF34D5EAAB /* Runtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runtime.swift; sourceTree = "<group>"; };
+		684182A95107CD8D18D72A64 /* Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Events.swift; sourceTree = "<group>"; };
+		6BA0919840B3C42676BD639F /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
+		79370577EA9C215B93AA4F21 /* Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation.swift; sourceTree = "<group>"; };
+		7AAB33B97B048EEAD8A06C3A /* OrchestratorSupervisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorSupervisor.swift; sourceTree = "<group>"; };
+		83EC12E1FEC3BD9D301D9FB1 /* Health.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Health.swift; sourceTree = "<group>"; };
+		8B416F5BEFE5B985D413C58A /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonMotion.swift; sourceTree = "<group>"; };
+		9550ABF0B1B6BAEDA9CA75D2 /* SeqTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeqTracker.swift; sourceTree = "<group>"; };
+		9F03027C8A76E9EF0A0A008D /* BackoffAndSeqTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffAndSeqTests.swift; sourceTree = "<group>"; };
+		A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStoreTests.swift; sourceTree = "<group>"; };
+		B07599873F6CB7CFE8BE63DF /* Archon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Archon.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B396BFF76026BF349DDE0E0F /* Kanban.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanban.swift; sourceTree = "<group>"; };
+		BCAB0D49209E7010BA8551C6 /* ArchonApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonApp.swift; sourceTree = "<group>"; };
+		BFD46851018374A5A5477A3A /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		C13E9752A0BD82B3BB149A42 /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
+		C2B8DB296921F435EE1B45CC /* ArchonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArchonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIndicators.swift; sourceTree = "<group>"; };
+		CC4DDAE17A1EC528F350F280 /* Conductor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conductor.swift; sourceTree = "<group>"; };
+		CC714BB7790DF6FA10DEE89E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		D48C08BFBBD54A0EF2C2FCB3 /* ThreePaneShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreePaneShell.swift; sourceTree = "<group>"; };
+		D5DC06C36A5510FA50EDD5A3 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
+		D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchonMaterial.swift; sourceTree = "<group>"; };
+		E80175917793628008C1CDB8 /* ProjectIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectIdentity.swift; sourceTree = "<group>"; };
+		EF7DA91D353722DB50A1F1FF /* ShellRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellRegistry.swift; sourceTree = "<group>"; };
+		F01C2E745EA9AE70B336DBAF /* BackoffPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicy.swift; sourceTree = "<group>"; };
+		F178255FAC4D0DAE20F05518 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateViews.swift; sourceTree = "<group>"; };
+		F35D088637E37F19E60BF7B8 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
+		F57220207B8609E7210FC095 /* MotionAndIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionAndIDTests.swift; sourceTree = "<group>"; };
+		F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPicker.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1007AA42480B33FB0C26372B /* ArchonCore */ = {
+			isa = PBXGroup;
+			children = (
+				2D66B1C18604324D99C6B736 /* Models */,
+				E790B70EB645C7E011667170 /* Navigation */,
+				666881EAA0149ACF77E6AF0D /* Networking */,
+				73D607881FE2C57EC73325AF /* State */,
+				52120702627458C9DCDF318E /* Supervision */,
+				EC56F564B46B7C167628081C /* Util */,
+			);
+			path = ArchonCore;
+			sourceTree = "<group>";
+		};
+		241750D5295E4DC14F17AFB1 = {
+			isa = PBXGroup;
+			children = (
+				9C5C065110F62877E06D129C /* Sources */,
+				EC6B8D2B2ED2276751B5308D /* Tests */,
+				DF6EE0264643BF806125E9E3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2D66B1C18604324D99C6B736 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BFD46851018374A5A5477A3A /* APIError.swift */,
+				CC4DDAE17A1EC528F350F280 /* Conductor.swift */,
+				684182A95107CD8D18D72A64 /* Events.swift */,
+				83EC12E1FEC3BD9D301D9FB1 /* Health.swift */,
+				B396BFF76026BF349DDE0E0F /* Kanban.swift */,
+				1B3F21356D4C4C671DE4D990 /* Memory.swift */,
+				8B416F5BEFE5B985D413C58A /* Project.swift */,
+				60E31623100809DF34D5EAAB /* Runtime.swift */,
+				3053130C773FAC4D913001DA /* Session.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		36ABB0B9D76F965F44B9C49D /* Tokens */ = {
+			isa = PBXGroup;
+			children = (
+				F35D088637E37F19E60BF7B8 /* DesignTokens.swift */,
+				4999754A0853874972AA982F /* Spacing.swift */,
+				3074515503F306D9B35C23B9 /* Typography.swift */,
+			);
+			path = Tokens;
+			sourceTree = "<group>";
+		};
+		52120702627458C9DCDF318E /* Supervision */ = {
+			isa = PBXGroup;
+			children = (
+				7AAB33B97B048EEAD8A06C3A /* OrchestratorSupervisor.swift */,
+				158CF3D6C44D46CF4B1409A1 /* ProjectStore.swift */,
+			);
+			path = Supervision;
+			sourceTree = "<group>";
+		};
+		666881EAA0149ACF77E6AF0D /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				53F391DB5800A824330C61F1 /* APIClient.swift */,
+				F01C2E745EA9AE70B336DBAF /* BackoffPolicy.swift */,
+				9550ABF0B1B6BAEDA9CA75D2 /* SeqTracker.swift */,
+				37F471FE8371BFA1DE9BF7F5 /* WSClient.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		73D607881FE2C57EC73325AF /* State */ = {
+			isa = PBXGroup;
+			children = (
+				2332AFA65D47F4226839C200 /* AppState.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
+		74C8B445403174AEB52E238E /* Materials */ = {
+			isa = PBXGroup;
+			children = (
+				D6F0AACB2226E3223ADCADF4 /* ArchonMaterial.swift */,
+			);
+			path = Materials;
+			sourceTree = "<group>";
+		};
+		90DD9A412627295B0A991C14 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				A41F52EB63A45AD569F44E55 /* Components */,
+				74C8B445403174AEB52E238E /* Materials */,
+				AF7E82A02426B57B976941F3 /* Motion */,
+				F789E916CB7AD08DD7C33B03 /* Shell */,
+				36ABB0B9D76F965F44B9C49D /* Tokens */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		9C5C065110F62877E06D129C /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D6FF530FDDD72346669A71A2 /* App */,
+				1007AA42480B33FB0C26372B /* ArchonCore */,
+				90DD9A412627295B0A991C14 /* DesignSystem */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A41F52EB63A45AD569F44E55 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				C13E9752A0BD82B3BB149A42 /* Controls.swift */,
+				F178255FAC4D0DAE20F05518 /* StateViews.swift */,
+				CC301F3D985DEB3BCE2C347A /* StatusIndicators.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		AF7E82A02426B57B976941F3 /* Motion */ = {
+			isa = PBXGroup;
+			children = (
+				941F3A5DA401DCBABF0471A1 /* ArchonMotion.swift */,
+			);
+			path = Motion;
+			sourceTree = "<group>";
+		};
+		D6FF530FDDD72346669A71A2 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				6BA0919840B3C42676BD639F /* AppContainer.swift */,
+				BCAB0D49209E7010BA8551C6 /* ArchonApp.swift */,
+				F6D7E58E0A59CE12EF5BA155 /* ProjectPicker.swift */,
+				CC714BB7790DF6FA10DEE89E /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		DF6EE0264643BF806125E9E3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B07599873F6CB7CFE8BE63DF /* Archon.app */,
+				C2B8DB296921F435EE1B45CC /* ArchonTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E790B70EB645C7E011667170 /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				79370577EA9C215B93AA4F21 /* Navigation.swift */,
+			);
+			path = Navigation;
+			sourceTree = "<group>";
+		};
+		EC56F564B46B7C167628081C /* Util */ = {
+			isa = PBXGroup;
+			children = (
+				31B27E351025CD9795F8DABC /* ArchonJSON.swift */,
+				D5DC06C36A5510FA50EDD5A3 /* JSONValue.swift */,
+				E80175917793628008C1CDB8 /* ProjectIdentity.swift */,
+				12DD67DFCE01F21CFC1293F4 /* ULID.swift */,
+			);
+			path = Util;
+			sourceTree = "<group>";
+		};
+		EC6B8D2B2ED2276751B5308D /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				41745580EDB1E4C88132D2D8 /* AppStateReducerTests.swift */,
+				9F03027C8A76E9EF0A0A008D /* BackoffAndSeqTests.swift */,
+				4F7CFDE79EE648FD44201D9A /* EventDecodingTests.swift */,
+				0001C5475BA43C9805F6E970 /* ModelDecodingTests.swift */,
+				F57220207B8609E7210FC095 /* MotionAndIDTests.swift */,
+				A0A998AFEE86997D9DCFD7B8 /* ProjectStoreTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		F789E916CB7AD08DD7C33B03 /* Shell */ = {
+			isa = PBXGroup;
+			children = (
+				EF7DA91D353722DB50A1F1FF /* ShellRegistry.swift */,
+				D48C08BFBBD54A0EF2C2FCB3 /* ThreePaneShell.swift */,
+			);
+			path = Shell;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		57A80E9779C080382BEBFF68 /* ArchonTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1C0BC63FF7516D095C089B80 /* Build configuration list for PBXNativeTarget "ArchonTests" */;
+			buildPhases = (
+				D38AB96E5D25095C9F739FEB /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				574F0418ACF81939CC619DDE /* PBXTargetDependency */,
+			);
+			name = ArchonTests;
+			packageProductDependencies = (
+			);
+			productName = ArchonTests;
+			productReference = C2B8DB296921F435EE1B45CC /* ArchonTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		E9CAE94E668323B588125EFC /* Archon */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 35CCF6356276B6FC33ADA6DC /* Build configuration list for PBXNativeTarget "Archon" */;
+			buildPhases = (
+				BCFB2285EB9E3A79D79A3642 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Archon;
+			packageProductDependencies = (
+			);
+			productName = Archon;
+			productReference = B07599873F6CB7CFE8BE63DF /* Archon.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		393BF1BC6867ACC6AAB848B9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					57A80E9779C080382BEBFF68 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+					E9CAE94E668323B588125EFC = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 2C0B791CCBF8266E1437475E /* Build configuration list for PBXProject "Archon" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 241750D5295E4DC14F17AFB1;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D66D076A4566CF02BF9665F9 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E9CAE94E668323B588125EFC /* Archon */,
+				57A80E9779C080382BEBFF68 /* ArchonTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BCFB2285EB9E3A79D79A3642 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABD0B0E866263454C50C871C /* APIClient.swift in Sources */,
+				36EFA4D99D62034BCC20C97F /* APIError.swift in Sources */,
+				A00D07F1D198B17F1D23C126 /* AppContainer.swift in Sources */,
+				74743BAFFBE1B4626A190C3E /* AppState.swift in Sources */,
+				B409FFD026BDD440436875F9 /* ArchonApp.swift in Sources */,
+				13A2D5E32B8C0B70397ECAF2 /* ArchonJSON.swift in Sources */,
+				4F08071D72C27F4EBD4ADE2C /* ArchonMaterial.swift in Sources */,
+				BAC9556CF6077D7FB066588E /* ArchonMotion.swift in Sources */,
+				96E73C83721115138594AABA /* BackoffPolicy.swift in Sources */,
+				67EB9F8A308792DE303CE2D2 /* Conductor.swift in Sources */,
+				135669C0FD12FBE6AC88F226 /* Controls.swift in Sources */,
+				2459770C8625F0741705F4D9 /* DesignTokens.swift in Sources */,
+				0D60DB8DB3E137CF2C8FAE87 /* Events.swift in Sources */,
+				41B63FED230E0D70FD345E06 /* Health.swift in Sources */,
+				06E2EE53BDDDE481B344B6B6 /* JSONValue.swift in Sources */,
+				A0991A796CB072B3B25FD1CF /* Kanban.swift in Sources */,
+				22A938655A1EE30F9DD68050 /* Memory.swift in Sources */,
+				87839E6C598352311BEAF301 /* Navigation.swift in Sources */,
+				D015E0FB78520B8CA85DEAA6 /* OrchestratorSupervisor.swift in Sources */,
+				22652D4F43458C38E9035EE7 /* Project.swift in Sources */,
+				A11B148D03E51AE89F522949 /* ProjectIdentity.swift in Sources */,
+				5854CEDDFC97C2A5E2F41E0B /* ProjectPicker.swift in Sources */,
+				FC147400B4515306CA727C9C /* ProjectStore.swift in Sources */,
+				80D7D86AB413EB18BF31C457 /* RootView.swift in Sources */,
+				C61830EFA869D1D649E6D6AD /* Runtime.swift in Sources */,
+				C4209031F0BE9C1E1CEFA5BC /* SeqTracker.swift in Sources */,
+				CB050FE8AE0E9CAA418B849C /* Session.swift in Sources */,
+				152474973E3B0B3A6FC082D9 /* ShellRegistry.swift in Sources */,
+				CB8D0C40366066D2270452B3 /* Spacing.swift in Sources */,
+				AD2F8611402E971242DB8F38 /* StateViews.swift in Sources */,
+				D8B53368C64CD26E79C1D6C7 /* StatusIndicators.swift in Sources */,
+				655EF1A102C3473AD1680A9C /* ThreePaneShell.swift in Sources */,
+				87EB61FA3F49D7EAAA464568 /* Typography.swift in Sources */,
+				643681D67D9758DC42C3C9D1 /* ULID.swift in Sources */,
+				DC50BB2644CC7C31C0B5EC02 /* WSClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D38AB96E5D25095C9F739FEB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				306F15B32823E8C5A98F73D0 /* AppStateReducerTests.swift in Sources */,
+				49359E6B3BF321D35A8F7EA0 /* BackoffAndSeqTests.swift in Sources */,
+				2E97BCD51D8F2A5DC2E104DA /* EventDecodingTests.swift in Sources */,
+				5228735650B621739FBA20FD /* ModelDecodingTests.swift in Sources */,
+				E933F80D23BF5500ECF0C706 /* MotionAndIDTests.swift in Sources */,
+				F62A8CBB5051CEB8E32E0A1E /* ProjectStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		574F0418ACF81939CC619DDE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E9CAE94E668323B588125EFC /* Archon */;
+			targetProxy = 0C2DC5C0EE6D8E0C60784337 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		063D3637A4A5E25DEEB5B493 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subralabs.archon.tests;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Archon.app/Contents/MacOS/Archon";
+			};
+			name = Release;
+		};
+		649DE62DAE1B26C63FDAF767 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Config/Archon.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LSMINIMUMSYSTEMVERSION = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subralabs.archon;
+				PRODUCT_NAME = Archon;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7AECA16F91A9A55C499F0504 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subralabs.archon.tests;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Archon.app/Contents/MacOS/Archon";
+			};
+			name = Debug;
+		};
+		A0EECABABA33D76248AA5E9E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Config/Archon.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LSMINIMUMSYSTEMVERSION = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subralabs.archon;
+				PRODUCT_NAME = Archon;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		DE05E54C6CDE61A8AA260282 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_FLAGS = "";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		E47D67383AFDA570BAB5EEE2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_FLAGS = "";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1C0BC63FF7516D095C089B80 /* Build configuration list for PBXNativeTarget "ArchonTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7AECA16F91A9A55C499F0504 /* Debug */,
+				063D3637A4A5E25DEEB5B493 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2C0B791CCBF8266E1437475E /* Build configuration list for PBXProject "Archon" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE05E54C6CDE61A8AA260282 /* Debug */,
+				E47D67383AFDA570BAB5EEE2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		35CCF6356276B6FC33ADA6DC /* Build configuration list for PBXNativeTarget "Archon" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0EECABABA33D76248AA5E9E /* Debug */,
+				649DE62DAE1B26C63FDAF767 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D66D076A4566CF02BF9665F9 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+	};
+	rootObject = 393BF1BC6867ACC6AAB848B9 /* Project object */;
+}
