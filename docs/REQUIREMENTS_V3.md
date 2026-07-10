@@ -654,9 +654,9 @@ All 32 original open items are resolved below. **Product (P)** items were decide
 - **[E] Q31 Conductor loop → single Claude call for routing (MVP);** multi-step agentic loop later.
 - **[E] Q32 Idle timeout → flag-only (no auto-kill);** reaping by user or Conductor.
 
-### 8.3 Residual open item (needs owner)
+### 8.3 Residual open item — RESOLVED
 
-- **[O] Reference machine / RAM.** All hard budgets are currently baselined to M4 Pro / 24 GB (placeholder). The owner's actual Mac is believed to be M-series (M5?). Confirm the exact chip and unified-memory size so REQ-PERF-* are re-baselined to real hardware before implementation begins.
+- **[P] Reference machine / RAM → Apple M5 / 32 GB** (measured on the owner's machine on 2026-07-10: `machdep.cpu.brand_string` = Apple M5, `hw.memsize` = 32 GB). All REQ-PERF-* hard budgets keep the M4 Pro / 24 GB figures as the *reference floor* (the owner's M5/32 GB is strictly faster/larger, so budgets passing on reference imply headroom on the real machine — not vice versa). CI/self-hosted runner baselining (Q28) should use M4 Pro-class or note the delta. No open items remain.
 
 ## 9. Traceability Note
 
