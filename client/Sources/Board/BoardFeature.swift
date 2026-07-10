@@ -25,6 +25,12 @@ enum BoardFeature {
         registry.register(.main(.kanban)) { KanbanBoardView(store: board) }
         registry.register(.main(.memory)) { MemoryView(store: memory) }
         registry.register(.main(.codebase)) { CodebaseView(store: codebase) }
+
+        // REQ-UX-001: the shell's right drawer ("conductor edge") houses the
+        // Kanban board. Register the same board (shared store) there so the
+        // drawer shows live content instead of a placeholder; ⌘4 additionally
+        // surfaces it as a full main pane per the integration directive.
+        registry.register(.conductorEdge) { KanbanBoardView(store: board) }
     }
 }
 

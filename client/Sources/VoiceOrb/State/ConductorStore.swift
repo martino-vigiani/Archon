@@ -29,8 +29,17 @@ final class ConductorStore {
     private(set) var lastError: ConductorError?
 
     /// User-adjustable terminal cap (REQ-UX-033): 1…ceiling, default 8.
+    ///
+    /// The `didSet` clamps to `1…hardCeiling`, but only re-assigns when the
+    /// clamped value actually differs — Swift fires `didSet` on *every* set
+    /// (including equal-value writes and the clamp write itself), so an
+    /// unconditional `cap = …` here recurses without bound and overflows the
+    /// stack. The guard makes it converge in at most one extra assignment.
     var cap: Int = 8 {
-        didSet { cap = min(max(cap, 1), hardCeiling) }
+        didSet {
+            let clamped = min(max(cap, 1), hardCeiling)
+            if cap != clamped { cap = clamped }
+        }
     }
     private(set) var hardCeiling: Int = 8
 

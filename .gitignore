@@ -54,6 +54,15 @@ output/
 # Claude settings overrides (personal)
 .claude/settings.local.json
 
+# Claude Code feature worktrees (nested git checkouts — never embed as gitlinks)
+.claude/worktrees/
+
+# Xcode / Swift build artifacts
+*.profraw
+DerivedData/
+client/Archon.xcodeproj/xcuserdata/
+client/Archon.xcodeproj/project.xcworkspace/xcuserdata/
+
 # Logs
 *.log
 

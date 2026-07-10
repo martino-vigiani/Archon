@@ -26,6 +26,7 @@ final class AppContainer {
     private var supervisorTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var didRegisterFeatures = false
 
     init() {
         let store = ProjectStore()
@@ -40,8 +41,35 @@ final class AppContainer {
     /// Starts the long-lived observers that mirror transport state into
     /// `AppState`. Idempotent.
     func bootstrap() {
+        registerFeatures()
         observeSupervisor()
         observeConnection()
+    }
+
+    /// Plugs the phase-B feature modules into the shell registry (task item 2),
+    /// replacing the neutral placeholder slots. Each feature owns its slots and
+    /// starts its own store/coordinator (event pump + snapshot refresh) off the
+    /// shared `WSClient`/`APIClient`; the WS event/state streams are multicast,
+    /// so the independent per-feature subscribers coexist with the container's
+    /// own `AppState` pump. Guarded so double `bootstrap()` never duplicates
+    /// stores.
+    ///
+    /// Slot map after registration:
+    ///   • `.sidebar`            → Terminals (session list / focus driver)
+    ///   • `.main(.terminals)`   → Terminals grid + focus
+    ///   • `.main(.summary)`     → Terminals summary dashboard
+    ///   • `.main(.kanban)`      → Board kanban  (⌘4)
+    ///   • `.main(.memory)`      → Board memory  (⌘5)
+    ///   • `.main(.codebase)`    → Board codebase (⌘3)
+    ///   • `.conductorEdge`      → Board kanban drawer (REQ-UX-001)
+    ///   • `.orbOverlay`         → VoiceOrb floating orb + conductor surface
+    ///   • `.conductorSurface`   → VoiceOrb conductor exchange
+    private func registerFeatures() {
+        guard !didRegisterFeatures else { return }
+        didRegisterFeatures = true
+        TerminalsFeature.register(into: registry, container: self)
+        BoardFeature.register(into: registry, container: self)
+        VoiceOrbFeature.register(into: registry, container: self)
     }
 
     // MARK: - Project lifecycle
