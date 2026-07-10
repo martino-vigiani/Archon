@@ -70,3 +70,4 @@ client/Archon.xcodeproj/project.xcworkspace/xcuserdata/
 .archon-redesign-proposals/
 .impeccable/
 research/
+client/.build/
