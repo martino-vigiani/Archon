@@ -43,8 +43,8 @@ black orchestrator/
 ruff check orchestrator/
 
 # Run the suites
-pytest          # backend — 754 tests across 24 files
-npx vitest      # frontend — 6 tests across 2 files
+pytest          # backend
+npx vitest      # frontend
 
 # Commit and push
 git commit -m "feat: describe the change"

@@ -23,8 +23,9 @@ struct OrchestratorLaunchConfig: Sendable, Equatable {
     ///   3. Auto-discovery: walk up from the running binary looking for a repo
     ///      root that has both `.venv/bin/python` and `orchestrator/v3` (covers
     ///      in-tree `swift`/xcode dev builds).
-    ///   4. A last-resort dev fallback (the historical hardcode), used ONLY when
-    ///      nothing above resolves — keeps this developer's machine working.
+    ///   4. Nothing resolved: point at the bundled runtime path anyway, so the
+    ///      launch fails on the missing interpreter instead of running a
+    ///      Python found somewhere else (set `ARCHON_REPO` to fix it).
     static let `default` = resolve()
 
     static func resolve(
@@ -78,9 +79,10 @@ struct OrchestratorLaunchConfig: Sendable, Equatable {
             dir = parent
         }
 
-        // 4. Last-resort dev fallback (historical hardcode).
-        let devRepo = URL(fileURLWithPath: "/Users/martinovigiani/lab/Archon")
-        return makeConfig(repo: devRepo)
+        // 4. Fail closed: never fall back to the working directory.
+        let bundledRepo = (bundle.resourceURL ?? bundle.bundleURL)
+            .appendingPathComponent("orchestrator-runtime")
+        return makeConfig(repo: bundledRepo)
     }
 
     /// The full argument vector. Integration seam: the V3 serve entry point is
