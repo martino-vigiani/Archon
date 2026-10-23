@@ -35,7 +35,7 @@ from typing import Any
 import httpx
 import websockets
 
-REPO = Path("/Users/martinovigiani/lab/Archon")
+REPO = Path(__file__).resolve().parent.parent
 VENV_PY = REPO / ".venv" / "bin" / "python"
 SCRATCH = Path("/tmp/archon-e2e-project")
 ORCH_LOG = Path("/tmp/archon-e2e-orch.log")
